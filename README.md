@@ -1,3 +1,13 @@
+---
+title: Domino's Clan
+emoji: 🎲
+colorFrom: green
+colorTo: yellow
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Domino's Clan 🁫
 
 Jeu de dominos **chill entre amis**, jouable sur **web et mobile**.
@@ -75,6 +85,21 @@ npm run typecheck                         # tsc sur les 3 workspaces
 npm run smoke -w @dominos-clan/server     # e2e : 3 joueurs + 1 spectateur, manche complète
                                           # (serveur à démarrer avant)
 ```
+
+## ☁️ Déploiement — Hugging Face Space (gratuit)
+
+Le repo est un **Docker Space** prêt à l'emploi (front matter YAML ci-dessus, [Dockerfile](Dockerfile)) :
+le conteneur build le client Vite puis le serveur socket.io sert le jeu ET le temps réel sur le port 7860.
+
+```bash
+# 1. créer le Space (une fois) — type Docker, public
+# 2. pousser ce repo dessus :
+git remote add hf https://huggingface.co/spaces/<ton-user>/dominos-clan
+git push hf main
+```
+
+Notes free tier : le Space s'endort après ~48 h d'inactivité (premier accès un peu lent),
+et l'état des salons est en mémoire (un redéploiement vide les salons — sans gravité).
 
 ## 🗺️ Roadmap
 

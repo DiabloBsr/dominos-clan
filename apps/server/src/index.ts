@@ -1,4 +1,7 @@
 import { createServer } from 'node:http'
+import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import sirv from 'sirv'
 import { Server, type Socket } from 'socket.io'
 import { viewFor } from '@dominos-clan/engine'
 import type { Move } from '@dominos-clan/engine'
@@ -20,9 +23,22 @@ import {
 
 const PORT = Number(process.env.PORT ?? 4001)
 
-const httpServer = createServer((_req, res) => {
-  res.writeHead(200, { 'content-type': 'application/json' })
-  res.end(JSON.stringify({ ok: true, service: 'dominos-clan-server' }))
+// En prod (Docker/HF Space), le serveur sert aussi le client web buildé.
+const staticDir =
+  process.env.STATIC_DIR ?? fileURLToPath(new URL('../../web/dist', import.meta.url))
+const serveStatic = existsSync(staticDir)
+  ? sirv(staticDir, { single: true, etag: true })
+  : null
+
+if (serveStatic) console.log(`[dominos-clan] client web servi depuis ${staticDir}`)
+
+const httpServer = createServer((req, res) => {
+  if (req.url === '/healthz' || !serveStatic) {
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ ok: true, service: 'dominos-clan-server' }))
+    return
+  }
+  serveStatic(req, res)
 })
 
 const io = new Server(httpServer, {
