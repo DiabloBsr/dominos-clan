@@ -22,15 +22,27 @@ export class GameError extends Error {
 
 /**
  * Règles : domino bloqué (block) double-six, 7 dominos chacun, pas de pioche.
- * L'ouverture est imposée : plus gros double en jeu, sinon domino le plus lourd.
  * Blocage = tout le monde passe une fois de suite ; gagne la main la plus légère.
  * Égalité au minimum de points → manche NULLE (personne ne marque).
  * `rules.freePass` autorise de passer même avec un coup jouable.
+ *
+ * Ouverture selon `opening.policy` :
+ * - 'classic' (défaut) : plus gros double en jeu, sinon domino le plus lourd — imposé.
+ * - 'smallest-double' : plus petit double en main (1-1 → 6-6, puis 0-0) — imposé ;
+ *   si aucun double n'est en main, retombe sur 'classic'.
+ * - 'rotate' : l'ouvreur est fourni (`starterIndex`) ; il doit poser un domino
+ *   de total ≤ rules.openingMaxPips (à défaut, son domino le plus léger).
  */
+export type OpeningPolicy =
+  | { policy: 'classic' }
+  | { policy: 'smallest-double' }
+  | { policy: 'rotate'; starterIndex: number }
+
 export function createGame(
   playerIds: string[],
   seed: number,
   rules: Partial<GameRules> = {},
+  opening: OpeningPolicy = { policy: 'classic' },
 ): GameState {
   if (playerIds.length < 2 || playerIds.length > 4) {
     throw new GameError('BAD_PLAYER_COUNT', `Il faut 2 à 4 joueurs, reçu ${playerIds.length}`)
@@ -45,11 +57,32 @@ export function createGame(
     hand: deck.slice(i * HAND_SIZE, (i + 1) * HAND_SIZE),
   }))
   const sleeping = deck.slice(playerIds.length * HAND_SIZE)
+  const hands = players.map((p) => p.hand)
+  const mergedRules = { ...DEFAULT_RULES, ...rules }
 
-  const { starterIndex, openingTile } = findOpening(players.map((p) => p.hand))
+  let starterIndex: number
+  let openingTile: Tile | null
+  let openingMaxPips: number | null = null
+
+  if (opening.policy === 'rotate') {
+    if (opening.starterIndex < 0 || opening.starterIndex >= players.length) {
+      throw new GameError('BAD_PLAYER_COUNT', `starterIndex invalide : ${opening.starterIndex}`)
+    }
+    starterIndex = opening.starterIndex
+    openingTile = null
+    openingMaxPips = mergedRules.openingMaxPips ?? 12
+  } else if (opening.policy === 'smallest-double') {
+    const found = findSmallestDouble(hands) ?? findOpening(hands)
+    starterIndex = found.starterIndex
+    openingTile = found.openingTile
+  } else {
+    const found = findOpening(hands)
+    starterIndex = found.starterIndex
+    openingTile = found.openingTile
+  }
 
   return {
-    rules: { ...DEFAULT_RULES, ...rules },
+    rules: mergedRules,
     players,
     line: [],
     sleeping,
@@ -59,7 +92,21 @@ export function createGame(
     result: null,
     lastPlayerIndex: null,
     forcedOpening: openingTile,
+    openingMaxPips,
   }
+}
+
+/** Plus petit double en main : 1-1, 2-2… 6-6, puis 0-0 en dernier recours. */
+function findSmallestDouble(
+  hands: Tile[][],
+): { starterIndex: number; openingTile: Tile } | null {
+  for (const value of [1, 2, 3, 4, 5, 6, 0]) {
+    for (let i = 0; i < hands.length; i++) {
+      const tile = hands[i]!.find((t) => t.hi === value && t.lo === value)
+      if (tile) return { starterIndex: i, openingTile: tile }
+    }
+  }
+  return null
 }
 
 /** Plus gros double toutes mains confondues, sinon domino le plus lourd (départage : plus gros hi). */
@@ -104,7 +151,19 @@ export function legalMoves(state: GameState, playerId: string): Move[] {
   const ends = lineEnds(state)
   if (!ends) {
     // Ouverture imposée : le meneur doit poser le domino qui lui a donné la main.
-    return [{ type: 'play', tile: state.forcedOpening!, end: 'right' }]
+    if (state.forcedOpening) return [{ type: 'play', tile: state.forcedOpening, end: 'right' }]
+    // Ouverture plafonnée (manches tournantes) : total ≤ N, sinon le plus léger.
+    if (state.openingMaxPips !== null) {
+      const cap = state.openingMaxPips
+      const allowed = hand.filter((t) => tilePips(t) <= cap)
+      if (allowed.length > 0) return allowed.map((tile) => ({ type: 'play' as const, tile, end: 'right' as const }))
+      const min = Math.min(...hand.map(tilePips))
+      return hand
+        .filter((t) => tilePips(t) === min)
+        .map((tile) => ({ type: 'play' as const, tile, end: 'right' as const }))
+    }
+    // Ouverture libre.
+    return hand.map((tile) => ({ type: 'play' as const, tile, end: 'right' as const }))
   }
 
   const moves: Move[] = []

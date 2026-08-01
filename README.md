@@ -46,6 +46,7 @@ Exemple : 6 potes dans le salon, 3 jouent un 1v1v1, les 3 autres regardent (et c
 - **Match aux points** : le gagnant de chaque manche encaisse la somme des mains adverses ; **premier à la cible** (défaut 80, réglable 10-1000) remporte le match. La table est figée pendant le match ; la rotation se fait au match suivant.
 - **Seuil de première marque** : la toute première marque d'un joueur ne compte que si elle atteint le seuil ; ensuite, même 1 point compte.
 - **Passe libre** : autorise de passer même avec un domino jouable.
+- **Ouverture tournante** : la 1re manche de la rencontre est ouverte par le détenteur du **plus petit double** (on cherche le 1-1, sinon le 2-2… jusqu'au 6-6, puis le 0-0 ; à défaut, ouverture classique), qui doit le poser. Ensuite l'ouverture **tourne de gauche à droite** autour de la table, et l'ouvreur doit poser un domino dont le **total de points ≤ N** (réglable 0-12, défaut 6) — s'il n'en a pas, il pose son domino le plus léger.
 - **Comptes** : pseudo simple, pas d'auth en V1.
 - **Réactions** : 8 emotes fixes (😂 🔥 👏 😮 😭 😈 🤝 💀), throttle anti-spam 400 ms.
 - **Chat texte** : panneau 💬 avec badge de non-lus, 300 caractères max, throttle 500 ms.

@@ -212,6 +212,41 @@ export function Room({
               </label>
             </>
           )}
+          <select
+            className="voice-audience"
+            disabled={!isHost}
+            value={room.rules.openingMaxPips === null ? 'classic' : 'rotate'}
+            title="Classique : le plus gros double ouvre chaque manche. Tournante : 1re manche au plus petit double (1-1 → 6-6), puis l'ouverture tourne autour de la table avec un plafond de points."
+            onChange={(e) =>
+              onRules({ ...room.rules, openingMaxPips: e.target.value === 'rotate' ? 6 : null })
+            }
+          >
+            <option value="classic">Ouverture classique</option>
+            <option value="rotate">Ouverture tournante</option>
+          </select>
+          {room.rules.openingMaxPips !== null && (
+            <label
+              className="rules-num"
+              title="Dès la 2e manche, l'ouvreur doit poser un domino dont le total de points est ≤ ce nombre (à défaut, son plus léger)"
+            >
+              ouvrir ≤
+              <input
+                key={`o-${room.rules.openingMaxPips}`}
+                type="number"
+                min={0}
+                max={12}
+                disabled={!isHost}
+                defaultValue={room.rules.openingMaxPips}
+                onBlur={(e) =>
+                  onRules({
+                    ...room.rules,
+                    openingMaxPips: Math.max(0, Math.min(12, Number(e.target.value) || 6)),
+                  })
+                }
+              />
+              pts
+            </label>
+          )}
           <label className="rules-check" title="Autoriser de passer même avec un domino jouable">
             <input
               type="checkbox"

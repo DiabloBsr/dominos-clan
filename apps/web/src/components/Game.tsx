@@ -175,7 +175,7 @@ export function Game({
               className={`felt-hint ${activeTile ? 'drop-target' : ''}`}
               data-drop-end={activeTile ? 'right' : undefined}
             >
-              {myTurn ? 'À toi l’ouverture — pose ton domino imposé' : 'La table attend l’ouverture…'}
+              {myTurn ? 'À toi l’ouverture !' : 'La table attend l’ouverture…'}
             </p>
           ) : (
             u > 0 && (

@@ -30,6 +30,10 @@ export interface Room {
   /** Scores cumulés du match en cours (mode match aux points). */
   scores: Map<string, number>
   matchWinnerId: string | null
+  /** Nombre de manches jouées dans la rencontre (ouverture tournante). */
+  roundIndex: number
+  /** Index de siège de l'ouvreur de la dernière manche (rotation gauche → droite). */
+  lastStarterSeatIndex: number | null
   /** Timestamp de la dernière réaction par membre (anti-spam). */
   lastReactionAt: Map<string, number>
   /** Timestamp du dernier message chat par membre (anti-spam). */
@@ -85,6 +89,8 @@ export function createRoom(rawPseudo: unknown, socketId: string): { room: Room; 
     rules: { ...DEFAULT_RULES },
     scores: new Map(),
     matchWinnerId: null,
+    roundIndex: 0,
+    lastStarterSeatIndex: null,
     lastReactionAt: new Map(),
     lastChatAt: new Map(),
   }
@@ -139,10 +145,17 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
   if (!Number.isInteger(openThreshold) || openThreshold < 0 || openThreshold > 200) {
     throw new RoomError('Seuil de première marque invalide (0 à 200)')
   }
-  room.rules = { targetScore, openThreshold, freePass: Boolean(r.freePass) }
-  // Changer les règles relance un match propre.
+  const openingMaxPips =
+    r.openingMaxPips === null || r.openingMaxPips === undefined ? null : Number(r.openingMaxPips)
+  if (openingMaxPips !== null && (!Number.isInteger(openingMaxPips) || openingMaxPips < 0 || openingMaxPips > 12)) {
+    throw new RoomError('Plafond d’ouverture invalide (0 à 12 points)')
+  }
+  room.rules = { targetScore, openThreshold, freePass: Boolean(r.freePass), openingMaxPips }
+  // Changer les règles relance une rencontre propre.
   room.scores = new Map()
   room.matchWinnerId = null
+  room.roundIndex = 0
+  room.lastStarterSeatIndex = null
 }
 
 export function takeSeat(room: Room, memberId: string): void {
@@ -170,8 +183,25 @@ export function startGame(room: Room, memberId: string): void {
   if (room.matchWinnerId !== null) {
     room.scores = new Map()
     room.matchWinnerId = null
+    room.roundIndex = 0
+    room.lastStarterSeatIndex = null
   }
-  room.game = createGame(room.seats, randomInt(2 ** 31), room.rules)
+
+  // Ouverture tournante : 1re manche désignée par le plus petit double,
+  // puis l'ouverture tourne de gauche à droite avec plafond de points.
+  const opening =
+    room.rules.openingMaxPips === null
+      ? ({ policy: 'classic' } as const)
+      : room.roundIndex === 0 || room.lastStarterSeatIndex === null
+        ? ({ policy: 'smallest-double' } as const)
+        : ({
+            policy: 'rotate',
+            starterIndex: (room.lastStarterSeatIndex + 1) % room.seats.length,
+          } as const)
+
+  room.game = createGame(room.seats, randomInt(2 ** 31), room.rules, opening)
+  room.lastStarterSeatIndex = room.game.turn
+  room.roundIndex += 1
   room.status = 'playing'
   room.lastWinnerId = null
 }

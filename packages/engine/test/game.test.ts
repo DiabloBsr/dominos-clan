@@ -20,9 +20,16 @@ function craftState(partial: {
   consecutivePasses?: number
   lastPlayerIndex?: number | null
   rules?: Partial<GameState['rules']>
+  openingMaxPips?: number | null
 }): GameState {
   return {
-    rules: { targetScore: null, openThreshold: 0, freePass: false, ...partial.rules },
+    rules: {
+      targetScore: null,
+      openThreshold: 0,
+      freePass: false,
+      openingMaxPips: null,
+      ...partial.rules,
+    },
     players: Object.entries(partial.hands).map(([id, hand]) => ({ id, hand })),
     line: partial.line ?? [],
     sleeping: [],
@@ -32,6 +39,7 @@ function craftState(partial: {
     result: null,
     lastPlayerIndex: partial.lastPlayerIndex ?? null,
     forcedOpening: null,
+    openingMaxPips: partial.openingMaxPips ?? null,
   }
 }
 
@@ -67,6 +75,53 @@ describe('createGame', () => {
         expect(tilePips(opening)).toBe(maxPips)
       }
     }
+  })
+
+  it('ouverture « smallest-double » : le plus petit double en main (1-1 → 6-6) désigne l’ouvreur', () => {
+    for (const seed of [1, 5, 42, 77, 2026]) {
+      const state = createGame(['a', 'b', 'c'], seed, {}, { policy: 'smallest-double' })
+      const opening = state.forcedOpening!
+      const allTiles = state.players.flatMap((p) => p.hand)
+      const doubles = allTiles.filter(isDouble)
+      if (doubles.length > 0) {
+        // Ordre de recherche : 1,2,…,6 puis 0.
+        const order = [1, 2, 3, 4, 5, 6, 0]
+        const best = order.find((v) => doubles.some((d) => d.hi === v))!
+        expect(isDouble(opening)).toBe(true)
+        expect(opening.hi).toBe(best)
+      }
+      expect(state.players[state.turn]!.hand.some((t) => tileEquals(t, opening))).toBe(true)
+      expect(legalMoves(state, state.players[state.turn]!.id)).toEqual([
+        { type: 'play', tile: opening, end: 'right' },
+      ])
+    }
+  })
+
+  it('ouverture « rotate » : l’ouvreur est imposé et doit poser un domino ≤ N points', () => {
+    const state = createGame(['a', 'b'], 9, { openingMaxPips: 4 }, { policy: 'rotate', starterIndex: 1 })
+    expect(state.turn).toBe(1)
+    expect(state.forcedOpening).toBeNull()
+    const moves = legalMoves(state, 'b')
+    expect(moves.length).toBeGreaterThan(0)
+    for (const m of moves) {
+      expect(m.type).toBe('play')
+      if (m.type === 'play') expect(m.tile.hi + m.tile.lo).toBeLessThanOrEqual(4)
+    }
+  })
+
+  it('ouverture « rotate » sans domino ≤ N : le plus léger de la main est imposé', () => {
+    const state = craftState({
+      hands: {
+        a: [{ hi: 6, lo: 6 }],
+        b: [{ hi: 6, lo: 5 }, { hi: 5, lo: 4 }, { hi: 6, lo: 4 }],
+      },
+      turn: 1,
+      openingMaxPips: 2,
+    })
+    const moves = legalMoves(state, 'b')
+    expect(moves).toEqual([{ type: 'play', tile: { hi: 5, lo: 4 }, end: 'right' }])
+    const after = applyMove(state, 'b', { type: 'play', tile: { hi: 5, lo: 4 }, end: 'right' })
+    expect(after.line).toHaveLength(1)
   })
 
   it('impose le domino d’ouverture comme seul coup légal', () => {

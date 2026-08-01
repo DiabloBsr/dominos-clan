@@ -30,12 +30,20 @@ export interface GameRules {
   openThreshold: number
   /** Autoriser de passer même quand on a un domino jouable. */
   freePass: boolean
+  /**
+   * Ouverture tournante : null = ouverture classique (plus gros double).
+   * Sinon : 1re manche désignée par le plus petit double (1-1 → 6-6),
+   * puis l'ouverture tourne autour de la table et l'ouvreur doit poser
+   * un domino dont le total de points est ≤ à ce nombre.
+   */
+  openingMaxPips: number | null
 }
 
 export const DEFAULT_RULES: GameRules = {
   targetScore: null,
   openThreshold: 0,
   freePass: false,
+  openingMaxPips: null,
 }
 
 export interface RoundResult {
@@ -65,6 +73,12 @@ export interface GameState {
   lastPlayerIndex: number | null
   /** Domino imposé pour l'ouverture (plus gros double, sinon domino le plus lourd). */
   forcedOpening: Tile | null
+  /**
+   * Contrainte d'ouverture par plafond (manches « tournantes ») : si non-null
+   * et forcedOpening null, l'ouvreur doit poser un domino de total ≤ ce nombre
+   * (à défaut, son domino le plus léger).
+   */
+  openingMaxPips: number | null
 }
 
 export type Role = 'player' | 'spectator'
