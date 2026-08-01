@@ -1,0 +1,18 @@
+{
+  "name": "dominos-clan",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "npm run test -w @dominos-clan/engine",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev:server": "npm run dev -w @dominos-clan/server",
+    "dev:web": "npm run dev -w @dominos-clan/web"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}
