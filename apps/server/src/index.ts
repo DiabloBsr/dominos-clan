@@ -30,7 +30,19 @@ const PORT = Number(process.env.PORT ?? 4001)
 const staticDir =
   process.env.STATIC_DIR ?? fileURLToPath(new URL('../../web/dist', import.meta.url))
 const serveStatic = existsSync(staticDir)
-  ? sirv(staticDir, { single: true, etag: true })
+  ? sirv(staticDir, {
+      single: true,
+      etag: true,
+      setHeaders: (res, pathname) => {
+        // Les assets Vite sont hashés → cache immuable ; le HTML jamais,
+        // sinon un navigateur peut rester bloqué sur un ancien déploiement.
+        if (pathname.startsWith('/assets/')) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+        } else {
+          res.setHeader('Cache-Control', 'no-cache')
+        }
+      },
+    })
   : null
 
 if (serveStatic) console.log(`[dominos-clan] client web servi depuis ${staticDir}`)

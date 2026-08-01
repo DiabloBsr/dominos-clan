@@ -348,11 +348,14 @@ body::before {
 
 /* ─── Table & jeu ────────────────────────────────────────────────── */
 
+/* Une vraie table vue de dessus : carrée, centrée, bornée par la hauteur d'écran. */
 .table-felt {
   position: relative;
   border-radius: 28px;
   padding: 1.6rem 1rem 1.2rem;
-  min-height: 11rem;
+  width: min(100%, 58vh, 36rem);
+  aspect-ratio: 1;
+  margin-inline: auto;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -361,10 +364,6 @@ body::before {
     inset 0 0 60px rgba(0, 0, 0, 0.45),
     inset 0 0 0 6px rgba(0, 0, 0, 0.25),
     0 12px 30px rgba(0, 0, 0, 0.35);
-}
-
-.table-felt.idle {
-  min-height: 9rem;
 }
 
 .felt-hint {
