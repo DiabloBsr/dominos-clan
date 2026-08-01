@@ -32,7 +32,7 @@ export function DominoTile({
   a: number
   b: number
   vertical?: boolean
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'abs'
   playable?: boolean
   selected?: boolean
   onClick?: () => void

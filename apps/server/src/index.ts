@@ -19,6 +19,7 @@ import {
   removeMember,
   roomView,
   sanitizeChatText,
+  setRules,
   startGame,
   takeSeat,
   type Room,
@@ -137,6 +138,14 @@ io.on('connection', (socket: Socket) => {
     handle(ack, () => {
       const { room, memberId } = withRoom(state)
       leaveSeat(room, memberId)
+      broadcast(room)
+    }),
+  )
+
+  socket.on('room:rules', (payload: unknown, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      setRules(room, memberId, payload)
       broadcast(room)
     }),
   )

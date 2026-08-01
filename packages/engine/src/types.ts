@@ -22,14 +22,35 @@ export interface PlayerState {
   hand: Tile[]
 }
 
+/** Préréglages de la table, choisis par l'hôte. */
+export interface GameRules {
+  /** null = manche sèche ; sinon match aux points : premier à atteindre ce score. */
+  targetScore: number | null
+  /** Ouverture du compteur : la première marque ne compte que si le gain atteint ce seuil (0 = tout compte). */
+  openThreshold: number
+  /** Autoriser de passer même quand on a un domino jouable. */
+  freePass: boolean
+}
+
+export const DEFAULT_RULES: GameRules = {
+  targetScore: null,
+  openThreshold: 0,
+  freePass: false,
+}
+
 export interface RoundResult {
-  winnerId: string
+  /** null = manche nulle (blocage avec égalité au minimum de points) : personne ne marque. */
+  winnerId: string | null
   reason: 'domino' | 'blocked'
   /** Points restants dans chaque main à la fin de la manche. */
   pips: Record<string, number>
+  /** Points pris par le gagnant (somme des mains adverses) ; 0 si manche nulle. */
+  gain: number
 }
 
 export interface GameState {
+  /** Règles de la manche (freePass influe sur les coups légaux). */
+  rules: GameRules
   /** Joueurs dans l'ordre du tour (2 à 4). */
   players: PlayerState[]
   line: PlacedTile[]

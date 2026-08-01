@@ -36,9 +36,16 @@ Exemple : 6 potes dans le salon, 3 jouent un 1v1v1, les 3 autres regardent (et c
 
 - **Variante** : domino **bloqué** (block) double-six, 28 dominos, **7 par joueur**, pas de pioche — le reste « dort ».
 - **Ouverture imposée** : le détenteur du plus gros double ouvre avec ; sans double distribué, le domino le plus lourd ouvre.
-- **Fin de manche** : main vidée (« domino ! ») ou table bloquée (tout le monde passe) → la main la plus légère gagne. Égalité : le premier dans l'ordre du tour après le dernier poseur.
-- **Score** : partie sèche — une manche, un gagnant, rotation immédiate.
-- **Passer** n'est légal que sans coup jouable (anti-sandbagging).
+- **Fin de manche** : main vidée (« domino ! ») ou table bloquée (tout le monde passe) → la main la plus légère gagne. **Égalité au minimum = manche nulle (« X »)** : personne ne marque, pas de rotation, on rejoue.
+- **Passer** n'est légal que sans coup jouable (anti-sandbagging) — sauf préréglage « passe libre ».
+- **Pose** : tape un domino jouable (pose directe si un seul bout possible), ou glisse-le (drag & drop) sur les zones illuminées ; la chaîne s'affiche en **serpentin** qui tourne quand la rangée est pleine, doubles posés en travers.
+
+### ⚙️ Préréglages (choisis par l'hôte, avant la manche)
+
+- **Manche sèche** (défaut) : une manche, un gagnant, rotation immédiate.
+- **Match aux points** : le gagnant de chaque manche encaisse la somme des mains adverses ; **premier à la cible** (défaut 80, réglable 10-1000) remporte le match. La table est figée pendant le match ; la rotation se fait au match suivant.
+- **Seuil de première marque** : la toute première marque d'un joueur ne compte que si elle atteint le seuil ; ensuite, même 1 point compte.
+- **Passe libre** : autorise de passer même avec un domino jouable.
 - **Comptes** : pseudo simple, pas d'auth en V1.
 - **Réactions** : 8 emotes fixes (😂 🔥 👏 😮 😭 😈 🤝 💀), throttle anti-spam 400 ms.
 - **Chat texte** : panneau 💬 avec badge de non-lus, 300 caractères max, throttle 500 ms.

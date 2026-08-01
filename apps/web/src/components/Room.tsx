@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { GameView, Move, RoomView } from '@dominos-clan/engine'
+import type { GameRules, GameView, Move, RoomView } from '@dominos-clan/engine'
 import type { ChatMessage, FloatingReaction } from '../App'
 import type { VoiceAudience, VoiceControls } from '../useVoice'
 import { Game } from './Game'
@@ -23,6 +23,7 @@ export function Room({
   onMove,
   onReact,
   onChat,
+  onRules,
   onLeave,
 }: {
   room: RoomView
@@ -37,6 +38,7 @@ export function Room({
   onMove: (move: Move) => void
   onReact: (emoji: string) => void
   onChat: (text: string) => void
+  onRules: (rules: GameRules) => void
   onLeave: () => void
 }) {
   const [copied, setCopied] = useState(false)
@@ -157,12 +159,99 @@ export function Room({
         </div>
       </div>
 
+      {room.status !== 'playing' && (
+        <div className="rules-bar">
+          <span className="group-label">⚙️ Règles</span>
+          <select
+            className="voice-audience"
+            disabled={!isHost}
+            value={room.rules.targetScore === null ? 'seche' : 'match'}
+            onChange={(e) =>
+              onRules({ ...room.rules, targetScore: e.target.value === 'match' ? 80 : null })
+            }
+          >
+            <option value="seche">Manche sèche</option>
+            <option value="match">Match aux points</option>
+          </select>
+          {room.rules.targetScore !== null && (
+            <>
+              <label className="rules-num">
+                cible
+                <input
+                  key={`t-${room.rules.targetScore}`}
+                  type="number"
+                  min={10}
+                  max={1000}
+                  disabled={!isHost}
+                  defaultValue={room.rules.targetScore}
+                  onBlur={(e) =>
+                    onRules({
+                      ...room.rules,
+                      targetScore: Math.max(10, Math.min(1000, Number(e.target.value) || 80)),
+                    })
+                  }
+                />
+                pts
+              </label>
+              <label className="rules-num" title="La première marque ne compte que si elle atteint ce seuil ; ensuite tout compte">
+                1re marque ≥
+                <input
+                  key={`s-${room.rules.openThreshold}`}
+                  type="number"
+                  min={0}
+                  max={200}
+                  disabled={!isHost}
+                  defaultValue={room.rules.openThreshold}
+                  onBlur={(e) =>
+                    onRules({
+                      ...room.rules,
+                      openThreshold: Math.max(0, Math.min(200, Number(e.target.value) || 0)),
+                    })
+                  }
+                />
+              </label>
+            </>
+          )}
+          <label className="rules-check" title="Autoriser de passer même avec un domino jouable">
+            <input
+              type="checkbox"
+              disabled={!isHost}
+              checked={room.rules.freePass}
+              onChange={(e) => onRules({ ...room.rules, freePass: e.target.checked })}
+            />
+            Passe libre
+          </label>
+          {!isHost && <span className="empty">réglé par l’hôte ⭐</span>}
+        </div>
+      )}
+
+      {room.rules.targetScore !== null && (
+        <div className="scoreboard">
+          <span className="group-label">
+            🏁 Match en {room.rules.targetScore} pts
+            {room.rules.openThreshold > 0 ? ` · 1re marque ≥ ${room.rules.openThreshold}` : ''}
+          </span>
+          {room.seats.map((id) => (
+            <span key={id} className={`score-chip ${room.matchWinnerId === id ? 'winner' : ''}`}>
+              {pseudoOf(room, id)} <b>{room.scores[id] ?? 0}</b>
+            </span>
+          ))}
+        </div>
+      )}
+
       {result && (
         <div className="banner">
-          <h2>
-            👑 {pseudoOf(room, result.winnerId)}{' '}
-            {result.reason === 'domino' ? 'a fait domino !' : 'gagne — table bloquée'}
-          </h2>
+          {result.winnerId === null ? (
+            <h2>🤝 Manche nulle — égalité au blocage, personne ne marque</h2>
+          ) : room.matchWinnerId === result.winnerId ? (
+            <h2>🏆 {pseudoOf(room, result.winnerId)} remporte le match !</h2>
+          ) : (
+            <h2>
+              👑 {pseudoOf(room, result.winnerId)}{' '}
+              {result.reason === 'domino' ? 'a fait domino !' : 'gagne — table bloquée'}
+              {room.rules.targetScore !== null ? ` (+${result.gain} pts)` : ''}
+            </h2>
+          )}
           <div className="pips-table">
             {Object.entries(result.pips)
               .sort(([, a], [, b]) => a - b)
@@ -172,10 +261,30 @@ export function Room({
                 </span>
               ))}
           </div>
-          <p className="rotation-note">La table a tourné : le gagnant reste, la file monte.</p>
+          {result.winnerId !== null &&
+            room.rules.targetScore !== null &&
+            room.rules.openThreshold > 0 &&
+            (room.scores[result.winnerId] ?? 0) === 0 && (
+              <p className="rotation-note">
+                Marque insuffisante pour ouvrir le compteur (il faut ≥ {room.rules.openThreshold}).
+              </p>
+            )}
+          <p className="rotation-note">
+            {result.winnerId === null
+              ? 'On rejoue à l’identique, même table.'
+              : room.matchWinnerId
+                ? 'La table tourne pour le prochain match : le champion reste, la file monte.'
+                : room.rules.targetScore !== null
+                  ? 'Le match continue — même table.'
+                  : 'La table a tourné : le gagnant reste, la file monte.'}
+          </p>
           {isHost && (
             <button className="btn" onClick={onStart} disabled={room.seats.length < 2}>
-              Manche suivante
+              {room.matchWinnerId
+                ? 'Nouveau match'
+                : result.winnerId === null
+                  ? 'Rejouer'
+                  : 'Manche suivante'}
             </button>
           )}
         </div>

@@ -1,5 +1,6 @@
 import { randomBytes, randomInt } from 'node:crypto'
 import {
+  DEFAULT_RULES,
   MAX_SEATS,
   MIN_SEATS,
   ROOM_CAPACITY,
@@ -7,7 +8,7 @@ import {
   createGame,
   rotateWinnerStays,
 } from '@dominos-clan/engine'
-import type { GameState, Move, Role, RoomStatus, RoomView } from '@dominos-clan/engine'
+import type { GameRules, GameState, Move, Role, RoomStatus, RoomView } from '@dominos-clan/engine'
 
 export interface Member {
   id: string
@@ -25,6 +26,10 @@ export interface Room {
   game: GameState | null
   status: RoomStatus
   lastWinnerId: string | null
+  rules: GameRules
+  /** Scores cumulés du match en cours (mode match aux points). */
+  scores: Map<string, number>
+  matchWinnerId: string | null
   /** Timestamp de la dernière réaction par membre (anti-spam). */
   lastReactionAt: Map<string, number>
   /** Timestamp du dernier message chat par membre (anti-spam). */
@@ -77,6 +82,9 @@ export function createRoom(rawPseudo: unknown, socketId: string): { room: Room; 
     game: null,
     status: 'lobby',
     lastWinnerId: null,
+    rules: { ...DEFAULT_RULES },
+    scores: new Map(),
+    matchWinnerId: null,
     lastReactionAt: new Map(),
     lastChatAt: new Map(),
   }
@@ -109,8 +117,37 @@ export function joinRoom(
   return { room, member }
 }
 
+/** Un match aux points est-il engagé (au moins une marque, pas encore de vainqueur) ? */
+function matchInProgress(room: Room): boolean {
+  return (
+    room.rules.targetScore !== null &&
+    room.matchWinnerId === null &&
+    [...room.scores.values()].some((s) => s > 0)
+  )
+}
+
+export function setRules(room: Room, memberId: string, raw: unknown): void {
+  if (memberId !== room.hostId) throw new RoomError('Seul l’hôte peut changer les règles')
+  if (room.status === 'playing') throw new RoomError('Manche en cours, attends la fin')
+  const r = (raw ?? {}) as Partial<GameRules>
+  const targetScore =
+    r.targetScore === null || r.targetScore === undefined ? null : Number(r.targetScore)
+  if (targetScore !== null && (!Number.isInteger(targetScore) || targetScore < 10 || targetScore > 1000)) {
+    throw new RoomError('Cible de match invalide (10 à 1000 points)')
+  }
+  const openThreshold = Number(r.openThreshold ?? 0)
+  if (!Number.isInteger(openThreshold) || openThreshold < 0 || openThreshold > 200) {
+    throw new RoomError('Seuil de première marque invalide (0 à 200)')
+  }
+  room.rules = { targetScore, openThreshold, freePass: Boolean(r.freePass) }
+  // Changer les règles relance un match propre.
+  room.scores = new Map()
+  room.matchWinnerId = null
+}
+
 export function takeSeat(room: Room, memberId: string): void {
   if (room.status === 'playing') throw new RoomError('Manche en cours, attends la fin')
+  if (matchInProgress(room)) throw new RoomError('Match en cours — la table est figée jusqu’au vainqueur')
   if (room.seats.includes(memberId)) return
   if (room.seats.length >= MAX_SEATS) throw new RoomError('Tous les sièges sont pris (4 max)')
   room.queue = room.queue.filter((id) => id !== memberId)
@@ -119,6 +156,7 @@ export function takeSeat(room: Room, memberId: string): void {
 
 export function leaveSeat(room: Room, memberId: string): void {
   if (room.status === 'playing') throw new RoomError('Manche en cours, attends la fin')
+  if (matchInProgress(room)) throw new RoomError('Match en cours — la table est figée jusqu’au vainqueur')
   if (!room.seats.includes(memberId)) return
   room.seats = room.seats.filter((id) => id !== memberId)
   room.queue.push(memberId)
@@ -128,7 +166,12 @@ export function startGame(room: Room, memberId: string): void {
   if (memberId !== room.hostId) throw new RoomError('Seul l’hôte peut lancer la manche')
   if (room.status === 'playing') throw new RoomError('Une manche est déjà en cours')
   if (room.seats.length < MIN_SEATS) throw new RoomError('Il faut au moins 2 joueurs assis')
-  room.game = createGame(room.seats, randomInt(2 ** 31))
+  // Le match précédent est terminé : on repart de zéro avec la table actuelle.
+  if (room.matchWinnerId !== null) {
+    room.scores = new Map()
+    room.matchWinnerId = null
+  }
+  room.game = createGame(room.seats, randomInt(2 ** 31), room.rules)
   room.status = 'playing'
   room.lastWinnerId = null
 }
@@ -136,15 +179,37 @@ export function startGame(room: Room, memberId: string): void {
 export function playMove(room: Room, memberId: string, move: Move): void {
   if (room.status !== 'playing' || !room.game) throw new RoomError('Aucune manche en cours')
   room.game = applyMove(room.game, memberId, move)
-  if (room.game.status === 'finished') {
-    room.status = 'finished'
-    const winnerId = room.game.result!.winnerId
-    room.lastWinnerId = winnerId
-    // Rotation immédiate : tout le monde voit la nouvelle table avant la manche suivante.
-    const rotated = rotateWinnerStays(room.seats, room.queue, winnerId)
-    room.seats = rotated.seats
-    room.queue = rotated.queue
+  if (room.game.status !== 'finished') return
+
+  room.status = 'finished'
+  const result = room.game.result!
+  room.lastWinnerId = result.winnerId
+
+  // Manche nulle (« X ») : personne ne marque, personne ne bouge — on rejoue.
+  if (result.winnerId === null) return
+
+  if (room.rules.targetScore !== null) {
+    // Match aux points : le gagnant encaisse la somme des mains adverses,
+    // avec le seuil d'ouverture sur la toute première marque.
+    const current = room.scores.get(result.winnerId) ?? 0
+    const counted = current === 0 && result.gain < room.rules.openThreshold ? 0 : result.gain
+    const total = current + counted
+    room.scores.set(result.winnerId, total)
+    if (total >= room.rules.targetScore) {
+      // Match remporté : la table tourne pour le match suivant.
+      room.matchWinnerId = result.winnerId
+      const rotated = rotateWinnerStays(room.seats, room.queue, result.winnerId)
+      room.seats = rotated.seats
+      room.queue = rotated.queue
+    }
+    // Sinon : même table, le match continue.
+    return
   }
+
+  // Manche sèche : rotation immédiate, le gagnant reste.
+  const rotated = rotateWinnerStays(room.seats, room.queue, result.winnerId)
+  room.seats = rotated.seats
+  room.queue = rotated.queue
 }
 
 /** Rôle vis-à-vis de la manche EN COURS (pas des sièges du prochain tour). */
@@ -169,6 +234,8 @@ export function removeMember(room: Room, memberId: string): { empty: boolean; ab
   room.members.delete(memberId)
   room.seats = room.seats.filter((id) => id !== memberId)
   room.queue = room.queue.filter((id) => id !== memberId)
+  room.scores.delete(memberId)
+  if (room.matchWinnerId === memberId) room.matchWinnerId = null
   room.lastReactionAt.delete(memberId)
   room.lastChatAt.delete(memberId)
 
@@ -196,6 +263,9 @@ export function roomView(room: Room): RoomView {
     seats: [...room.seats],
     queue: [...room.queue],
     lastWinnerId: room.lastWinnerId,
+    rules: { ...room.rules },
+    scores: Object.fromEntries(room.scores),
+    matchWinnerId: room.matchWinnerId,
   }
 }
 

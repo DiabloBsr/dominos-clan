@@ -19,8 +19,10 @@ function craftState(partial: {
   turn?: number
   consecutivePasses?: number
   lastPlayerIndex?: number | null
+  rules?: Partial<GameState['rules']>
 }): GameState {
   return {
+    rules: { targetScore: null, openThreshold: 0, freePass: false, ...partial.rules },
     players: Object.entries(partial.hands).map(([id, hand]) => ({ id, hand })),
     line: partial.line ?? [],
     sleeping: [],
@@ -146,7 +148,7 @@ describe('applyMove', () => {
     })
     const done = applyMove(state, 'a', { type: 'play', tile: { hi: 4, lo: 2 }, end: 'right' })
     expect(done.status).toBe('finished')
-    expect(done.result).toEqual({ winnerId: 'a', reason: 'domino', pips: { a: 0, b: 13 } })
+    expect(done.result).toEqual({ winnerId: 'a', reason: 'domino', pips: { a: 0, b: 13 }, gain: 13 })
   })
 
   it('détecte le blocage : la main la plus légère gagne', () => {
@@ -160,11 +162,11 @@ describe('applyMove', () => {
     expect(afterA.status).toBe('playing')
     const blocked = applyMove(afterA, 'b', { type: 'pass' })
     expect(blocked.status).toBe('finished')
-    expect(blocked.result).toEqual({ winnerId: 'a', reason: 'blocked', pips: { a: 5, b: 7 } })
+    expect(blocked.result).toEqual({ winnerId: 'a', reason: 'blocked', pips: { a: 5, b: 7 }, gain: 7 })
   })
 
-  it('départage une égalité de points : premier dans l’ordre du tour après le dernier poseur', () => {
-    // a et b ont 5 points chacun ; le dernier poseur est a (index 0) → b gagne.
+  it('blocage avec égalité au minimum = manche NULLE (le « X ») : personne ne marque', () => {
+    // a et b ont 5 points chacun → nul, pas de gagnant, gain 0.
     const state = craftState({
       hands: { a: [{ hi: 3, lo: 2 }], b: [{ hi: 4, lo: 1 }] },
       line: [{ tile: { hi: 6, lo: 6 }, left: 6, right: 6 }],
@@ -172,7 +174,51 @@ describe('applyMove', () => {
       lastPlayerIndex: 0,
     })
     const blocked = applyMove(applyMove(state, 'a', { type: 'pass' }), 'b', { type: 'pass' })
-    expect(blocked.result?.winnerId).toBe('b')
+    expect(blocked.result).toEqual({
+      winnerId: null,
+      reason: 'blocked',
+      pips: { a: 5, b: 5 },
+      gain: 0,
+    })
+  })
+
+  it('égalité entre deux mains mais pas au minimum : le plus léger gagne quand même', () => {
+    const state = craftState({
+      hands: { a: [{ hi: 1, lo: 0 }], b: [{ hi: 3, lo: 2 }], c: [{ hi: 4, lo: 1 }] },
+      line: [{ tile: { hi: 6, lo: 6 }, left: 6, right: 6 }],
+      turn: 0,
+      lastPlayerIndex: 0,
+    })
+    const blocked = applyMove(
+      applyMove(applyMove(state, 'a', { type: 'pass' }), 'b', { type: 'pass' }),
+      'c',
+      { type: 'pass' },
+    )
+    expect(blocked.result?.winnerId).toBe('a')
+    expect(blocked.result?.gain).toBe(10)
+  })
+
+  it('passe libre : passer devient légal même avec un coup jouable', () => {
+    const state = craftState({
+      hands: { a: [{ hi: 5, lo: 2 }, { hi: 1, lo: 1 }], b: [{ hi: 4, lo: 3 }] },
+      line: [{ tile: { hi: 5, lo: 4 }, left: 5, right: 4 }],
+      turn: 0,
+      rules: { freePass: true },
+    })
+    const moves = legalMoves(state, 'a')
+    expect(moves.some((m) => m.type === 'play')).toBe(true)
+    expect(moves.some((m) => m.type === 'pass')).toBe(true)
+    expect(applyMove(state, 'a', { type: 'pass' }).turn).toBe(1)
+  })
+
+  it('sans passe libre, passer avec un coup jouable reste interdit', () => {
+    const state = craftState({
+      hands: { a: [{ hi: 5, lo: 2 }], b: [{ hi: 4, lo: 3 }] },
+      line: [{ tile: { hi: 5, lo: 4 }, left: 5, right: 4 }],
+      turn: 0,
+      rules: { freePass: false },
+    })
+    expect(legalMoves(state, 'a').some((m) => m.type === 'pass')).toBe(false)
   })
 
   it('refuse tout coup une fois la manche terminée', () => {

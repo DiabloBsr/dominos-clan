@@ -1,4 +1,4 @@
-import type { Role } from './types'
+import type { GameRules, Role } from './types'
 
 export const ROOM_CAPACITY = 10
 export const MIN_SEATS = 2
@@ -23,6 +23,12 @@ export interface RoomView {
   /** Spectateurs dans l'ordre de la file d'attente. */
   queue: string[]
   lastWinnerId: string | null
+  /** Préréglages de la table (choisis par l'hôte). */
+  rules: GameRules
+  /** Scores cumulés du match en cours (mode match aux points uniquement). */
+  scores: Record<string, number>
+  /** Vainqueur du match (a atteint la cible) ; null sinon. */
+  matchWinnerId: string | null
 }
 
 /**

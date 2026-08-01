@@ -137,12 +137,15 @@ async function main(): Promise<void> {
   }
   const winner = final.result.winnerId
   const seatsAfter = alice.room!.seats
-  if (seatsAfter[0] !== winner) {
-    throw new Error(`rotation cassée : le gagnant ${winner} devrait être en tête des sièges (${seatsAfter.join(',')})`)
+  if (winner === null) {
+    console.log(`manche terminée en ${moves} coups — NULLE (égalité au blocage), pas de rotation`)
+  } else {
+    if (seatsAfter[0] !== winner) {
+      throw new Error(`rotation cassée : le gagnant ${winner} devrait être en tête des sièges (${seatsAfter.join(',')})`)
+    }
+    console.log(`manche terminée en ${moves} coups — gagnant : ${winner} (${final.result.reason}, +${final.result.gain} pts)`)
+    console.log(`rotation OK, nouveaux sièges : ${seatsAfter.join(',')}`)
   }
-
-  console.log(`manche terminée en ${moves} coups — gagnant : ${winner} (${final.result.reason})`)
-  console.log(`rotation OK, nouveaux sièges : ${seatsAfter.join(',')}`)
   console.log('SMOKE OK ✔ (aucune fuite de main détectée sur tous les états reçus)')
   clients.forEach((c) => c.socket.close())
 }

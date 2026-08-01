@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { GameView, Move, RoomView } from '@dominos-clan/engine'
+import type { GameRules, GameView, Move, RoomView } from '@dominos-clan/engine'
 import { socket, type Ack } from './socket'
 import { useVoice } from './useVoice'
 import { Home } from './components/Home'
@@ -106,6 +106,7 @@ export default function App() {
     onMove: (move: Move) => simpleEmit('game:move', { move }),
     onReact: (emoji: string) => socket.emit('reaction', { emoji }),
     onChat: (text: string) => simpleEmit('chat:send', { text }),
+    onRules: (rules: GameRules) => simpleEmit('room:rules', { ...rules }),
     onLeave: () => {
       voice.leave()
       simpleEmit('room:leave')

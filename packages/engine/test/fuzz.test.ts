@@ -24,7 +24,9 @@ function checkInvariants(state: GameState): void {
 }
 
 describe('fuzz : parties aléatoires seedées', () => {
-  it.each([2, 3, 4])('des parties à %i joueurs se terminent toujours proprement', (playerCount) => {
+  it.each([2, 3, 4])(
+    'des parties à %i joueurs se terminent toujours proprement',
+    (playerCount) => {
     const ids = ['a', 'b', 'c', 'd'].slice(0, playerCount)
     for (let seed = 1; seed <= 150; seed++) {
       const pickRandom = mulberry32(seed * 7919)
@@ -43,18 +45,33 @@ describe('fuzz : parties aléatoires seedées', () => {
 
       const result = state.result!
       expect(result).not.toBeNull()
-      expect(ids).toContain(result.winnerId)
+      const min = Math.min(...Object.values(result.pips))
+      const minHolders = Object.values(result.pips).filter((v) => v === min).length
       if (result.reason === 'domino') {
-        expect(result.pips[result.winnerId]).toBe(0)
+        expect(result.winnerId).not.toBeNull()
+        expect(result.pips[result.winnerId!]).toBe(0)
+      } else if (result.winnerId === null) {
+        // Manche nulle : forcément plusieurs mains à égalité au minimum, gain nul.
+        expect(minHolders).toBeGreaterThanOrEqual(2)
+        expect(result.gain).toBe(0)
       } else {
-        // Blocage : le gagnant a le minimum de points.
-        const min = Math.min(...Object.values(result.pips))
+        // Blocage avec gagnant : minimum unique.
         expect(result.pips[result.winnerId]).toBe(min)
+        expect(minHolders).toBe(1)
+      }
+      if (result.winnerId !== null) {
+        expect(ids).toContain(result.winnerId)
+        const others = Object.entries(result.pips)
+          .filter(([id]) => id !== result.winnerId)
+          .reduce((s, [, v]) => s + v, 0)
+        expect(result.gain).toBe(others)
       }
       // Les points annoncés correspondent aux mains réelles.
       for (const p of state.players) {
         expect(result.pips[p.id]).toBe(p.hand.reduce((s, t) => s + tilePips(t), 0))
       }
     }
-  })
+    },
+    30000,
+  )
 })

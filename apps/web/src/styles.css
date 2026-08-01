@@ -346,15 +346,93 @@ body::before {
   font-style: italic;
 }
 
+/* ─── Règles & scores de match ───────────────────────────────────── */
+
+.rules-bar,
+.scoreboard {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.8rem;
+}
+
+.rules-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.rules-num input {
+  width: 4.2rem;
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1.5px solid rgba(247, 242, 231, 0.2);
+  border-radius: 8px;
+  padding: 0.3rem 0.45rem;
+  outline: none;
+}
+
+.rules-num input:focus {
+  border-color: var(--amber);
+}
+
+.rules-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.rules-check input {
+  accent-color: var(--amber);
+}
+
+.score-chip {
+  background: rgba(255, 182, 72, 0.1);
+  border: 1px solid rgba(255, 182, 72, 0.3);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.score-chip b {
+  color: var(--amber);
+  margin-left: 0.25rem;
+}
+
+.score-chip.winner {
+  background: var(--amber);
+  color: #241a08;
+}
+
+.score-chip.winner b {
+  color: #241a08;
+}
+
+.btn.pass.optional {
+  animation: none;
+  filter: saturate(0.55);
+}
+
 /* ─── Table & jeu ────────────────────────────────────────────────── */
 
-/* Une vraie table vue de dessus : carrée, centrée, bornée par la hauteur d'écran. */
+/* Une vraie table vue de dessus : rectangle 4/3 sur grand écran, carrée sur téléphone. */
 .table-felt {
   position: relative;
   border-radius: 28px;
-  padding: 1.6rem 1rem 1.2rem;
-  width: min(100%, 58vh, 36rem);
-  aspect-ratio: 1;
+  padding: 1.2rem 1rem 0.9rem;
+  width: min(100%, 76vh, 46rem);
+  aspect-ratio: 4 / 3;
   margin-inline: auto;
   display: flex;
   flex-direction: column;
@@ -364,6 +442,13 @@ body::before {
     inset 0 0 60px rgba(0, 0, 0, 0.45),
     inset 0 0 0 6px rgba(0, 0, 0, 0.25),
     0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 640px) {
+  .table-felt {
+    width: 100%;
+    aspect-ratio: 1;
+  }
 }
 
 .felt-hint {
@@ -385,20 +470,81 @@ body::before {
   color: var(--amber);
 }
 
-.line {
-  display: flex;
-  overflow-x: auto;
-  padding: 0.4rem 0.2rem;
-  scrollbar-width: thin;
-}
-
-/* margin auto : la chaîne reste centrée tant qu'elle tient,
-   et redevient scrollable proprement quand elle déborde. */
-.line-inner {
+/* Plateau serpentin : dominos positionnés en absolu et mis à l'échelle (--u). */
+.board-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 3px;
-  margin: 0 auto;
+  justify-content: center;
+}
+
+.board-abs {
+  position: relative;
+}
+
+.abs-tile {
+  position: absolute;
+}
+
+.domino.abs .half {
+  width: var(--u);
+  height: var(--u);
+  padding: calc(var(--u) * 0.1);
+}
+
+.domino.abs .pip {
+  width: calc(var(--u) * 0.18);
+  height: calc(var(--u) * 0.18);
+}
+
+.drop-zone {
+  position: absolute;
+  border: 2px dashed var(--amber);
+  border-radius: 10px;
+  background: rgba(255, 182, 72, 0.14);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: calc(var(--u) * 0.55);
+  color: var(--amber);
+  cursor: pointer;
+  z-index: 5;
+  animation: pulse 1.3s ease-in-out infinite;
+}
+
+.drop-zone.hot {
+  border-style: solid;
+  background: rgba(255, 182, 72, 0.35);
+  animation: none;
+  transform: scale(1.06);
+}
+
+.felt-hint.drop-target {
+  border: 2px dashed var(--amber);
+  border-radius: 14px;
+  padding: 1.2rem;
+  color: var(--amber);
+  animation: pulse 1.3s ease-in-out infinite;
+}
+
+.drag-ghost {
+  position: fixed;
+  z-index: 200;
+  pointer-events: none;
+  transform: translate(-50%, -85%) rotate(-5deg);
+  filter: drop-shadow(0 12px 16px rgba(0, 0, 0, 0.5));
+}
+
+.drag-ghost .domino {
+  opacity: 1 !important;
+}
+
+.hand-slot {
+  display: inline-flex;
+  touch-action: none;
 }
 
 .players-row {

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
-import type { GameView, Move, RoomView, Tile } from '@dominos-clan/engine'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { End, GameView, Move, RoomView, Tile } from '@dominos-clan/engine'
+import { layoutBoard } from '../boardLayout'
 import { DominoBack, DominoTile } from './DominoTile'
 
 function pseudoOf(room: RoomView, id: string): string {
@@ -8,6 +9,13 @@ function pseudoOf(room: RoomView, id: string): string {
 
 function sameTile(a: Tile, b: Tile): boolean {
   return a.hi === b.hi && a.lo === b.lo
+}
+
+interface DragState {
+  tile: Tile
+  x: number
+  y: number
+  over: End | null
 }
 
 export function Game({
@@ -25,36 +33,109 @@ export function Game({
   voiceIds: string[]
   speaking: string[]
 }) {
-  const [pending, setPending] = useState<Tile | null>(null)
+  const [selected, setSelected] = useState<Tile | null>(null)
+  const [drag, setDrag] = useState<DragState | null>(null)
   const [showHands, setShowHands] = useState(false)
-  const lineRef = useRef<HTMLDivElement | null>(null)
+  const boardRef = useRef<HTMLDivElement | null>(null)
+  const [box, setBox] = useState({ w: 0, h: 0 })
+  const movedRef = useRef(false)
+
+  useLayoutEffect(() => {
+    const el = boardRef.current
+    if (!el) return
+    const update = () => setBox({ w: el.clientWidth, h: el.clientHeight })
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // Nouveau coup ou nouveau tour : on repart proprement.
+  useEffect(() => {
+    setSelected(null)
+    setDrag(null)
+  }, [game.line.length, game.currentPlayerId])
 
   const you = game.you
   const isSpectator = you === null
-  const playMoves = (you?.legalMoves ?? []).filter((m): m is Extract<Move, { type: 'play' }> => m.type === 'play')
-  const mustPass = !!you && you.legalMoves.length === 1 && you.legalMoves[0]?.type === 'pass'
+  const playMoves = (you?.legalMoves ?? []).filter(
+    (m): m is Extract<Move, { type: 'play' }> => m.type === 'play',
+  )
+  const canPass = !!you && you.legalMoves.some((m) => m.type === 'pass')
   const myTurn = game.currentPlayerId === selfId
-
-  // La chaîne grandit des deux côtés : on garde le centre visible.
-  useEffect(() => {
-    const el = lineRef.current
-    if (el) el.scrollTo({ left: (el.scrollWidth - el.clientWidth) / 2, behavior: 'smooth' })
-  }, [game.line.length])
-
-  useEffect(() => setPending(null), [game.currentPlayerId, game.line.length])
 
   const movesFor = (tile: Tile) => playMoves.filter((m) => sameTile(m.tile, tile))
 
-  const clickTile = (tile: Tile) => {
+  // Serpentin : nombre de colonnes selon la forme réelle du feutre, échelle pour tout faire tenir.
+  const columns = box.h > 0 ? Math.min(18, Math.max(8, Math.round((box.w / box.h) * 10))) : 12
+  const layout = useMemo(() => layoutBoard(game.line, columns), [game.line, columns])
+  const u =
+    box.w > 0 && box.h > 0
+      ? Math.min(34, (box.w - 12) / layout.width, (box.h - 12) / layout.height)
+      : 0
+
+  const activeTile = drag?.tile ?? selected
+  const activeEnds: End[] = activeTile ? movesFor(activeTile).map((m) => m.end) : []
+
+  const playEnd = (end: End) => {
+    if (!activeTile) return
+    const move = movesFor(activeTile).find((m) => m.end === end)
+    if (move) onMove(move)
+    setSelected(null)
+    setDrag(null)
+  }
+
+  const tapHand = (tile: Tile) => {
     const moves = movesFor(tile)
     if (moves.length === 0) return
     if (moves.length === 1) {
       onMove(moves[0]!)
-      setPending(null)
+      setSelected(null)
     } else {
-      setPending(tile)
+      setSelected((prev) => (prev && sameTile(prev, tile) ? null : tile))
     }
   }
+
+  const hitZone = (clientX: number, clientY: number): End | null => {
+    const el = document.elementFromPoint(clientX, clientY)
+    const zone = el?.closest?.('[data-drop-end]')
+    return (zone?.getAttribute('data-drop-end') as End | null) ?? null
+  }
+
+  const onTilePointerDown = (tile: Tile) => (e: React.PointerEvent<HTMLSpanElement>) => {
+    if (movesFor(tile).length === 0) return
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    movedRef.current = false
+    setDrag({ tile, x: e.clientX, y: e.clientY, over: null })
+  }
+
+  const onTilePointerMove = (tile: Tile) => (e: React.PointerEvent<HTMLSpanElement>) => {
+    if (!drag || !sameTile(drag.tile, tile)) return
+    if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 6) movedRef.current = true
+    setDrag({ tile, x: e.clientX, y: e.clientY, over: hitZone(e.clientX, e.clientY) })
+  }
+
+  const onTilePointerUp = (tile: Tile) => (e: React.PointerEvent<HTMLSpanElement>) => {
+    if (!drag || !sameTile(drag.tile, tile)) return
+    const dropped = movedRef.current ? hitZone(e.clientX, e.clientY) : null
+    if (dropped) {
+      const move = movesFor(tile).find((m) => m.end === dropped)
+      if (move) onMove(move)
+      setSelected(null)
+    } else if (!movedRef.current) {
+      tapHand(tile)
+    }
+    setDrag(null)
+    movedRef.current = false
+  }
+
+  const zoneStyle = (z: { x: number; y: number; w: number; h: number }) => ({
+    left: (z.x - layout.minX) * u,
+    top: (z.y - layout.minY) * u,
+    width: z.w * u,
+    height: z.h * u,
+  })
 
   return (
     <section className="game">
@@ -88,24 +169,55 @@ export function Game({
       </div>
 
       <div className="table-felt">
-        <div className="line" ref={lineRef}>
+        <div className="board-wrap" ref={boardRef}>
           {game.line.length === 0 ? (
-            <p className="felt-hint">
+            <p
+              className={`felt-hint ${activeTile ? 'drop-target' : ''}`}
+              data-drop-end={activeTile ? 'right' : undefined}
+            >
               {myTurn ? 'À toi l’ouverture — pose ton domino imposé' : 'La table attend l’ouverture…'}
             </p>
           ) : (
-            <div className="line-inner">
-              {game.line.map((placed, i) => (
-                // Convention des vraies tables : les doubles se posent en travers.
-                <DominoTile
-                  key={i}
-                  a={placed.left}
-                  b={placed.right}
-                  vertical={placed.left === placed.right}
-                  size="md"
-                />
-              ))}
-            </div>
+            u > 0 && (
+              <div
+                className="board-abs"
+                style={{
+                  width: layout.width * u,
+                  height: layout.height * u,
+                  ['--u' as string]: `${u}px`,
+                }}
+              >
+                {layout.tiles.map((t) => (
+                  <span
+                    key={t.key}
+                    className="abs-tile"
+                    style={{ left: (t.x - layout.minX) * u, top: (t.y - layout.minY) * u }}
+                  >
+                    <DominoTile a={t.a} b={t.b} vertical={t.vertical} size="abs" />
+                  </span>
+                ))}
+                {myTurn && activeTile && activeEnds.includes('left') && (
+                  <button
+                    className={`drop-zone ${drag?.over === 'left' ? 'hot' : ''}`}
+                    style={zoneStyle(layout.zoneLeft)}
+                    data-drop-end="left"
+                    onClick={() => playEnd('left')}
+                  >
+                    {game.ends?.left}
+                  </button>
+                )}
+                {myTurn && activeTile && activeEnds.includes('right') && (
+                  <button
+                    className={`drop-zone ${drag?.over === 'right' ? 'hot' : ''}`}
+                    style={zoneStyle(layout.zoneRight)}
+                    data-drop-end="right"
+                    onClick={() => playEnd('right')}
+                  >
+                    {game.ends?.right}
+                  </button>
+                )}
+              </div>
+            )
           )}
         </div>
         {game.ends && (
@@ -125,39 +237,33 @@ export function Game({
         </div>
       ) : (
         <div className="hand-zone">
-          {pending && (
-            <div className="chooser">
-              <span>
-                Poser le {pending.hi}-{pending.lo} :
-              </span>
-              <button className="btn sm" onClick={() => { onMove({ type: 'play', tile: pending, end: 'left' }); setPending(null) }}>
-                ⬅ À gauche
-              </button>
-              <button className="btn sm" onClick={() => { onMove({ type: 'play', tile: pending, end: 'right' }); setPending(null) }}>
-                À droite ➡
-              </button>
-              <button className="btn ghost sm" onClick={() => setPending(null)}>
-                Annuler
-              </button>
-            </div>
-          )}
           <div className="hand-rack">
             {you.hand.map((tile, i) => {
               const playable = movesFor(tile).length > 0
               return (
-                <DominoTile
+                <span
                   key={i}
-                  a={tile.hi}
-                  b={tile.lo}
-                  vertical
-                  playable={playable}
-                  selected={!!pending && sameTile(pending, tile)}
-                  onClick={playable ? () => clickTile(tile) : undefined}
-                />
+                  className="hand-slot"
+                  onPointerDown={playable ? onTilePointerDown(tile) : undefined}
+                  onPointerMove={playable ? onTilePointerMove(tile) : undefined}
+                  onPointerUp={playable ? onTilePointerUp(tile) : undefined}
+                >
+                  <DominoTile
+                    a={tile.hi}
+                    b={tile.lo}
+                    vertical
+                    playable={playable}
+                    selected={!!selected && sameTile(selected, tile)}
+                    onClick={playable ? () => {} : undefined}
+                  />
+                </span>
               )
             })}
-            {mustPass && (
-              <button className="btn pass" onClick={() => onMove({ type: 'pass' })}>
+            {canPass && (
+              <button
+                className={`btn pass ${playMoves.length > 0 ? 'optional' : ''}`}
+                onClick={() => onMove({ type: 'pass' })}
+              >
                 Je passe 😤
               </button>
             )}
@@ -166,9 +272,17 @@ export function Game({
             {game.status === 'finished'
               ? 'Manche terminée'
               : myTurn
-                ? 'À toi de jouer !'
+                ? selected
+                  ? 'Choisis où poser (ou glisse le domino)'
+                  : 'À toi de jouer !'
                 : `Au tour de ${pseudoOf(room, game.currentPlayerId ?? '')}…`}
           </p>
+        </div>
+      )}
+
+      {drag && movedRef.current && (
+        <div className="drag-ghost" style={{ left: drag.x, top: drag.y }}>
+          <DominoTile a={drag.tile.hi} b={drag.tile.lo} vertical size="md" />
         </div>
       )}
     </section>

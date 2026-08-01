@@ -1,4 +1,5 @@
-import type { GameState, Move, PlayMove, RoundResult, Tile } from './types'
+import type { GameRules, GameState, Move, PlayMove, RoundResult, Tile } from './types'
+import { DEFAULT_RULES } from './types'
 import { isDouble, makeDeck, mulberry32, shuffle, tileEquals, tilePips } from './tiles'
 import { deepClone } from './clone'
 
@@ -20,12 +21,17 @@ export class GameError extends Error {
 }
 
 /**
- * Règles V1 (arbitrables) : domino bloqué (block) double-six, 7 dominos chacun,
- * pas de pioche. L'ouverture est imposée : plus gros double en jeu, sinon domino
- * le plus lourd. Blocage = tout le monde passe une fois de suite ; gagne la main
- * la plus légère (départage : premier dans l'ordre du tour après le dernier poseur).
+ * Règles : domino bloqué (block) double-six, 7 dominos chacun, pas de pioche.
+ * L'ouverture est imposée : plus gros double en jeu, sinon domino le plus lourd.
+ * Blocage = tout le monde passe une fois de suite ; gagne la main la plus légère.
+ * Égalité au minimum de points → manche NULLE (personne ne marque).
+ * `rules.freePass` autorise de passer même avec un coup jouable.
  */
-export function createGame(playerIds: string[], seed: number): GameState {
+export function createGame(
+  playerIds: string[],
+  seed: number,
+  rules: Partial<GameRules> = {},
+): GameState {
   if (playerIds.length < 2 || playerIds.length > 4) {
     throw new GameError('BAD_PLAYER_COUNT', `Il faut 2 à 4 joueurs, reçu ${playerIds.length}`)
   }
@@ -43,6 +49,7 @@ export function createGame(playerIds: string[], seed: number): GameState {
   const { starterIndex, openingTile } = findOpening(players.map((p) => p.hand))
 
   return {
+    rules: { ...DEFAULT_RULES, ...rules },
     players,
     line: [],
     sleeping,
@@ -105,7 +112,9 @@ export function legalMoves(state: GameState, playerId: string): Move[] {
     if (tile.hi === ends.left || tile.lo === ends.left) moves.push({ type: 'play', tile, end: 'left' })
     if (tile.hi === ends.right || tile.lo === ends.right) moves.push({ type: 'play', tile, end: 'right' })
   }
-  return moves.length > 0 ? moves : [{ type: 'pass' }]
+  // Passe libre : on peut garder ses dominos même quand on a un coup jouable.
+  if (moves.length === 0 || state.rules.freePass) moves.push({ type: 'pass' })
+  return moves
 }
 
 /** Applique un coup et retourne le nouvel état (l'état d'entrée n'est jamais muté). */
@@ -178,25 +187,23 @@ function finishBlocked(state: GameState): void {
   const pips = new Map(state.players.map((p) => [p.id, p.hand.reduce((sum, t) => sum + tilePips(t), 0)]))
   const min = Math.min(...pips.values())
 
-  // Départage : on parcourt les sièges dans l'ordre du tour en partant du joueur
-  // qui suit le dernier poseur ; le premier à égaler le minimum gagne.
-  const n = state.players.length
-  const start = ((state.lastPlayerIndex ?? -1) + 1) % n
-  let winnerId = state.players[start]!.id
-  for (let i = 0; i < n; i++) {
-    const p = state.players[(start + i) % n]!
-    if (pips.get(p.id) === min) {
-      winnerId = p.id
-      break
-    }
-  }
+  // « X » : plusieurs mains à égalité au minimum → manche nulle, personne ne marque.
+  const lightest = state.players.filter((p) => pips.get(p.id) === min)
+  const winnerId = lightest.length === 1 ? lightest[0]!.id : null
   state.result = buildResult(state, winnerId, 'blocked')
 }
 
-function buildResult(state: GameState, winnerId: string, reason: RoundResult['reason']): RoundResult {
+function buildResult(
+  state: GameState,
+  winnerId: string | null,
+  reason: RoundResult['reason'],
+): RoundResult {
   const pips: Record<string, number> = {}
   for (const p of state.players) {
     pips[p.id] = p.hand.reduce((sum, t) => sum + tilePips(t), 0)
   }
-  return { winnerId, reason, pips }
+  const gain = winnerId
+    ? Object.entries(pips).reduce((sum, [id, v]) => (id === winnerId ? sum : sum + v), 0)
+    : 0
+  return { winnerId, reason, pips, gain }
 }
