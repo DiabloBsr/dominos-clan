@@ -1,13 +1,3 @@
----
-title: Domino's Clan
-emoji: 🎲
-colorFrom: green
-colorTo: yellow
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 # Domino's Clan 🁫
 
 Jeu de dominos **chill entre amis**, jouable sur **web et mobile**.
@@ -86,20 +76,22 @@ npm run smoke -w @dominos-clan/server     # e2e : 3 joueurs + 1 spectateur, manc
                                           # (serveur à démarrer avant)
 ```
 
-## ☁️ Déploiement — Hugging Face Space (gratuit)
+## ☁️ Déploiement — Render (gratuit)
 
-Le repo est un **Docker Space** prêt à l'emploi (front matter YAML ci-dessus, [Dockerfile](Dockerfile)) :
-le conteneur build le client Vite puis le serveur socket.io sert le jeu ET le temps réel sur le port 7860.
+Le repo est prêt pour **Render free** : le [Dockerfile](Dockerfile) build le client Vite puis
+le serveur socket.io sert le jeu ET le temps réel sur un seul port ; [render.yaml](render.yaml)
+décrit le service (plan free, healthcheck `/healthz`).
 
-```bash
-# 1. créer le Space (une fois) — type Docker, public
-# 2. pousser ce repo dessus :
-git remote add hf https://huggingface.co/spaces/<ton-user>/dominos-clan
-git push hf main
-```
+Mise en place (une fois) : render.com → *Sign up with GitHub* → **New → Blueprint** →
+choisir ce repo → Deploy. Chaque `git push` redéploie ensuite automatiquement.
 
-Notes free tier : le Space s'endort après ~48 h d'inactivité (premier accès un peu lent),
-et l'état des salons est en mémoire (un redéploiement vide les salons — sans gravité).
+Notes free tier Render (2026) : 512 Mo RAM / 0.1 CPU, 100 Go de bande passante/mois ;
+le service s'endort après 15 min **sans requête HTTP ni message WebSocket** — donc il reste
+éveillé tant qu'on joue ; réveil ~1 min au premier accès. L'état des salons est en mémoire
+(un redéploiement vide les salons — sans gravité).
+
+Pourquoi pas Hugging Face ? Depuis 2026, les Docker/Gradio Spaces exigent un abonnement
+PRO (9 $/mois) — seuls les Spaces statiques restent gratuits, insuffisant pour le socket.io.
 
 ## 🗺️ Roadmap
 
