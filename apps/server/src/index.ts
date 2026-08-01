@@ -5,6 +5,7 @@ import sirv from 'sirv'
 import { Server, type Socket } from 'socket.io'
 import { viewFor } from '@dominos-clan/engine'
 import type { Move } from '@dominos-clan/engine'
+import { createVoiceToken, voiceEnabled } from './voice'
 import {
   RoomError,
   canReact,
@@ -143,6 +144,22 @@ io.on('connection', (socket: Socket) => {
     }),
   )
 
+  // Token vocal : délivré uniquement à un membre effectif d'un salon,
+  // pour la room LiveKit de CE salon. L'audio ne transite pas par ici.
+  socket.on('voice:token', (_payload: unknown, ack?: Ack) => {
+    void (async () => {
+      try {
+        const { room, memberId } = withRoom(state)
+        const member = room.members.get(memberId)
+        if (!member) throw new RoomError('Membre inconnu')
+        const { url, token } = await createVoiceToken(room.code, memberId, member.pseudo)
+        ack?.({ ok: true, url, token })
+      } catch (err) {
+        ack?.({ ok: false, error: err instanceof Error ? err.message : 'Erreur inconnue' })
+      }
+    })()
+  })
+
   socket.on('reaction', (payload: { emoji?: unknown }, ack?: Ack) =>
     handle(ack, () => {
       const { room, memberId } = withRoom(state)
@@ -185,4 +202,5 @@ io.on('connection', (socket: Socket) => {
 
 httpServer.listen(PORT, () => {
   console.log(`[dominos-clan] serveur prêt sur http://localhost:${PORT}`)
+  console.log(`[dominos-clan] chat vocal LiveKit : ${voiceEnabled() ? 'configuré' : 'désactivé (LIVEKIT_* manquants)'}`)
 })

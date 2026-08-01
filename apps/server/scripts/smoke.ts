@@ -74,6 +74,22 @@ async function main(): Promise<void> {
     clients.push(c)
   }
 
+  // Token vocal : selon la config du serveur, on attend un JWT ou un refus propre.
+  const voiceRes = await new Promise<{ ok: boolean; token?: string; url?: string; error?: string }>(
+    (resolve) => alice.socket.emit('voice:token', {}, resolve),
+  )
+  if (voiceRes.ok) {
+    if (!voiceRes.url || (voiceRes.token ?? '').split('.').length !== 3) {
+      throw new Error('voice:token ok mais token/url invalides')
+    }
+    console.log('voix : token JWT délivré ✔')
+  } else {
+    if (!voiceRes.error?.includes('non configuré')) {
+      throw new Error(`voice:token refusé pour une mauvaise raison : ${voiceRes.error}`)
+    }
+    console.log('voix : non configurée sur ce serveur (refus propre) ✔')
+  }
+
   // Diego se lève : il sera notre spectateur.
   const diego = clients[3]!
   await emitAck(diego.socket, 'seat:leave', {})

@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@dominos-clan/engine": "*",
+    "livekit-server-sdk": "^2.9.0",
     "sirv": "^3.0.0",
     "socket.io": "^4.8.1"
   },

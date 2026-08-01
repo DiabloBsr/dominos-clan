@@ -50,8 +50,12 @@ Exemple : 6 potes dans le salon, 3 jouent un 1v1v1, les 3 autres regardent (et c
 - **Serveur** ([apps/server/](apps/server/)) : Node + socket.io, autoritatif (valide chaque coup, distribue les vues filtrées), salons par code 4 lettres
 - **Web** ([apps/web/](apps/web/)) : React 19 + Vite, thème « veillée tropicale » (feutre nocturne, os d'ivoire, ambre)
 - **Mobile** : Capacitor (à venir — même codebase web)
-- **Voix** : WebRTC via **LiveKit** (SFU open source, Apache 2.0 → logiciel gratuit)
-  - Dev/bêta : LiveKit Cloud palier gratuit (5 000 min WebRTC/mois, sans CB)
+- **Voix** : WebRTC via **LiveKit** (SFU open source, Apache 2.0 → logiciel gratuit) — **intégrée** :
+  bouton « 🎙 Rejoindre la voix » dans le salon, coupure micro, indicateur vert « qui parle » sur les pseudos.
+  Le serveur ne délivre que des tokens (réservés aux membres du salon, room `dc-<code>`) ; l'audio passe par le SFU.
+  - Dev/bêta : LiveKit Cloud palier gratuit (5 000 min WebRTC/mois, sans CB) — renseigner
+    `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (cf. [apps/server/.env.example](apps/server/.env.example)) ;
+    sans ces variables la voix est simplement désactivée.
   - Prod : LiveKit **self-hosted** sur le même VPS que le serveur de jeu → zéro abonnement
   - Pourquoi pas de mesh P2P à 10 ? 9 flux montants par téléphone (~350 kbps) et le P2P casse souvent en CGNAT mobile ; avec le SFU, 1 seul flux sortant par client.
 
@@ -97,7 +101,7 @@ PRO (9 $/mois) — seuls les Spaces statiques restent gratuits, insuffisant pour
 
 - **P1 — Moteur de jeu** ✅ règles, serveur autoritaire, tests, anti-fuite vérifié
 - **P2 — Multijoueur** ✅ salons par code, sièges/file, rotation gagnant-reste, réactions live
-- **P3 — Chill layer** : mic LiveKit (réactions ✅ déjà livrées)
+- **P3 — Chill layer** ✅ mic LiveKit intégré (s'active en posant les clés `LIVEKIT_*`) + réactions live
 - **P4 — Mobile** : packaging Capacitor Android
 - **P5 — Polish** : sons, animations de pose, doubles perpendiculaires, reconnexion en cours de manche (aujourd'hui un départ de joueur annule la manche)
 

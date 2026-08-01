@@ -15,11 +15,15 @@ export function Game({
   room,
   selfId,
   onMove,
+  voiceIds,
+  speaking,
 }: {
   game: GameView
   room: RoomView
   selfId: string
   onMove: (move: Move) => void
+  voiceIds: string[]
+  speaking: string[]
 }) {
   const [pending, setPending] = useState<Tile | null>(null)
   const [showHands, setShowHands] = useState(false)
@@ -31,8 +35,10 @@ export function Game({
   const mustPass = !!you && you.legalMoves.length === 1 && you.legalMoves[0]?.type === 'pass'
   const myTurn = game.currentPlayerId === selfId
 
+  // La chaîne grandit des deux côtés : on garde le centre visible.
   useEffect(() => {
-    lineRef.current?.scrollTo({ left: lineRef.current.scrollWidth, behavior: 'smooth' })
+    const el = lineRef.current
+    if (el) el.scrollTo({ left: (el.scrollWidth - el.clientWidth) / 2, behavior: 'smooth' })
   }, [game.line.length])
 
   useEffect(() => setPending(null), [game.currentPlayerId, game.line.length])
@@ -54,9 +60,15 @@ export function Game({
     <section className="game">
       <div className="players-row">
         {game.players.map((p) => (
-          <div key={p.id} className={`seat-chip ${p.id === game.currentPlayerId ? 'turn' : ''}`}>
+          <div
+            key={p.id}
+            className={`seat-chip ${p.id === game.currentPlayerId ? 'turn' : ''} ${
+              speaking.includes(p.id) ? 'speaking' : ''
+            }`}
+          >
             <span className="seat-name">
               {pseudoOf(room, p.id)}
+              {voiceIds.includes(p.id) ? ' 🎙' : ''}
               {p.id === selfId ? ' (toi)' : ''}
             </span>
             <span className="seat-tiles">
@@ -82,9 +94,18 @@ export function Game({
               {myTurn ? 'À toi l’ouverture — pose ton domino imposé' : 'La table attend l’ouverture…'}
             </p>
           ) : (
-            game.line.map((placed, i) => (
-              <DominoTile key={i} a={placed.left} b={placed.right} size="md" />
-            ))
+            <div className="line-inner">
+              {game.line.map((placed, i) => (
+                // Convention des vraies tables : les doubles se posent en travers.
+                <DominoTile
+                  key={i}
+                  a={placed.left}
+                  b={placed.right}
+                  vertical={placed.left === placed.right}
+                  size="md"
+                />
+              ))}
+            </div>
           )}
         </div>
         {game.ends && (

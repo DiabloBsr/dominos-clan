@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { GameView, Move, RoomView } from '@dominos-clan/engine'
 import type { FloatingReaction } from '../App'
+import type { VoiceControls } from '../useVoice'
 import { Game } from './Game'
 
 const REACTIONS = ['😂', '🔥', '👏', '😮', '😭', '😈', '🤝', '💀']
@@ -14,6 +15,7 @@ export function Room({
   game,
   selfId,
   reactions,
+  voice,
   onSit,
   onStand,
   onStart,
@@ -25,6 +27,7 @@ export function Room({
   game: GameView | null
   selfId: string
   reactions: FloatingReaction[]
+  voice: VoiceControls
   onSit: () => void
   onStand: () => void
   onStart: () => void
@@ -56,6 +59,37 @@ export function Room({
         <button className="code-chip" onClick={copyCode} title="Copier le code">
           salon <b>{room.code}</b> {copied ? '✔' : '⧉'}
         </button>
+        <div className="voice-controls">
+          {voice.state.status === 'off' && (
+            <button className="btn ghost sm" onClick={voice.join}>
+              🎙 Rejoindre la voix
+            </button>
+          )}
+          {voice.state.status === 'connecting' && (
+            <button className="btn ghost sm" disabled>
+              Connexion…
+            </button>
+          )}
+          {voice.state.status === 'on' && (
+            <>
+              <button
+                className={`btn sm ${voice.state.muted ? 'muted' : ''}`}
+                onClick={voice.toggleMute}
+                title={voice.state.muted ? 'Réactiver le micro' : 'Couper le micro'}
+              >
+                {voice.state.muted ? '🔇 Muet' : '🎙 En ligne'}
+              </button>
+              <button className="btn ghost sm" onClick={voice.leave}>
+                Raccrocher
+              </button>
+            </>
+          )}
+          {voice.state.status === 'unavailable' && (
+            <button className="btn ghost sm" disabled title="Le serveur n’a pas de configuration LiveKit">
+              🎙 Voix indisponible
+            </button>
+          )}
+        </div>
         <button className="btn ghost sm" onClick={onLeave}>
           Quitter
         </button>
@@ -69,9 +103,10 @@ export function Room({
               key={id}
               className={`chip ${id === selfId ? 'you' : ''} ${
                 room.members.find((m) => m.id === id)?.connected === false ? 'off' : ''
-              }`}
+              } ${voice.state.speaking.includes(id) ? 'speaking' : ''}`}
             >
               {i + 1}. {pseudoOf(room, id)}
+              {voice.state.inVoice.includes(id) ? ' 🎙' : ''}
               {room.members.find((m) => m.id === id)?.isHost ? ' ⭐' : ''}
               {room.lastWinnerId === id ? ' 👑' : ''}
             </span>
@@ -81,8 +116,14 @@ export function Room({
         <div className="member-group">
           <span className="group-label">👀 File</span>
           {room.queue.map((id, i) => (
-            <span key={id} className={`chip queue ${id === selfId ? 'you' : ''}`}>
+            <span
+              key={id}
+              className={`chip queue ${id === selfId ? 'you' : ''} ${
+                voice.state.speaking.includes(id) ? 'speaking' : ''
+              }`}
+            >
               {i + 1}. {pseudoOf(room, id)}
+              {voice.state.inVoice.includes(id) ? ' 🎙' : ''}
             </span>
           ))}
           {room.queue.length === 0 && <span className="empty">vide</span>}
@@ -114,7 +155,14 @@ export function Room({
       )}
 
       {game && room.status !== 'lobby' ? (
-        <Game game={game} room={room} selfId={selfId} onMove={onMove} />
+        <Game
+          game={game}
+          room={room}
+          selfId={selfId}
+          onMove={onMove}
+          voiceIds={voice.state.inVoice}
+          speaking={voice.state.speaking}
+        />
       ) : (
         <section className="lobby">
           <div className="table-felt idle">

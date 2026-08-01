@@ -265,6 +265,7 @@ body::before {
   display: flex;
   align-items: center;
   gap: 0.8rem;
+  flex-wrap: wrap;
 }
 
 .mini-mark {
@@ -387,11 +388,18 @@ body::before {
 
 .line {
   display: flex;
-  align-items: center;
-  gap: 3px;
   overflow-x: auto;
   padding: 0.4rem 0.2rem;
   scrollbar-width: thin;
+}
+
+/* margin auto : la chaîne reste centrée tant qu'elle tient,
+   et redevient scrollable proprement quand elle déborde. */
+.line-inner {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 auto;
 }
 
 .players-row {
@@ -583,6 +591,24 @@ button.domino:disabled {
   padding: 0.5rem 0.8rem;
   font-weight: 700;
   animation: fade-up 0.2s ease;
+}
+
+/* ─── Voix ───────────────────────────────────────────────────────── */
+
+.voice-controls {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.btn.muted {
+  filter: saturate(0.4) brightness(0.8);
+}
+
+.chip.speaking,
+.seat-chip.speaking {
+  border-color: #7ee0a3;
+  box-shadow: 0 0 14px rgba(126, 224, 163, 0.4);
 }
 
 .spectator-bar {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GameView, Move, RoomView } from '@dominos-clan/engine'
 import { socket, type Ack } from './socket'
+import { useVoice } from './useVoice'
 import { Home } from './components/Home'
 import { Room } from './components/Room'
 
@@ -25,6 +26,8 @@ export default function App() {
     if (noticeTimer.current) clearTimeout(noticeTimer.current)
     noticeTimer.current = setTimeout(() => setNotice(null), 4000)
   }, [])
+
+  const voice = useVoice(room?.code ?? null, showNotice)
 
   useEffect(() => {
     const onRoomState = (view: RoomView) => setRoom(view)
@@ -84,6 +87,7 @@ export default function App() {
     onMove: (move: Move) => simpleEmit('game:move', { move }),
     onReact: (emoji: string) => socket.emit('reaction', { emoji }),
     onLeave: () => {
+      voice.leave()
       simpleEmit('room:leave')
       setRoom(null)
       setGame(null)
@@ -95,7 +99,7 @@ export default function App() {
     <div className="app">
       {notice && <div className="toast">{notice}</div>}
       {room && selfId ? (
-        <Room room={room} game={game} selfId={selfId} reactions={reactions} {...handlers} />
+        <Room room={room} game={game} selfId={selfId} reactions={reactions} voice={voice} {...handlers} />
       ) : (
         <Home onCreate={handlers.onCreate} onJoin={handlers.onJoin} />
       )}
