@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { GameView, Move, RoomView } from '@dominos-clan/engine'
-import type { FloatingReaction } from '../App'
-import type { VoiceControls } from '../useVoice'
+import type { ChatMessage, FloatingReaction } from '../App'
+import type { VoiceAudience, VoiceControls } from '../useVoice'
 import { Game } from './Game'
 
 const REACTIONS = ['😂', '🔥', '👏', '😮', '😭', '😈', '🤝', '💀']
@@ -15,27 +15,44 @@ export function Room({
   game,
   selfId,
   reactions,
+  chat,
   voice,
   onSit,
   onStand,
   onStart,
   onMove,
   onReact,
+  onChat,
   onLeave,
 }: {
   room: RoomView
   game: GameView | null
   selfId: string
   reactions: FloatingReaction[]
+  chat: ChatMessage[]
   voice: VoiceControls
   onSit: () => void
   onStand: () => void
   onStart: () => void
   onMove: (move: Move) => void
   onReact: (emoji: string) => void
+  onChat: (text: string) => void
   onLeave: () => void
 }) {
   const [copied, setCopied] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatText, setChatText] = useState('')
+  const [chatSeen, setChatSeen] = useState(0)
+  const msgsRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (chatOpen) {
+      setChatSeen(chat.length)
+      msgsRef.current?.scrollTo({ top: msgsRef.current.scrollHeight })
+    }
+  }, [chatOpen, chat.length])
+
+  const unread = Math.max(0, chat.length - chatSeen)
 
   const self = room.members.find((m) => m.id === selfId)
   const isHost = self?.isHost ?? false
@@ -61,32 +78,42 @@ export function Room({
         </button>
         <div className="voice-controls">
           {voice.state.status === 'off' && (
-            <button className="btn ghost sm" onClick={voice.join}>
-              🎙 Rejoindre la voix
+            <button className="icon-btn" onClick={voice.join} title="Activer le micro">
+              🎙
             </button>
           )}
           {voice.state.status === 'connecting' && (
-            <button className="btn ghost sm" disabled>
-              Connexion…
+            <button className="icon-btn" disabled title="Connexion à la voix…">
+              ⏳
             </button>
           )}
           {voice.state.status === 'on' && (
             <>
               <button
-                className={`btn sm ${voice.state.muted ? 'muted' : ''}`}
+                className={`icon-btn ${voice.state.muted ? 'danger' : 'live'}`}
                 onClick={voice.toggleMute}
                 title={voice.state.muted ? 'Réactiver le micro' : 'Couper le micro'}
               >
-                {voice.state.muted ? '🔇 Muet' : '🎙 En ligne'}
+                {voice.state.muted ? '🔇' : '🎙'}
               </button>
-              <button className="btn ghost sm" onClick={voice.leave}>
-                Raccrocher
+              <select
+                className="voice-audience"
+                value={voice.state.audience}
+                onChange={(e) => voice.setAudience(e.target.value as VoiceAudience)}
+                title="Qui entend ton micro"
+              >
+                <option value="all">🌍 Tous</option>
+                <option value="players">🎯 Joueurs</option>
+                <option value="spectators">👀 Spectateurs</option>
+              </select>
+              <button className="icon-btn danger" onClick={voice.leave} title="Quitter la voix">
+                📴
               </button>
             </>
           )}
           {voice.state.status === 'unavailable' && (
-            <button className="btn ghost sm" disabled title="Le serveur n’a pas de configuration LiveKit">
-              🎙 Voix indisponible
+            <button className="icon-btn off" disabled title="Le serveur n’a pas de configuration LiveKit">
+              🎙
             </button>
           )}
         </div>
@@ -206,6 +233,51 @@ export function Room({
           </span>
         ))}
       </div>
+
+      <button
+        className={`chat-fab ${chatOpen ? 'open' : ''}`}
+        onClick={() => setChatOpen((v) => !v)}
+        title="Chat du salon"
+      >
+        💬
+        {unread > 0 && <span className="chat-badge">{unread > 9 ? '9+' : unread}</span>}
+      </button>
+
+      {chatOpen && (
+        <div className="chat-panel">
+          <div className="chat-head">💬 Chat du salon</div>
+          <div className="chat-msgs" ref={msgsRef}>
+            {chat.length === 0 && <p className="empty">Encore aucun message…</p>}
+            {chat.map((m) => (
+              <p key={m.key} className={`chat-msg ${m.memberId === selfId ? 'mine' : ''}`}>
+                <b>{m.pseudo}</b> {m.text}
+              </p>
+            ))}
+          </div>
+          <form
+            className="chat-form"
+            onSubmit={(e) => {
+              e.preventDefault()
+              const text = chatText.trim()
+              if (text) {
+                onChat(text)
+                setChatText('')
+              }
+            }}
+          >
+            <input
+              className="input"
+              value={chatText}
+              maxLength={300}
+              placeholder="Ton message…"
+              onChange={(e) => setChatText(e.target.value)}
+            />
+            <button className="btn sm" type="submit" disabled={!chatText.trim()}>
+              ➤
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

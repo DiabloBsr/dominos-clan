@@ -32,6 +32,9 @@ export async function createVoiceToken(
     canPublish: true,
     canSubscribe: true,
     canPublishData: false,
+    // Permet au client de publier son attribut `target`
+    // (audience de son micro : tous / joueurs / spectateurs).
+    canUpdateOwnMetadata: true,
   })
   return { url: process.env.LIVEKIT_URL!, token: await at.toJwt() }
 }

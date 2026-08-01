@@ -8,6 +8,7 @@ import type { Move } from '@dominos-clan/engine'
 import { createVoiceToken, voiceEnabled } from './voice'
 import {
   RoomError,
+  canChat,
   canReact,
   createRoom,
   gameRole,
@@ -17,6 +18,7 @@ import {
   playMove,
   removeMember,
   roomView,
+  sanitizeChatText,
   startGame,
   takeSeat,
   type Room,
@@ -171,6 +173,17 @@ io.on('connection', (socket: Socket) => {
         pseudo: member.pseudo,
         emoji: payload.emoji,
       })
+    }),
+  )
+
+  socket.on('chat:send', (payload: { text?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      const member = room.members.get(memberId)
+      if (!member) throw new RoomError('Membre inconnu')
+      const text = sanitizeChatText(payload?.text)
+      if (!canChat(room, memberId)) return
+      io.to(room.code).emit('chat:message', { memberId, pseudo: member.pseudo, text })
     }),
   )
 

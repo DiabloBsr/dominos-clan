@@ -27,6 +27,8 @@ export interface Room {
   lastWinnerId: string | null
   /** Timestamp de la dernière réaction par membre (anti-spam). */
   lastReactionAt: Map<string, number>
+  /** Timestamp du dernier message chat par membre (anti-spam). */
+  lastChatAt: Map<string, number>
 }
 
 export class RoomError extends Error {}
@@ -76,6 +78,7 @@ export function createRoom(rawPseudo: unknown, socketId: string): { room: Room; 
     status: 'lobby',
     lastWinnerId: null,
     lastReactionAt: new Map(),
+    lastChatAt: new Map(),
   }
   rooms.set(room.code, room)
   return { room, member }
@@ -167,6 +170,7 @@ export function removeMember(room: Room, memberId: string): { empty: boolean; ab
   room.seats = room.seats.filter((id) => id !== memberId)
   room.queue = room.queue.filter((id) => id !== memberId)
   room.lastReactionAt.delete(memberId)
+  room.lastChatAt.delete(memberId)
 
   if (room.members.size === 0) {
     rooms.delete(room.code)
@@ -204,5 +208,23 @@ export function canReact(room: Room, memberId: string, emoji: string): boolean {
   const now = Date.now()
   if (now - last < REACTION_THROTTLE_MS) return false
   room.lastReactionAt.set(memberId, now)
+  return true
+}
+
+const CHAT_THROTTLE_MS = 500
+const CHAT_MAX_LENGTH = 300
+
+export function sanitizeChatText(raw: unknown): string {
+  if (typeof raw !== 'string') throw new RoomError('Message invalide')
+  const text = raw.trim().slice(0, CHAT_MAX_LENGTH)
+  if (text.length === 0) throw new RoomError('Message vide')
+  return text
+}
+
+export function canChat(room: Room, memberId: string): boolean {
+  const last = room.lastChatAt.get(memberId) ?? 0
+  const now = Date.now()
+  if (now - last < CHAT_THROTTLE_MS) return false
+  room.lastChatAt.set(memberId, now)
   return true
 }

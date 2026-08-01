@@ -90,6 +90,22 @@ async function main(): Promise<void> {
     console.log('voix : non configurée sur ce serveur (refus propre) ✔')
   }
 
+  // Chat texte : Bob envoie, Alice doit recevoir la diffusion.
+  const bob = clients[1]!
+  const chatReceived = new Promise<{ pseudo: string; text: string }>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('chat:message jamais reçu')), 3000)
+    alice.socket.once('chat:message', (m: { pseudo: string; text: string }) => {
+      clearTimeout(timer)
+      resolve(m)
+    })
+  })
+  await emitAck(bob.socket, 'chat:send', { text: 'chambrage de test 🔥' })
+  const chatMsg = await chatReceived
+  if (chatMsg.text !== 'chambrage de test 🔥' || chatMsg.pseudo !== 'Bob') {
+    throw new Error(`chat inattendu : ${JSON.stringify(chatMsg)}`)
+  }
+  console.log('chat : message diffusé à tout le salon ✔')
+
   // Diego se lève : il sera notre spectateur.
   const diego = clients[3]!
   await emitAck(diego.socket, 'seat:leave', {})

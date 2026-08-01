@@ -4,10 +4,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Room as VoiceRoom, RemoteTrack, Participant } from 'livekit-client'
 import { socket } from './socket'
 
+/** Qui entend mon micro : tout le salon, seulement les joueurs, ou seulement les spectateurs. */
+export type VoiceAudience = 'all' | 'players' | 'spectators'
+
 export interface VoiceState {
   /** off = pas connecté ; on = mic actif ; unavailable = serveur sans config LiveKit */
   status: 'off' | 'connecting' | 'on' | 'unavailable'
   muted: boolean
+  audience: VoiceAudience
   /** memberIds présents dans le salon vocal. */
   inVoice: string[]
   /** memberIds en train de parler (détection LiveKit). */
@@ -18,24 +22,69 @@ export interface VoiceControls {
   state: VoiceState
   join: () => void
   toggleMute: () => void
+  setAudience: (audience: VoiceAudience) => void
   leave: () => void
 }
 
-const INITIAL: VoiceState = { status: 'off', muted: false, inVoice: [], speaking: [] }
+const INITIAL: VoiceState = { status: 'off', muted: false, audience: 'all', inVoice: [], speaking: [] }
 
 /**
  * Voix du salon via LiveKit : un salon de jeu = une room `dc-<code>`.
  * Le token est délivré par notre serveur (voice:token) qui vérifie
  * l'appartenance au salon ; l'audio passe ensuite en direct par le SFU.
+ *
+ * Ciblage : chaque participant publie un attribut `target` (all/players/
+ * spectators) ; côté écoute, on coupe (mute) les éléments audio des
+ * participants dont l'audience ne nous inclut pas. V1 : filtrage à la
+ * lecture — le flux transite mais n'est pas audible.
  */
-export function useVoice(roomCode: string | null, onError: (message: string) => void): VoiceControls {
+export function useVoice(
+  roomCode: string | null,
+  selfId: string | null,
+  playerIds: string[],
+  onError: (message: string) => void,
+): VoiceControls {
   const voiceRef = useRef<VoiceRoom | null>(null)
+  const audioEls = useRef(new Map<string, HTMLMediaElement[]>())
   const [state, setState] = useState<VoiceState>(INITIAL)
+
+  // Rôles toujours frais dans les callbacks LiveKit (rotation, arrivées…).
+  const rolesRef = useRef({ selfId, playerIds })
+  rolesRef.current = { selfId, playerIds }
+
+  const shouldHear = useCallback((participant: Participant): boolean => {
+    const target = (participant.attributes?.target as VoiceAudience | undefined) ?? 'all'
+    if (target === 'all') return true
+    const { selfId: me, playerIds: players } = rolesRef.current
+    const iAmPlayer = !!me && players.includes(me)
+    return target === 'players' ? iAmPlayer : !iAmPlayer
+  }, [])
+
+  const applyFilterFor = useCallback(
+    (participant: Participant) => {
+      const els = audioEls.current.get(participant.identity) ?? []
+      const audible = shouldHear(participant)
+      for (const el of els) el.muted = !audible
+    },
+    [shouldHear],
+  )
+
+  const applyFilterAll = useCallback(() => {
+    voiceRef.current?.remoteParticipants.forEach((p) => applyFilterFor(p))
+  }, [applyFilterFor])
+
+  // Les rôles changent (rotation gagnant-reste, sièges) → recalculer qui j'entends.
+  const playerKey = playerIds.join(',')
+  useEffect(() => {
+    applyFilterAll()
+  }, [playerKey, applyFilterAll])
 
   const teardown = useCallback(() => {
     const room = voiceRef.current
     voiceRef.current = null
     if (room) void room.disconnect()
+    document.querySelectorAll('[data-voice="dominos-clan"]').forEach((el) => el.remove())
+    audioEls.current.clear()
     setState((s) => ({ ...INITIAL, status: s.status === 'unavailable' ? 'unavailable' : 'off' }))
   }, [])
 
@@ -70,32 +119,49 @@ export function useVoice(roomCode: string | null, onError: (message: string) => 
           voiceRef.current = room
 
           room
-            .on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
+            .on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant) => {
               if (track.kind === Track.Kind.Audio) {
                 const el = track.attach()
                 el.dataset.voice = 'dominos-clan'
                 document.body.appendChild(el)
+                const els = audioEls.current.get(participant.identity) ?? []
+                els.push(el)
+                audioEls.current.set(participant.identity, els)
+                applyFilterFor(participant)
               }
             })
-            .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-              track.detach().forEach((el) => el.remove())
+            .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, _pub, participant) => {
+              const detached = track.detach()
+              detached.forEach((el) => el.remove())
+              const els = (audioEls.current.get(participant.identity) ?? []).filter(
+                (el) => !detached.includes(el),
+              )
+              audioEls.current.set(participant.identity, els)
+            })
+            .on(RoomEvent.ParticipantAttributesChanged, (_changed, participant) => {
+              applyFilterFor(participant)
             })
             .on(RoomEvent.ParticipantConnected, () => refreshRoster(room))
-            .on(RoomEvent.ParticipantDisconnected, () => refreshRoster(room))
+            .on(RoomEvent.ParticipantDisconnected, (participant) => {
+              audioEls.current.delete(participant.identity)
+              refreshRoster(room)
+            })
             .on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
               setState((s) => ({ ...s, speaking: speakers.map((p) => p.identity) }))
             })
             .on(RoomEvent.Disconnected, () => {
               document.querySelectorAll('[data-voice="dominos-clan"]').forEach((el) => el.remove())
+              audioEls.current.clear()
               voiceRef.current = null
               setState(INITIAL)
             })
 
           try {
             await room.connect(res.url, res.token)
+            await room.localParticipant.setAttributes({ target: 'all' })
             await room.localParticipant.setMicrophoneEnabled(true)
             await room.startAudio()
-            setState((s) => ({ ...s, status: 'on', muted: false }))
+            setState((s) => ({ ...s, status: 'on', muted: false, audience: 'all' }))
             refreshRoster(room)
           } catch (err) {
             voiceRef.current = null
@@ -110,7 +176,7 @@ export function useVoice(roomCode: string | null, onError: (message: string) => 
         })()
       },
     )
-  }, [roomCode, onError, refreshRoster])
+  }, [roomCode, onError, refreshRoster, applyFilterFor])
 
   const toggleMute = useCallback(() => {
     const room = voiceRef.current
@@ -120,5 +186,12 @@ export function useVoice(roomCode: string | null, onError: (message: string) => 
     setState((s) => ({ ...s, muted: !nextEnabled }))
   }, [])
 
-  return { state, join, toggleMute, leave: teardown }
+  const setAudience = useCallback((audience: VoiceAudience) => {
+    const room = voiceRef.current
+    if (!room) return
+    void room.localParticipant.setAttributes({ target: audience })
+    setState((s) => ({ ...s, audience }))
+  }, [])
+
+  return { state, join, toggleMute, setAudience, leave: teardown }
 }

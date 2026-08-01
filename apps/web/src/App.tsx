@@ -12,13 +12,22 @@ export interface FloatingReaction {
   emoji: string
 }
 
+export interface ChatMessage {
+  key: number
+  memberId: string
+  pseudo: string
+  text: string
+}
+
 export default function App() {
   const [selfId, setSelfId] = useState<string | null>(null)
   const [room, setRoom] = useState<RoomView | null>(null)
   const [game, setGame] = useState<GameView | null>(null)
   const [reactions, setReactions] = useState<FloatingReaction[]>([])
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   const reactionKey = useRef(0)
+  const chatKey = useRef(0)
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const showNotice = useCallback((message: string) => {
@@ -27,7 +36,11 @@ export default function App() {
     noticeTimer.current = setTimeout(() => setNotice(null), 4000)
   }, [])
 
-  const voice = useVoice(room?.code ?? null, showNotice)
+  // « Joueurs » au sens voix/rôles : ceux de la manche en cours, sinon les assis.
+  const playerIds =
+    game && game.status === 'playing' ? game.players.map((p) => p.id) : (room?.seats ?? [])
+
+  const voice = useVoice(room?.code ?? null, selfId, playerIds, showNotice)
 
   useEffect(() => {
     const onRoomState = (view: RoomView) => setRoom(view)
@@ -36,6 +49,10 @@ export default function App() {
       const key = ++reactionKey.current
       setReactions((prev) => [...prev.slice(-11), { key, ...r }])
       setTimeout(() => setReactions((prev) => prev.filter((fr) => fr.key !== key)), 2600)
+    }
+    const onChatMessage = (m: { memberId: string; pseudo: string; text: string }) => {
+      const key = ++chatKey.current
+      setChatMessages((prev) => [...prev.slice(-149), { key, ...m }])
     }
     const onAborted = () => showNotice('Un joueur a quitté : manche annulée')
     const onDisconnect = () => {
@@ -48,12 +65,14 @@ export default function App() {
     socket.on('room:state', onRoomState)
     socket.on('game:state', onGameState)
     socket.on('reaction', onReaction)
+    socket.on('chat:message', onChatMessage)
     socket.on('game:aborted', onAborted)
     socket.on('disconnect', onDisconnect)
     return () => {
       socket.off('room:state', onRoomState)
       socket.off('game:state', onGameState)
       socket.off('reaction', onReaction)
+      socket.off('chat:message', onChatMessage)
       socket.off('game:aborted', onAborted)
       socket.off('disconnect', onDisconnect)
     }
@@ -86,12 +105,14 @@ export default function App() {
     onStart: () => simpleEmit('game:start'),
     onMove: (move: Move) => simpleEmit('game:move', { move }),
     onReact: (emoji: string) => socket.emit('reaction', { emoji }),
+    onChat: (text: string) => simpleEmit('chat:send', { text }),
     onLeave: () => {
       voice.leave()
       simpleEmit('room:leave')
       setRoom(null)
       setGame(null)
       setSelfId(null)
+      setChatMessages([])
     },
   }
 
@@ -99,7 +120,15 @@ export default function App() {
     <div className="app">
       {notice && <div className="toast">{notice}</div>}
       {room && selfId ? (
-        <Room room={room} game={game} selfId={selfId} reactions={reactions} voice={voice} {...handlers} />
+        <Room
+          room={room}
+          game={game}
+          selfId={selfId}
+          reactions={reactions}
+          chat={chatMessages}
+          voice={voice}
+          {...handlers}
+        />
       ) : (
         <Home onCreate={handlers.onCreate} onJoin={handlers.onJoin} />
       )}

@@ -41,6 +41,8 @@ Exemple : 6 potes dans le salon, 3 jouent un 1v1v1, les 3 autres regardent (et c
 - **Passer** n'est légal que sans coup jouable (anti-sandbagging).
 - **Comptes** : pseudo simple, pas d'auth en V1.
 - **Réactions** : 8 emotes fixes (😂 🔥 👏 😮 😭 😈 🤝 💀), throttle anti-spam 400 ms.
+- **Chat texte** : panneau 💬 avec badge de non-lus, 300 caractères max, throttle 500 ms.
+- **Micro ciblé** : chaque participant choisit qui l'entend — 🌍 tous, 🎯 joueurs seulement, 👀 spectateurs seulement (V1 : filtrage à la lecture côté client).
 - **Vue spectateur** : mains masquées par défaut, bouton « Voir les mains ».
 
 ## 🧱 Stack (en place)
@@ -101,9 +103,9 @@ PRO (9 $/mois) — seuls les Spaces statiques restent gratuits, insuffisant pour
 
 - **P1 — Moteur de jeu** ✅ règles, serveur autoritaire, tests, anti-fuite vérifié
 - **P2 — Multijoueur** ✅ salons par code, sièges/file, rotation gagnant-reste, réactions live
-- **P3 — Chill layer** ✅ mic LiveKit intégré (s'active en posant les clés `LIVEKIT_*`) + réactions live
+- **P3 — Chill layer** ✅ mic LiveKit (icônes on/off, ciblage tous/joueurs/spectateurs) + chat texte 💬 + réactions live
 - **P4 — Mobile** : packaging Capacitor Android
-- **P5 — Polish** : sons, animations de pose, doubles perpendiculaires, reconnexion en cours de manche (aujourd'hui un départ de joueur annule la manche)
+- **P5 — Polish** : sons, animations de pose, reconnexion en cours de manche (aujourd'hui un départ de joueur annule la manche)
 
 ## ❓ Reste à trancher
 
