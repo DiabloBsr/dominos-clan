@@ -157,7 +157,7 @@ export function Home({
         </div>
       </div>
 
-      <p className="hint">Jusqu’à 10 dans le salon · 2 à 4 à table · le gagnant reste 👑</p>
+      <p className="hint">2 à 4 à table · jusqu’à 20 en file · le gagnant reste 👑</p>
     </main>
   )
 }

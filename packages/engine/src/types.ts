@@ -43,6 +43,12 @@ export interface GameRules {
    * immédiatement. null = désactivé.
    */
   instantWinScore: number | null
+  /**
+   * Mode match : nombre de joueurs remplacés par la file à chaque fin de
+   * manche (les plus petits scores, jamais le gagnant). Ex. à 3 joueurs :
+   * 1 = le plus petit score sort ; 2 = seul le gagnant reste.
+   */
+  swapCount: number
 }
 
 export const DEFAULT_RULES: GameRules = {
@@ -51,6 +57,7 @@ export const DEFAULT_RULES: GameRules = {
   freePass: false,
   openingMaxPips: null,
   instantWinScore: null,
+  swapCount: 1,
 }
 
 export interface RoundResult {

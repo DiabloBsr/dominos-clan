@@ -269,6 +269,26 @@ export function Room({
                   }}
                 />
               </label>
+              <label
+                className="rules-num"
+                title="Combien de joueurs sortent à chaque fin de manche si la file attend — toujours les plus petits scores, jamais le gagnant. À 3 joueurs : 2 = seul le gagnant reste."
+              >
+                remplacés/manche
+                <input
+                  key={`w-${room.rules.swapCount}`}
+                  type="number"
+                  min={0}
+                  max={3}
+                  disabled={!isHost}
+                  defaultValue={room.rules.swapCount}
+                  onBlur={(e) =>
+                    onRules({
+                      ...room.rules,
+                      swapCount: Math.max(0, Math.min(3, Number(e.target.value) || 0)),
+                    })
+                  }
+                />
+              </label>
               <label className="rules-num" title="La première marque ne compte que si elle atteint ce seuil ; ensuite tout compte">
                 1re marque ≥
                 <input
@@ -390,7 +410,7 @@ export function Room({
               : room.matchWinnerId
                 ? 'La table tourne pour le prochain match : le champion reste, la file monte.'
                 : room.rules.targetScore !== null
-                  ? 'Le match continue — si la file attend, le plus petit score cède sa place.'
+                  ? 'Le match continue — si la file attend, les plus petits scores cèdent leur place.'
                   : 'La table a tourné : le gagnant reste, la file monte.'}
           </p>
           {isHost && (

@@ -92,6 +92,21 @@ export default function App() {
         }) => {
           if (res.ok && Array.isArray(res.friends)) {
             setFriendStatuses(Object.fromEntries(res.friends.map((f) => [f.userId, f.status])))
+            // Rafraîchit le pseudo/avatar en cache dès le snapshot : la liste
+            // affiche le vrai pseudo, pas « joueur » ni le code ami.
+            setFriends((prev) => {
+              let changed = false
+              const next = prev.map((fr) => {
+                const live = res.friends!.find((x) => x.userId === fr.id)
+                if (live?.pseudo && (fr.pseudo !== live.pseudo || fr.avatar !== live.avatar)) {
+                  changed = true
+                  return { ...fr, pseudo: live.pseudo, avatar: live.avatar }
+                }
+                return fr
+              })
+              if (changed) saveFriends(next)
+              return changed ? next : prev
+            })
           }
         },
       )

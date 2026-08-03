@@ -7,6 +7,7 @@ import {
   applyMove,
   createGame,
   rotateWinnerStays,
+  swapLowestScores,
   undoLastMove,
 } from '@dominos-clan/engine'
 import type { GameRules, GameState, Move, Role, RoomStatus, RoomView } from '@dominos-clan/engine'
@@ -121,7 +122,7 @@ export function joinRoom(
 ): { room: Room; member: Member } {
   if (typeof rawCode !== 'string') throw new RoomError('Code invalide')
   const room = getRoom(rawCode.trim().toUpperCase())
-  if (room.members.size >= ROOM_CAPACITY) throw new RoomError('Salon complet (10 max)')
+  if (room.members.size >= ROOM_CAPACITY) throw new RoomError(`Salon complet (${ROOM_CAPACITY} max)`)
   const pseudo = sanitizePseudo(rawPseudo)
   const member: Member = {
     id: randomBytes(8).toString('base64url'),
@@ -173,12 +174,17 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
   if (instantWinScore !== null && (!Number.isInteger(instantWinScore) || instantWinScore < 1 || instantWinScore > 1000)) {
     throw new RoomError('Seuil de victoire éclair invalide (1 à 1000 points)')
   }
+  const swapCount = Number(r.swapCount ?? 1)
+  if (!Number.isInteger(swapCount) || swapCount < 0 || swapCount > 3) {
+    throw new RoomError('Nombre de remplacés par manche invalide (0 à 3)')
+  }
   room.rules = {
     targetScore,
     openThreshold,
     freePass: Boolean(r.freePass),
     openingMaxPips,
     instantWinScore,
+    swapCount,
   }
   // Changer les règles relance une rencontre propre.
   room.scores = new Map()
@@ -290,19 +296,17 @@ function settleRoundEnd(room: Room): void {
       return
     }
 
-    // Le match continue. Si la file attend : le plus petit score cède sa
-    // place au premier de la file (jamais le gagnant de la manche) ; il
-    // part en fin de file et garde son score pour son retour.
-    if (room.queue.length > 0) {
-      const candidates = room.seats.filter((id) => id !== result.winnerId)
-      let evicted = candidates[0]!
-      for (const id of candidates) {
-        if ((room.scores.get(id) ?? 0) < (room.scores.get(evicted) ?? 0)) evicted = id
-      }
-      const incoming = room.queue.shift()!
-      room.seats = room.seats.map((id) => (id === evicted ? incoming : id))
-      room.queue.push(evicted)
-    }
+    // Le match continue. Si la file attend : les `swapCount` plus petits
+    // scores cèdent leur place (jamais le gagnant) et gardent leurs points.
+    const swapped = swapLowestScores(
+      room.seats,
+      room.queue,
+      Object.fromEntries(room.scores),
+      result.winnerId,
+      room.rules.swapCount,
+    )
+    room.seats = swapped.seats
+    room.queue = swapped.queue
     return
   }
 

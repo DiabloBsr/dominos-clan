@@ -1,6 +1,7 @@
 import type { GameRules, Role } from './types'
 
-export const ROOM_CAPACITY = 10
+/** 4 joueurs à table + jusqu'à 20 personnes en file d'attente. */
+export const ROOM_CAPACITY = 24
 export const MIN_SEATS = 2
 export const MAX_SEATS = 4
 
@@ -38,6 +39,34 @@ export interface RoomView {
  * les premiers de la file prennent les sièges libérés. Sans spectateurs
  * en attente, les mêmes joueurs rejouent (gagnant en tête).
  */
+/**
+ * Bascule de file en cours de match : les `count` plus petits scores cumulés
+ * (JAMAIS le gagnant de la manche ; égalité départagée par l'ordre des sièges)
+ * cèdent leur place aux premiers de la file et repartent en fin de file.
+ * Borné par la taille de la file : personne n'entre s'il n'y a personne.
+ */
+export function swapLowestScores(
+  seats: readonly string[],
+  queue: readonly string[],
+  scores: Record<string, number>,
+  winnerId: string,
+  count: number,
+): { seats: string[]; queue: string[] } {
+  const nextSeats = [...seats]
+  const nextQueue = [...queue]
+  const candidates = nextSeats
+    .filter((id) => id !== winnerId)
+    .sort((a, b) => (scores[a] ?? 0) - (scores[b] ?? 0))
+  const n = Math.min(Math.max(0, count), queue.length, candidates.length)
+  for (let i = 0; i < n; i++) {
+    const evicted = candidates[i]!
+    const incoming = nextQueue.shift()!
+    nextSeats[nextSeats.indexOf(evicted)] = incoming
+    nextQueue.push(evicted)
+  }
+  return { seats: nextSeats, queue: nextQueue }
+}
+
 export function rotateWinnerStays(
   seats: readonly string[],
   queue: readonly string[],
