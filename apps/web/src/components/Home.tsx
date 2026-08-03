@@ -30,13 +30,7 @@ const GAMES: Array<{
     tag: '1 vs 1 · blitz',
     desc: 'Pendules 10 min, mat ou drapeau.',
   },
-  {
-    type: 'ludo',
-    emoji: '🎲',
-    name: 'Ludo',
-    tag: '2-4 joueurs',
-    desc: 'Petits chevaux, gros chaos — mode bonus 🎁.',
-  },
+  // Ludo : masqué le temps de refaire le plateau aux petits oignons.
 ]
 
 export function Home({
