@@ -1618,15 +1618,40 @@ button.domino:disabled {
   justify-content: center;
 }
 
+/* Mobile : les noms remontent en haut, en rangée pleine largeur et lisible. */
 @media (max-width: 640px) {
   .table-arena {
-    gap: 0.4rem 0.3rem;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+  }
+
+  .arena-top,
+  .arena-left,
+  .arena-right,
+  .arena-bottom {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem;
+  }
+
+  .arena-top:empty,
+  .arena-left:empty,
+  .arena-right:empty,
+  .arena-bottom:empty {
+    display: none;
   }
 
   .arena-left .seat-chip,
   .arena-right .seat-chip {
-    max-width: 6.2rem;
-    font-size: 0.75rem;
+    max-width: none;
+    font-size: 0.85rem;
+  }
+
+  .arena-felt {
+    width: 100%;
   }
 }
 
