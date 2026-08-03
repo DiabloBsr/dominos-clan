@@ -11,6 +11,7 @@ import {
   type FriendStatus,
   type Profile,
 } from './profile'
+import { playSlam } from './sounds'
 import { Home } from './components/Home'
 import { Room } from './components/Room'
 
@@ -41,8 +42,10 @@ export default function App() {
   const [invite, setInvite] = useState<{ fromPseudo: string; fromAvatar: string; code: string } | null>(
     null,
   )
+  const [slamFx, setSlamFx] = useState<{ key: number; pseudo: string } | null>(null)
   const reactionKey = useRef(0)
   const chatKey = useRef(0)
+  const slamKey = useRef(0)
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const showNotice = useCallback((message: string) => {
@@ -128,6 +131,12 @@ export default function App() {
     }
     const onInvited = (inv: { fromPseudo: string; fromAvatar: string; code: string }) =>
       setInvite(inv)
+    const onSlam = (s: { pseudo: string }) => {
+      playSlam()
+      const key = ++slamKey.current
+      setSlamFx({ key, pseudo: s.pseudo })
+      setTimeout(() => setSlamFx((prev) => (prev?.key === key ? null : prev)), 1000)
+    }
     const onAborted = () => showNotice('Un joueur a quitté : manche annulée')
     const onDisconnect = () => {
       setRoom(null)
@@ -142,6 +151,7 @@ export default function App() {
     socket.on('chat:message', onChatMessage)
     socket.on('presence:update', onPresence)
     socket.on('friend:invited', onInvited)
+    socket.on('game:slam', onSlam)
     socket.on('game:aborted', onAborted)
     socket.on('disconnect', onDisconnect)
     return () => {
@@ -151,6 +161,7 @@ export default function App() {
       socket.off('chat:message', onChatMessage)
       socket.off('presence:update', onPresence)
       socket.off('friend:invited', onInvited)
+      socket.off('game:slam', onSlam)
       socket.off('game:aborted', onAborted)
       socket.off('disconnect', onDisconnect)
     }
@@ -226,7 +237,7 @@ export default function App() {
     onSit: () => simpleEmit('seat:take'),
     onStand: () => simpleEmit('seat:leave'),
     onStart: () => simpleEmit('game:start'),
-    onMove: (move: Move) => simpleEmit('game:move', { move }),
+    onMove: (move: Move, slam?: boolean) => simpleEmit('game:move', { move, slam: slam === true }),
     onReact: (emoji: string) => socket.emit('reaction', { emoji }),
     onChat: (text: string) => simpleEmit('chat:send', { text }),
     onRules: (rules: GameRules) => simpleEmit('room:rules', { ...rules }),
@@ -261,6 +272,7 @@ export default function App() {
           voice={voice}
           friends={friends}
           friendStatuses={friendStatuses}
+          slamFx={slamFx}
           {...handlers}
         />
       ) : (

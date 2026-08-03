@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { End, GameView, Move, RoomView, Tile } from '@dominos-clan/engine'
 import { layoutBoard } from '../boardLayout'
+import { playTap } from '../sounds'
 import { DominoBack, DominoTile } from './DominoTile'
 
 function pseudoOf(room: RoomView, id: string): string {
@@ -30,18 +31,21 @@ export function Game({
   onUndo,
   voiceIds,
   speaking,
+  shaking,
 }: {
   game: GameView
   room: RoomView
   selfId: string
-  onMove: (move: Move) => void
+  onMove: (move: Move, slam?: boolean) => void
   onUndo: () => void
   voiceIds: string[]
   speaking: string[]
+  shaking: boolean
 }) {
   const [selected, setSelected] = useState<Tile | null>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
   const [showHands, setShowHands] = useState(false)
+  const [slamArmed, setSlamArmed] = useState(false)
   const boardRef = useRef<HTMLDivElement | null>(null)
   const [box, setBox] = useState({ w: 0, h: 0 })
   const movedRef = useRef(false)
@@ -61,6 +65,13 @@ export function Game({
     setSelected(null)
     setDrag(null)
   }, [game.line.length, game.currentPlayerId])
+
+  // Petit « tac » à chaque pose (le CLAC du claquage arrive par game:slam).
+  const prevLineLen = useRef(game.line.length)
+  useEffect(() => {
+    if (game.line.length > prevLineLen.current) playTap()
+    prevLineLen.current = game.line.length
+  }, [game.line.length])
 
   // Donnes annulées (excès de doubles) : panneau montré à chaque nouvelle donne.
   const [hideRedeals, setHideRedeals] = useState(false)
@@ -90,10 +101,15 @@ export function Game({
   const activeTile = drag?.tile ?? selected
   const activeEnds: End[] = activeTile ? movesFor(activeTile).map((m) => m.end) : []
 
+  const sendPlay = (move: Move) => {
+    onMove(move, slamArmed)
+    setSlamArmed(false)
+  }
+
   const playEnd = (end: End) => {
     if (!activeTile) return
     const move = movesFor(activeTile).find((m) => m.end === end)
-    if (move) onMove(move)
+    if (move) sendPlay(move)
     setSelected(null)
     setDrag(null)
   }
@@ -102,7 +118,7 @@ export function Game({
     const moves = movesFor(tile)
     if (moves.length === 0) return
     if (moves.length === 1) {
-      onMove(moves[0]!)
+      sendPlay(moves[0]!)
       setSelected(null)
     } else {
       setSelected((prev) => (prev && sameTile(prev, tile) ? null : tile))
@@ -134,7 +150,7 @@ export function Game({
     const dropped = movedRef.current ? hitZone(e.clientX, e.clientY) : null
     if (dropped) {
       const move = movesFor(tile).find((m) => m.end === dropped)
-      if (move) onMove(move)
+      if (move) sendPlay(move)
       setSelected(null)
     } else if (!movedRef.current) {
       tapHand(tile)
@@ -210,7 +226,7 @@ export function Game({
         ))}
       </div>
 
-      <div className="table-felt">
+      <div className={`table-felt ${shaking ? 'slam-shake' : ''}`}>
         <div className="board-wrap" ref={boardRef}>
           {game.line.length === 0 ? (
             <p
@@ -301,6 +317,15 @@ export function Game({
                 </span>
               )
             })}
+            {game.status === 'playing' && (
+              <button
+                className={`btn sm slam-btn ${slamArmed ? 'armed' : ''}`}
+                onClick={() => setSlamArmed((v) => !v)}
+                title="Rabats ton prochain domino de toutes tes forces — tout le salon entendra le CLAC"
+              >
+                💥 {slamArmed ? 'Prêt à claquer !' : 'Claquer'}
+              </button>
+            )}
             {canPass && (
               <button
                 className={`btn pass ${playMoves.length > 0 ? 'optional' : ''}`}

@@ -73,7 +73,7 @@ export function Home({
         </div>
 
         <label className="field">
-          <span>Ton blaze</span>
+          <span>Pseudo</span>
           <input
             className="input"
             value={profile.pseudo}

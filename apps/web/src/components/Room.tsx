@@ -24,6 +24,7 @@ export function Room({
   voice,
   friends,
   friendStatuses,
+  slamFx,
   onInvite,
   onSit,
   onStand,
@@ -43,11 +44,12 @@ export function Room({
   voice: VoiceControls
   friends: Friend[]
   friendStatuses: Record<string, FriendStatus>
+  slamFx: { key: number; pseudo: string } | null
   onInvite: (toUserId: string) => void
   onSit: () => void
   onStand: () => void
   onStart: () => void
-  onMove: (move: Move) => void
+  onMove: (move: Move, slam?: boolean) => void
   onReact: (emoji: string) => void
   onChat: (text: string) => void
   onRules: (rules: GameRules) => void
@@ -403,6 +405,12 @@ export function Room({
         </div>
       )}
 
+      {slamFx && (
+        <div className="slam-fx" key={slamFx.key}>
+          💥 <b>{slamFx.pseudo}</b> JOYAAA&nbsp;!
+        </div>
+      )}
+
       {game && room.status !== 'lobby' ? (
         <Game
           game={game}
@@ -412,6 +420,7 @@ export function Room({
           onUndo={onUndo}
           voiceIds={voice.state.inVoice}
           speaking={voice.state.speaking}
+          shaking={slamFx !== null}
         />
       ) : (
         <section className="lobby">

@@ -157,6 +157,15 @@ async function main(): Promise<void> {
   const seatedBefore = alice.room!.seats.join(',')
   console.log(`manche lancée, à table : ${seatedBefore} — spectateur : ${diego.selfId}`)
 
+  // Le premier coup est envoyé en mode claquage : tout le salon doit recevoir le CLAC.
+  const slamReceived = new Promise<{ pseudo: string }>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('game:slam jamais reçu')), 8000)
+    diego.socket.once('game:slam', (s: { pseudo: string }) => {
+      clearTimeout(timer)
+      resolve(s)
+    })
+  })
+
   let moves = 0
   while (moves < 200) {
     await sleep(30)
@@ -165,9 +174,11 @@ async function main(): Promise<void> {
     const current = clients.find((c) => (c.game?.you?.legalMoves.length ?? 0) > 0)
     if (!current) continue
     const move = current.game!.you!.legalMoves[0]!
-    await emitAck(current.socket, 'game:move', { move })
+    await emitAck(current.socket, 'game:move', { move, slam: moves === 0 })
     moves++
   }
+  await slamReceived
+  console.log('claquage : CLAC relayé à tout le salon ✔')
 
   await sleep(150)
   const final = alice.game

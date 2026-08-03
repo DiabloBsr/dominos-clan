@@ -189,11 +189,17 @@ io.on('connection', (socket: Socket) => {
     }),
   )
 
-  socket.on('game:move', (payload: { move?: Move }, ack?: Ack) =>
+  socket.on('game:move', (payload: { move?: Move; slam?: unknown }, ack?: Ack) =>
     handle(ack, () => {
       const { room, memberId } = withRoom(state)
       if (!payload?.move) throw new RoomError('Coup manquant')
       playMove(room, memberId, payload.move)
+      // Claquage : le domino rabattu de toutes ses forces — tout le salon
+      // entend le CLAC (pur effet d'ambiance, validé après le coup).
+      if (payload.slam === true && payload.move.type === 'play') {
+        const member = room.members.get(memberId)
+        if (member) io.to(room.code).emit('game:slam', { memberId, pseudo: member.pseudo })
+      }
       broadcast(room)
     }),
   )

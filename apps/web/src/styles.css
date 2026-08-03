@@ -564,6 +564,52 @@ body::before {
   justify-content: center;
 }
 
+/* ─── Claquage 💥 ────────────────────────────────────────────────── */
+
+.slam-btn.armed {
+  background: var(--clay);
+  color: #fff;
+  animation: pulse 0.7s ease-in-out infinite;
+  box-shadow: 0 0 16px rgba(216, 88, 60, 0.55);
+}
+
+.table-felt.slam-shake {
+  animation: table-shake 0.45s ease-out;
+}
+
+@keyframes table-shake {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  15% { transform: translate(-6px, 3px) rotate(-0.6deg); }
+  30% { transform: translate(5px, -3px) rotate(0.5deg); }
+  45% { transform: translate(-4px, 2px) rotate(-0.4deg); }
+  60% { transform: translate(3px, -2px) rotate(0.3deg); }
+  80% { transform: translate(-2px, 1px) rotate(-0.15deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+.slam-fx {
+  position: fixed;
+  top: 38%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 6vw, 3rem);
+  color: var(--amber);
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.7);
+  z-index: 95;
+  pointer-events: none;
+  animation: slam-pop 1s ease-out forwards;
+  white-space: nowrap;
+}
+
+@keyframes slam-pop {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
+  18% { transform: translate(-50%, -50%) scale(1.25); opacity: 1; }
+  30% { transform: translate(-50%, -50%) scale(1); }
+  75% { opacity: 1; }
+  100% { transform: translate(-50%, -58%) scale(1); opacity: 0; }
+}
+
 /* ─── Donne annulée (excès de doubles) ───────────────────────────── */
 
 .redeal-banner {
