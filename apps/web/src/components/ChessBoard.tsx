@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Chess, type Square } from 'chess.js'
 import type { ChessColor, ChessView, RoomView } from '@dominos-clan/engine'
+import { ChessPiece, type PieceType } from './ChessPieces'
 
-const GLYPHS: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚' }
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+const INITIAL_COUNTS: Record<PieceType, number> = { p: 8, n: 2, b: 2, r: 2, q: 1, k: 1 }
+const PIECE_VALUES: Record<PieceType, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 }
+const CAPTURE_ORDER: PieceType[] = ['q', 'r', 'b', 'n', 'p']
 
 function pseudoOf(room: RoomView, id: string): string {
   return room.members.find((m) => m.id === id)?.pseudo ?? '???'
@@ -108,6 +111,28 @@ export function ChessBoard({
   const topColor: ChessColor = flipped ? 'w' : 'b'
   const bottomColor: ChessColor = flipped ? 'b' : 'w'
 
+  // Pièces manquantes de chaque couleur = capturées par l'adversaire.
+  const missing = useMemo(() => {
+    const counts: Record<ChessColor, Record<PieceType, number>> = {
+      w: { p: 0, n: 0, b: 0, r: 0, q: 0, k: 0 },
+      b: { p: 0, n: 0, b: 0, r: 0, q: 0, k: 0 },
+    }
+    for (const row of engine.board()) {
+      for (const piece of row) {
+        if (piece) counts[piece.color][piece.type as PieceType]++
+      }
+    }
+    const missingOf = (color: ChessColor): PieceType[] =>
+      CAPTURE_ORDER.flatMap((t) =>
+        Array<PieceType>(Math.max(0, INITIAL_COUNTS[t] - counts[color][t])).fill(t),
+      )
+    return { w: missingOf('w'), b: missingOf('b') }
+  }, [engine])
+
+  const valueOf = (list: PieceType[]) => list.reduce((s, t) => s + PIECE_VALUES[t], 0)
+  // > 0 : avantage matériel des blancs.
+  const materialDiff = valueOf(missing.b) - valueOf(missing.w)
+
   const playerRow = (id: string, color: ChessColor) => (
     <div className={`chess-side ${speaking.includes(id) ? 'speaking' : ''}`}>
       <span className={`chess-color-dot ${color === 'w' ? 'white' : 'black'}`} />
@@ -115,6 +140,15 @@ export function ChessBoard({
         {avatarOf(room, id)} {pseudoOf(room, id)}
         {voiceIds.includes(id) ? ' 🎙' : ''}
         {id === selfId ? ' (toi)' : ''}
+      </span>
+      <span className="captured-row" title="Pièces capturées">
+        {(color === 'w' ? missing.b : missing.w).map((t, i) => (
+          <span key={i} className="captured-pc">
+            <ChessPiece type={t} color={color === 'w' ? 'b' : 'w'} />
+          </span>
+        ))}
+        {color === 'w' && materialDiff > 0 && <b className="mat-adv">+{materialDiff}</b>}
+        {color === 'b' && materialDiff < 0 && <b className="mat-adv">+{-materialDiff}</b>}
       </span>
       <span
         className={`chess-clock ${view.status === 'playing' && view.turn === color ? 'active' : ''} ${
@@ -143,7 +177,13 @@ export function ChessBoard({
           }`}
           onClick={() => clickSquare(sq)}
         >
-          {piece && <span className={`pc pc-${piece.color}`}>{GLYPHS[piece.type]}</span>}
+          {c === 0 && <span className="coord rank">{8 - rankIndex}</span>}
+          {r === 7 && <span className="coord file">{FILES[fileIndex]}</span>}
+          {piece && (
+            <span className="pc">
+              <ChessPiece type={piece.type as PieceType} color={piece.color} />
+            </span>
+          )}
         </button>,
       )
     }
