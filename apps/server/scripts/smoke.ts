@@ -115,8 +115,41 @@ async function main(): Promise<void> {
   }
   console.log('chat : message diffusé à tout le salon ✔')
 
-  // Diego se lève : il sera notre spectateur.
+  // Présence + invitation directe : Alice (en salon) invite Diego par son code ami.
   const diego = clients[3]!
+  await emitAck(alice.socket, 'presence:hello', {
+    userId: 'alice0user1',
+    pseudo: 'Alice',
+    avatar: '😎',
+  })
+  await emitAck(diego.socket, 'presence:hello', {
+    userId: 'diego0user9',
+    pseudo: 'Diego',
+    avatar: '🦊',
+  })
+  const watchRes = (await emitAck(diego.socket, 'presence:watch', { ids: ['alice0user1'] })) as {
+    ok: boolean
+    friends?: Array<{ userId: string; status: string }>
+  }
+  const aliceStatus = watchRes.friends?.[0]?.status
+  if (!aliceStatus || aliceStatus === 'offline') {
+    throw new Error(`présence cassée : Alice devrait être en ligne (reçu ${aliceStatus})`)
+  }
+  const invited = new Promise<{ fromPseudo: string; code: string }>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('friend:invited jamais reçu')), 3000)
+    diego.socket.once('friend:invited', (inv: { fromPseudo: string; code: string }) => {
+      clearTimeout(timer)
+      resolve(inv)
+    })
+  })
+  await emitAck(alice.socket, 'friend:invite', { toUserId: 'diego0user9' })
+  const inv = await invited
+  if (inv.code !== code || inv.fromPseudo !== 'Alice') {
+    throw new Error(`invitation inattendue : ${JSON.stringify(inv)}`)
+  }
+  console.log(`présence : Alice ${aliceStatus} ✔ — invitation relayée vers Diego (salon ${inv.code}) ✔`)
+
+  // Diego se lève : il sera notre spectateur.
   await emitAck(diego.socket, 'seat:leave', {})
   await emitAck(alice.socket, 'game:start', {})
   await sleep(150)

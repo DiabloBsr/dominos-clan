@@ -7,6 +7,10 @@ function pseudoOf(room: RoomView, id: string): string {
   return room.members.find((m) => m.id === id)?.pseudo ?? '???'
 }
 
+function avatarOf(room: RoomView, id: string): string {
+  return room.members.find((m) => m.id === id)?.avatar ?? ''
+}
+
 function sameTile(a: Tile, b: Tile): boolean {
   return a.hi === b.hi && a.lo === b.lo
 }
@@ -186,7 +190,7 @@ export function Game({
             }`}
           >
             <span className="seat-name">
-              {pseudoOf(room, p.id)}
+              {avatarOf(room, p.id)} {pseudoOf(room, p.id)}
               {voiceIds.includes(p.id) ? ' 🎙' : ''}
               {p.id === selfId ? ' (toi)' : ''}
             </span>

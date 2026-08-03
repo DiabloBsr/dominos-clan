@@ -1,19 +1,47 @@
 import { useState } from 'react'
 import { DominoTile } from './DominoTile'
+import {
+  AVATARS,
+  STATUS_LABELS,
+  type Friend,
+  type FriendStatus,
+  type Profile,
+} from '../profile'
 
 export function Home({
+  profile,
+  friends,
+  statuses,
+  onProfile,
+  onAddFriend,
+  onRemoveFriend,
   onCreate,
   onJoin,
 }: {
-  onCreate: (pseudo: string) => void
-  onJoin: (code: string, pseudo: string) => void
+  profile: Profile
+  friends: Friend[]
+  statuses: Record<string, FriendStatus>
+  onProfile: (p: Profile) => void
+  onAddFriend: (code: string) => void
+  onRemoveFriend: (id: string) => void
+  onCreate: () => void
+  onJoin: (code: string) => void
 }) {
-  const [pseudo, setPseudo] = useState(() => localStorage.getItem('dc-pseudo') ?? '')
   const [code, setCode] = useState('')
+  const [friendCode, setFriendCode] = useState('')
+  const [copied, setCopied] = useState(false)
 
-  const ready = pseudo.trim().length > 0
+  const ready = profile.pseudo.trim().length > 0
 
-  const remember = () => localStorage.setItem('dc-pseudo', pseudo.trim())
+  const copyFriendCode = async () => {
+    try {
+      await navigator.clipboard.writeText(profile.id)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // le presse-papier peut être indisponible : le code reste affiché
+    }
+  }
 
   return (
     <main className="home">
@@ -32,25 +60,34 @@ export function Home({
       <p className="tagline">Le domino entre potes — mic ouvert, chambrage permis.</p>
 
       <div className="card">
+        <div className="avatar-row" role="radiogroup" aria-label="Ton avatar">
+          {AVATARS.map((a) => (
+            <button
+              key={a}
+              className={`avatar-pick ${profile.avatar === a ? 'active' : ''}`}
+              onClick={() => onProfile({ ...profile, avatar: a })}
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+
         <label className="field">
           <span>Ton blaze</span>
           <input
             className="input"
-            value={pseudo}
+            value={profile.pseudo}
             maxLength={20}
             placeholder="ex. Samy le Boss"
-            onChange={(e) => setPseudo(e.target.value)}
+            onChange={(e) => onProfile({ ...profile, pseudo: e.target.value })}
           />
         </label>
 
-        <button
-          className="btn"
-          disabled={!ready}
-          onClick={() => {
-            remember()
-            onCreate(pseudo.trim())
-          }}
-        >
+        <button className="friend-code" onClick={copyFriendCode} title="Copier ton code ami">
+          code ami : <b>{profile.id}</b> {copied ? '✔' : '⧉'}
+        </button>
+
+        <button className="btn" disabled={!ready} onClick={onCreate}>
           Créer un salon
         </button>
 
@@ -67,12 +104,55 @@ export function Home({
           <button
             className="btn ghost"
             disabled={!ready || code.trim().length !== 4}
-            onClick={() => {
-              remember()
-              onJoin(code.trim(), pseudo.trim())
-            }}
+            onClick={() => onJoin(code.trim())}
           >
             Rejoindre
+          </button>
+        </div>
+      </div>
+
+      <div className="card friends-card">
+        <h2 className="card-title">👥 Tes amis</h2>
+        {friends.length === 0 && (
+          <p className="empty">
+            Échangez vos codes amis, et tu verras qui est chaud pour une partie.
+          </p>
+        )}
+        {friends.map((f) => {
+          const status = statuses[f.id] ?? 'offline'
+          return (
+            <div key={f.id} className="friend-row">
+              <span className="friend-name">
+                {f.avatar} {f.pseudo || f.id}
+              </span>
+              <span className={`friend-status ${status}`}>{STATUS_LABELS[status]}</span>
+              <button
+                className="icon-btn tiny"
+                title="Retirer cet ami"
+                onClick={() => onRemoveFriend(f.id)}
+              >
+                ✕
+              </button>
+            </div>
+          )
+        })}
+        <div className="join-row">
+          <input
+            className="input"
+            value={friendCode}
+            maxLength={24}
+            placeholder="code ami à ajouter"
+            onChange={(e) => setFriendCode(e.target.value.trim())}
+          />
+          <button
+            className="btn ghost sm"
+            disabled={friendCode.trim().length < 6}
+            onClick={() => {
+              onAddFriend(friendCode.trim())
+              setFriendCode('')
+            }}
+          >
+            Ajouter
           </button>
         </div>
       </div>

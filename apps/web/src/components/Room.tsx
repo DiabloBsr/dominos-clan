@@ -2,12 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import type { GameRules, GameView, Move, RoomView } from '@dominos-clan/engine'
 import type { ChatMessage, FloatingReaction } from '../App'
 import type { VoiceAudience, VoiceControls } from '../useVoice'
+import { STATUS_LABELS, type Friend, type FriendStatus } from '../profile'
 import { Game } from './Game'
 
 const REACTIONS = ['😂', '🔥', '👏', '😮', '😭', '😈', '🤝', '💀']
 
 function pseudoOf(room: RoomView, id: string): string {
   return room.members.find((m) => m.id === id)?.pseudo ?? '???'
+}
+
+function avatarOf(room: RoomView, id: string): string {
+  return room.members.find((m) => m.id === id)?.avatar ?? ''
 }
 
 export function Room({
@@ -17,6 +22,9 @@ export function Room({
   reactions,
   chat,
   voice,
+  friends,
+  friendStatuses,
+  onInvite,
   onSit,
   onStand,
   onStart,
@@ -33,6 +41,9 @@ export function Room({
   reactions: FloatingReaction[]
   chat: ChatMessage[]
   voice: VoiceControls
+  friends: Friend[]
+  friendStatuses: Record<string, FriendStatus>
+  onInvite: (toUserId: string) => void
   onSit: () => void
   onStand: () => void
   onStart: () => void
@@ -44,6 +55,7 @@ export function Room({
   onLeave: () => void
 }) {
   const [copied, setCopied] = useState(false)
+  const [inviteOpen, setInviteOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatText, setChatText] = useState('')
   const [chatSeen, setChatSeen] = useState(0)
@@ -80,6 +92,41 @@ export function Room({
         <button className="code-chip" onClick={copyCode} title="Copier le code">
           salon <b>{room.code}</b> {copied ? '✔' : '⧉'}
         </button>
+        <div className="invite-wrap">
+          <button
+            className={`icon-btn ${inviteOpen ? 'live' : ''}`}
+            title="Inviter des amis"
+            onClick={() => setInviteOpen((v) => !v)}
+          >
+            👥
+          </button>
+          {inviteOpen && (
+            <div className="invite-panel">
+              <div className="chat-head">👥 Inviter des amis</div>
+              {friends.length === 0 && (
+                <p className="empty">Ajoute des amis depuis l’accueil (codes amis).</p>
+              )}
+              {friends.map((f) => {
+                const status = friendStatuses[f.id] ?? 'offline'
+                return (
+                  <div key={f.id} className="friend-row">
+                    <span className="friend-name">
+                      {f.avatar} {f.pseudo || f.id}
+                    </span>
+                    <span className={`friend-status ${status}`}>{STATUS_LABELS[status]}</span>
+                    <button
+                      className="btn ghost sm"
+                      disabled={status === 'offline'}
+                      onClick={() => onInvite(f.id)}
+                    >
+                      Inviter
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
         <div className="voice-controls">
           {voice.state.status === 'off' && (
             <button className="icon-btn" onClick={voice.join} title="Activer le micro">
@@ -136,7 +183,7 @@ export function Room({
                 room.members.find((m) => m.id === id)?.connected === false ? 'off' : ''
               } ${voice.state.speaking.includes(id) ? 'speaking' : ''}`}
             >
-              {i + 1}. {pseudoOf(room, id)}
+              {i + 1}. {avatarOf(room, id)} {pseudoOf(room, id)}
               {voice.state.inVoice.includes(id) ? ' 🎙' : ''}
               {room.members.find((m) => m.id === id)?.isHost ? ' ⭐' : ''}
               {room.lastWinnerId === id ? ' 👑' : ''}
@@ -153,7 +200,7 @@ export function Room({
                 voice.state.speaking.includes(id) ? 'speaking' : ''
               }`}
             >
-              {i + 1}. {pseudoOf(room, id)}
+              {i + 1}. {avatarOf(room, id)} {pseudoOf(room, id)}
               {voice.state.inVoice.includes(id) ? ' 🎙' : ''}
             </span>
           ))}

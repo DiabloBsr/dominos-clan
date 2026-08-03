@@ -2,6 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GameRules, GameView, Move, RoomView } from '@dominos-clan/engine'
 import { socket, type Ack } from './socket'
 import { useVoice } from './useVoice'
+import {
+  loadFriends,
+  loadProfile,
+  saveFriends,
+  saveProfile,
+  type Friend,
+  type FriendStatus,
+  type Profile,
+} from './profile'
 import { Home } from './components/Home'
 import { Room } from './components/Room'
 
@@ -26,6 +35,12 @@ export default function App() {
   const [reactions, setReactions] = useState<FloatingReaction[]>([])
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [notice, setNotice] = useState<string | null>(null)
+  const [profile, setProfile] = useState<Profile>(() => loadProfile())
+  const [friends, setFriends] = useState<Friend[]>(() => loadFriends())
+  const [friendStatuses, setFriendStatuses] = useState<Record<string, FriendStatus>>({})
+  const [invite, setInvite] = useState<{ fromPseudo: string; fromAvatar: string; code: string } | null>(
+    null,
+  )
   const reactionKey = useRef(0)
   const chatKey = useRef(0)
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -56,6 +71,35 @@ export default function App() {
     }
   }, [room, voice])
 
+  // Présence : s'annoncer + suivre les amis (rejoué à chaque reconnexion
+  // et à chaque changement de profil ou de liste d'amis).
+  useEffect(() => {
+    const register = () => {
+      socket.emit('presence:hello', {
+        userId: profile.id,
+        pseudo: profile.pseudo || 'joueur',
+        avatar: profile.avatar,
+      })
+      socket.emit(
+        'presence:watch',
+        { ids: friends.map((f) => f.id) },
+        (res: {
+          ok: boolean
+          friends?: Array<{ userId: string; pseudo: string; avatar: string; status: FriendStatus }>
+        }) => {
+          if (res.ok && Array.isArray(res.friends)) {
+            setFriendStatuses(Object.fromEntries(res.friends.map((f) => [f.userId, f.status])))
+          }
+        },
+      )
+    }
+    register()
+    socket.on('connect', register)
+    return () => {
+      socket.off('connect', register)
+    }
+  }, [profile, friends])
+
   useEffect(() => {
     const onRoomState = (view: RoomView) => setRoom(view)
     const onGameState = (view: GameView | null) => setGame(view)
@@ -68,6 +112,22 @@ export default function App() {
       const key = ++chatKey.current
       setChatMessages((prev) => [...prev.slice(-149), { key, ...m }])
     }
+    const onPresence = (u: { userId: string; pseudo: string; avatar: string; status: FriendStatus }) => {
+      setFriendStatuses((prev) => ({ ...prev, [u.userId]: u.status }))
+      // Met à jour le pseudo/avatar caché de l'ami dès qu'on le voit en ligne.
+      if (u.pseudo) {
+        setFriends((prev) => {
+          const i = prev.findIndex((f) => f.id === u.userId)
+          if (i < 0 || (prev[i]!.pseudo === u.pseudo && prev[i]!.avatar === u.avatar)) return prev
+          const next = [...prev]
+          next[i] = { ...next[i]!, pseudo: u.pseudo, avatar: u.avatar }
+          saveFriends(next)
+          return next
+        })
+      }
+    }
+    const onInvited = (inv: { fromPseudo: string; fromAvatar: string; code: string }) =>
+      setInvite(inv)
     const onAborted = () => showNotice('Un joueur a quitté : manche annulée')
     const onDisconnect = () => {
       setRoom(null)
@@ -80,6 +140,8 @@ export default function App() {
     socket.on('game:state', onGameState)
     socket.on('reaction', onReaction)
     socket.on('chat:message', onChatMessage)
+    socket.on('presence:update', onPresence)
+    socket.on('friend:invited', onInvited)
     socket.on('game:aborted', onAborted)
     socket.on('disconnect', onDisconnect)
     return () => {
@@ -87,6 +149,8 @@ export default function App() {
       socket.off('game:state', onGameState)
       socket.off('reaction', onReaction)
       socket.off('chat:message', onChatMessage)
+      socket.off('presence:update', onPresence)
+      socket.off('friend:invited', onInvited)
       socket.off('game:aborted', onAborted)
       socket.off('disconnect', onDisconnect)
     }
@@ -111,9 +175,54 @@ export default function App() {
     [showNotice],
   )
 
+  const identity = {
+    pseudo: profile.pseudo.trim() || 'joueur',
+    userId: profile.id,
+    avatar: profile.avatar,
+  }
+
+  const leaveRoomLocal = () => {
+    voice.leave()
+    simpleEmit('room:leave')
+    setRoom(null)
+    setGame(null)
+    setSelfId(null)
+    setChatMessages([])
+  }
+
+  const acceptInvite = () => {
+    if (!invite) return
+    const code = invite.code
+    setInvite(null)
+    if (room) leaveRoomLocal()
+    enterRoom('room:join', { code, ...identity })
+  }
+
   const handlers = {
-    onCreate: (pseudo: string) => enterRoom('room:create', { pseudo }),
-    onJoin: (code: string, pseudo: string) => enterRoom('room:join', { code, pseudo }),
+    onCreate: () => enterRoom('room:create', { ...identity }),
+    onJoin: (code: string) => enterRoom('room:join', { code, ...identity }),
+    onProfile: (p: Profile) => {
+      saveProfile(p)
+      setProfile(p)
+    },
+    onAddFriend: (rawCode: string) => {
+      const code = rawCode.toLowerCase()
+      if (!/^[a-z0-9_-]{6,24}$/.test(code)) return showNotice('Code ami invalide')
+      if (code === profile.id) return showNotice('C’est ton propre code 😄')
+      if (friends.some((f) => f.id === code)) return showNotice('Déjà dans tes amis')
+      const next = [...friends, { id: code, pseudo: '', avatar: '❔' }]
+      saveFriends(next)
+      setFriends(next)
+    },
+    onRemoveFriend: (id: string) => {
+      const next = friends.filter((f) => f.id !== id)
+      saveFriends(next)
+      setFriends(next)
+    },
+    onInvite: (toUserId: string) =>
+      socket.emit('friend:invite', { toUserId }, (res: Ack) =>
+        showNotice(res.ok ? 'Invitation envoyée ✔' : res.error),
+      ),
     onSit: () => simpleEmit('seat:take'),
     onStand: () => simpleEmit('seat:leave'),
     onStart: () => simpleEmit('game:start'),
@@ -122,19 +231,26 @@ export default function App() {
     onChat: (text: string) => simpleEmit('chat:send', { text }),
     onRules: (rules: GameRules) => simpleEmit('room:rules', { ...rules }),
     onUndo: () => simpleEmit('game:undo'),
-    onLeave: () => {
-      voice.leave()
-      simpleEmit('room:leave')
-      setRoom(null)
-      setGame(null)
-      setSelfId(null)
-      setChatMessages([])
-    },
+    onLeave: leaveRoomLocal,
   }
 
   return (
     <div className="app">
       {notice && <div className="toast">{notice}</div>}
+      {invite && (
+        <div className="invite-toast">
+          <span>
+            {invite.fromAvatar} <b>{invite.fromPseudo}</b> t’invite dans le salon{' '}
+            <b>{invite.code}</b>
+          </span>
+          <button className="btn sm" onClick={acceptInvite}>
+            Rejoindre
+          </button>
+          <button className="btn ghost sm" onClick={() => setInvite(null)}>
+            Ignorer
+          </button>
+        </div>
+      )}
       {room && selfId ? (
         <Room
           room={room}
@@ -143,10 +259,21 @@ export default function App() {
           reactions={reactions}
           chat={chatMessages}
           voice={voice}
+          friends={friends}
+          friendStatuses={friendStatuses}
           {...handlers}
         />
       ) : (
-        <Home onCreate={handlers.onCreate} onJoin={handlers.onJoin} />
+        <Home
+          profile={profile}
+          friends={friends}
+          statuses={friendStatuses}
+          onProfile={handlers.onProfile}
+          onAddFriend={handlers.onAddFriend}
+          onRemoveFriend={handlers.onRemoveFriend}
+          onCreate={handlers.onCreate}
+          onJoin={handlers.onJoin}
+        />
       )}
     </div>
   )

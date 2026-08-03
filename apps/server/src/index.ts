@@ -6,6 +6,7 @@ import { Server, type Socket } from 'socket.io'
 import { viewFor } from '@dominos-clan/engine'
 import type { Move } from '@dominos-clan/engine'
 import { createVoiceToken, voiceEnabled } from './voice'
+import * as presence from './presence'
 import {
   RoomError,
   canChat,
@@ -78,6 +79,9 @@ function broadcast(room: Room): void {
   const view = roomView(room)
   for (const member of room.members.values()) {
     if (!member.connected) continue
+    // Statut de présence pour les amis : en partie si assis dans la manche en cours.
+    const playing = room.status === 'playing' && gameRole(room, member.id) === 'player'
+    presence.setRoomStatus(io, member.userId, playing ? 'playing' : 'room', room.code)
     const socket = io.sockets.sockets.get(member.socketId)
     if (!socket) continue
     socket.emit('room:state', view)
@@ -103,27 +107,53 @@ function handle(ack: Ack | undefined, fn: () => Record<string, unknown> | void):
 io.on('connection', (socket: Socket) => {
   const state: SocketState = {}
 
-  socket.on('room:create', (payload: { pseudo?: unknown }, ack?: Ack) =>
+  socket.on(
+    'room:create',
+    (payload: { pseudo?: unknown; userId?: unknown; avatar?: unknown }, ack?: Ack) =>
+      handle(ack, () => {
+        if (state.roomCode) throw new RoomError('Déjà dans un salon')
+        const identity = presence.sanitizeIdentity(payload ?? {})
+        const { room, member } = createRoom(payload?.pseudo, socket.id, identity)
+        state.roomCode = room.code
+        state.memberId = member.id
+        socket.join(room.code)
+        broadcast(room)
+        return { code: room.code, selfId: member.id }
+      }),
+  )
+
+  socket.on(
+    'room:join',
+    (payload: { code?: unknown; pseudo?: unknown; userId?: unknown; avatar?: unknown }, ack?: Ack) =>
+      handle(ack, () => {
+        if (state.roomCode) throw new RoomError('Déjà dans un salon')
+        const identity = presence.sanitizeIdentity(payload ?? {})
+        const { room, member } = joinRoom(payload?.code, payload?.pseudo, socket.id, identity)
+        state.roomCode = room.code
+        state.memberId = member.id
+        socket.join(room.code)
+        broadcast(room)
+        return { code: room.code, selfId: member.id }
+      }),
+  )
+
+  socket.on('presence:hello', (payload: Record<string, unknown>, ack?: Ack) =>
     handle(ack, () => {
-      if (state.roomCode) throw new RoomError('Déjà dans un salon')
-      const { room, member } = createRoom(payload?.pseudo, socket.id)
-      state.roomCode = room.code
-      state.memberId = member.id
-      socket.join(room.code)
-      broadcast(room)
-      return { code: room.code, selfId: member.id }
+      presence.hello(io, socket.id, payload ?? {})
     }),
   )
 
-  socket.on('room:join', (payload: { code?: unknown; pseudo?: unknown }, ack?: Ack) =>
+  socket.on('presence:watch', (payload: { ids?: unknown }, ack?: Ack) =>
     handle(ack, () => {
-      if (state.roomCode) throw new RoomError('Déjà dans un salon')
-      const { room, member } = joinRoom(payload?.code, payload?.pseudo, socket.id)
-      state.roomCode = room.code
-      state.memberId = member.id
-      socket.join(room.code)
-      broadcast(room)
-      return { code: room.code, selfId: member.id }
+      const friends = presence.watch(io, socket.id, payload?.ids)
+      return { friends }
+    }),
+  )
+
+  socket.on('friend:invite', (payload: { toUserId?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room } = withRoom(state)
+      presence.invite(io, socket.id, payload?.toUserId, room.code)
     }),
   )
 
@@ -232,6 +262,7 @@ io.on('connection', (socket: Socket) => {
     socket.leave(state.roomCode)
     state.roomCode = undefined
     state.memberId = undefined
+    presence.backToLobby(io, socket.id)
   }
 
   socket.on('room:leave', (_payload: unknown, ack?: Ack) =>
@@ -240,7 +271,10 @@ io.on('connection', (socket: Socket) => {
     }),
   )
 
-  socket.on('disconnect', leave)
+  socket.on('disconnect', () => {
+    leave()
+    presence.disconnect(io, socket.id)
+  })
 })
 
 httpServer.listen(PORT, () => {

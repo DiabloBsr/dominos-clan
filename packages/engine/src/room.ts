@@ -7,6 +7,8 @@ export const MAX_SEATS = 4
 export interface RoomMemberView {
   id: string
   pseudo: string
+  /** Avatar emoji du profil. */
+  avatar: string
   role: Role
   isHost: boolean
   connected: boolean

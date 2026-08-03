@@ -14,6 +14,9 @@ import type { GameRules, GameState, Move, Role, RoomStatus, RoomView } from '@do
 export interface Member {
   id: string
   pseudo: string
+  /** Identité de profil (présence/amis) ; null pour un client anonyme. */
+  userId: string | null
+  avatar: string
   socketId: string
   connected: boolean
 }
@@ -70,11 +73,22 @@ export function getRoom(code: string): Room {
   return room
 }
 
-export function createRoom(rawPseudo: unknown, socketId: string): { room: Room; member: Member } {
+export interface Identity {
+  userId: string | null
+  avatar: string
+}
+
+export function createRoom(
+  rawPseudo: unknown,
+  socketId: string,
+  identity: Identity,
+): { room: Room; member: Member } {
   const pseudo = sanitizePseudo(rawPseudo)
   const member: Member = {
     id: randomBytes(8).toString('base64url'),
     pseudo,
+    userId: identity.userId,
+    avatar: identity.avatar,
     socketId,
     connected: true,
   }
@@ -103,6 +117,7 @@ export function joinRoom(
   rawCode: unknown,
   rawPseudo: unknown,
   socketId: string,
+  identity: Identity,
 ): { room: Room; member: Member } {
   if (typeof rawCode !== 'string') throw new RoomError('Code invalide')
   const room = getRoom(rawCode.trim().toUpperCase())
@@ -111,6 +126,8 @@ export function joinRoom(
   const member: Member = {
     id: randomBytes(8).toString('base64url'),
     pseudo,
+    userId: identity.userId,
+    avatar: identity.avatar,
     socketId,
     connected: true,
   }
@@ -325,6 +342,7 @@ export function roomView(room: Room): RoomView {
     members: [...room.members.values()].map((m) => ({
       id: m.id,
       pseudo: m.pseudo,
+      avatar: m.avatar,
       role: room.seats.includes(m.id) ? 'player' : 'spectator',
       isHost: m.id === room.hostId,
       connected: m.connected,

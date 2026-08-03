@@ -424,6 +424,146 @@ body::before {
   filter: saturate(0.55);
 }
 
+/* ─── Profil, amis, invitations ──────────────────────────────────── */
+
+.avatar-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: center;
+}
+
+.avatar-pick {
+  font-size: 1.25rem;
+  width: 2.2rem;
+  height: 2.2rem;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1.5px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.avatar-pick:hover {
+  transform: scale(1.12);
+}
+
+.avatar-pick.active {
+  border-color: var(--amber);
+  box-shadow: 0 0 10px rgba(255, 182, 72, 0.35);
+}
+
+.friend-code {
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: none;
+  border: 1px dashed rgba(247, 242, 231, 0.25);
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+  align-self: center;
+}
+
+.friend-code b {
+  color: var(--ink);
+  letter-spacing: 0.06em;
+}
+
+.friends-card {
+  gap: 0.55rem;
+}
+
+.card-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+}
+
+.friend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.friend-name {
+  font-weight: 800;
+  font-size: 0.9rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-status {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.friend-status.online {
+  color: #7ee0a3;
+}
+
+.friend-status.playing,
+.friend-status.room {
+  color: var(--amber);
+}
+
+.icon-btn.tiny {
+  width: 1.6rem;
+  height: 1.6rem;
+  font-size: 0.8rem;
+}
+
+.invite-wrap {
+  position: relative;
+}
+
+.invite-panel {
+  position: absolute;
+  top: 2.9rem;
+  right: 0;
+  width: min(19rem, calc(100vw - 2rem));
+  background: rgba(8, 20, 14, 0.96);
+  border: 1px solid rgba(247, 242, 231, 0.15);
+  border-radius: 14px;
+  padding: 0 0.8rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 60;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  animation: fade-up 0.2s ease;
+}
+
+.invite-panel .chat-head {
+  margin: 0 -0.8rem 0.2rem;
+}
+
+.invite-toast {
+  position: fixed;
+  top: 0.9rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(8, 20, 14, 0.96);
+  border: 1.5px solid var(--amber);
+  border-radius: 999px;
+  padding: 0.5rem 0.9rem;
+  z-index: 90;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  animation: fade-up 0.25s ease;
+  font-size: 0.9rem;
+  max-width: calc(100vw - 1.5rem);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 /* ─── Donne annulée (excès de doubles) ───────────────────────────── */
 
 .redeal-banner {
