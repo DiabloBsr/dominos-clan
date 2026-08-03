@@ -1815,6 +1815,414 @@ button.domino:disabled {
   gap: 0.9rem;
 }
 
+/* ─── Hub de jeux & profil ───────────────────────────────────────── */
+
+.hub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 52rem;
+}
+
+.wordmark.small {
+  font-size: clamp(1.6rem, 4.5vw, 2.4rem);
+}
+
+.profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1.5px solid rgba(247, 242, 231, 0.2);
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem 0.3rem 0.35rem;
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 800;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.profile-btn:hover {
+  border-color: var(--amber);
+  transform: translateY(-1px);
+}
+
+.profile-btn.attention {
+  border-color: var(--amber);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.profile-avatar {
+  width: 1.9rem;
+  height: 1.9rem;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 182, 72, 0.15);
+  border-radius: 50%;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.profile-name {
+  font-size: 0.9rem;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hub-games {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.9rem;
+  width: 100%;
+  max-width: 52rem;
+}
+
+.game-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  text-align: left;
+  padding: 1.2rem 1.2rem 1rem;
+  border-radius: 20px;
+  cursor: pointer;
+  color: var(--ink);
+  background: linear-gradient(160deg, rgba(31, 92, 64, 0.55), rgba(13, 26, 20, 0.9));
+  border: 1px solid rgba(247, 242, 231, 0.12);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  animation: card-in 0.5s ease both;
+  animation-delay: calc(var(--i) * 90ms);
+  overflow: hidden;
+}
+
+.game-card::after {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  background: radial-gradient(circle at 30% 20%, rgba(255, 182, 72, 0.18), transparent 55%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.game-card:hover {
+  transform: translateY(-6px) scale(1.02);
+  border-color: var(--amber);
+  box-shadow:
+    0 26px 60px rgba(0, 0, 0, 0.55),
+    0 0 30px rgba(255, 182, 72, 0.12);
+}
+
+.game-card:hover::after {
+  opacity: 1;
+}
+
+.game-emoji {
+  font-size: 2.4rem;
+  line-height: 1;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4));
+  transition: transform 0.2s ease;
+}
+
+.game-card:hover .game-emoji {
+  transform: scale(1.15) rotate(-6deg);
+}
+
+.game-name {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+}
+
+.game-tag {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--amber);
+}
+
+.game-desc {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.game-cta {
+  margin-top: 0.5rem;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--amber);
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.game-card:hover .game-cta {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.join-card {
+  width: 100%;
+  max-width: 52rem;
+}
+
+.panel-veil {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
+  z-index: 70;
+  animation: veil-in 0.2s ease;
+}
+
+@keyframes veil-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.profile-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(21rem, 92vw);
+  z-index: 75;
+  background: linear-gradient(180deg, rgba(24, 44, 34, 0.98), rgba(13, 26, 20, 0.98));
+  border-left: 1px solid rgba(247, 242, 231, 0.12);
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
+  padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  animation: slide-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
+  overflow-y: auto;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ─── Ludo ───────────────────────────────────────────────────────── */
+
+.ludo-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.ludo-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.ludo-chip .ludo-dot {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  background: var(--pc);
+  box-shadow: 0 0 8px var(--pc);
+}
+
+.ludo-done {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.ludo-board {
+  position: relative;
+  width: min(92vw, 60vh, 32rem);
+  aspect-ratio: 1;
+  background: #f2ecd9;
+  border-radius: 14px;
+  border: 6px solid var(--wood-hi);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.ludo-base {
+  position: absolute;
+  border-radius: 16px;
+  background: var(--pc);
+  opacity: 0.92;
+  box-shadow:
+    inset 0 0 0 6px rgba(255, 255, 255, 0.55),
+    inset 0 8px 22px rgba(0, 0, 0, 0.25);
+}
+
+.ludo-goal {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  font-size: 1.6rem;
+  background: conic-gradient(from 45deg, #e2574c 0 25%, #4d9de0 0 50%, #ffb648 0 75%, #7ee0a3 0);
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.5);
+}
+
+.ludo-cell {
+  position: absolute;
+  width: calc(100% / 15);
+  height: calc(100% / 15);
+  box-sizing: border-box;
+  border: 1px solid rgba(36, 31, 24, 0.25);
+  background: #fbf7ec;
+  display: grid;
+  place-items: center;
+  font-size: 0.6rem;
+}
+
+.ludo-cell.star {
+  background: #efe3bf;
+}
+
+.ludo-cell.home {
+  background: var(--pc);
+  opacity: 0.85;
+}
+
+.ludo-pawn {
+  position: absolute;
+  width: calc(100% / 15);
+  height: calc(100% / 15);
+  border: none;
+  background: transparent;
+  padding: 2px;
+  cursor: default;
+  z-index: 5;
+  transition:
+    top 0.45s cubic-bezier(0.3, 0.8, 0.4, 1),
+    left 0.45s cubic-bezier(0.3, 0.8, 0.4, 1);
+}
+
+.ludo-pawn::after {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.9), var(--pc) 60%);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
+}
+
+.ludo-pawn.playable {
+  cursor: pointer;
+  z-index: 6;
+  animation: pawn-ready 1s ease-in-out infinite;
+}
+
+.ludo-pawn.playable::after {
+  box-shadow:
+    0 0 0 3px var(--amber),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.ludo-pawn.targetable {
+  cursor: pointer;
+  z-index: 6;
+  animation: pawn-ready 0.8s ease-in-out infinite;
+}
+
+.ludo-pawn.targetable::after {
+  box-shadow:
+    0 0 0 3px var(--clay),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes pawn-ready {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.ludo-hud {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  min-height: 2.6rem;
+}
+
+.ludo-dice-face {
+  font-size: 2.6rem;
+  line-height: 1;
+  color: var(--ink);
+  text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  animation: dice-tumble 0.5s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+@keyframes dice-tumble {
+  0% {
+    transform: rotate(-160deg) scale(0.3);
+    opacity: 0;
+  }
+  60% {
+    transform: rotate(20deg) scale(1.15);
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.ludo-roll {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.ludo-event {
+  font-weight: 800;
+  color: var(--amber);
+  animation: fade-up 0.3s ease;
+}
+
+/* Pop des pièces d'échecs quand elles arrivent sur une case */
+.sq .pc {
+  animation: piece-pop 0.22s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+@keyframes piece-pop {
+  from {
+    transform: scale(0.4);
+  }
+}
+
 /* Confort : moins d'animations si l'appareil le demande */
 @media (prefers-reduced-motion: reduce) {
   *,

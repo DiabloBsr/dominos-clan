@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ChessView, GameRules, GameView, Move, RoomView } from '@dominos-clan/engine'
+import type { ChessView, GameRules, GameView, LudoState, Move, RoomView } from '@dominos-clan/engine'
 import { socket, type Ack } from './socket'
 import { useVoice } from './useVoice'
 import {
@@ -37,6 +37,7 @@ export default function App() {
   const [room, setRoom] = useState<RoomView | null>(null)
   const [game, setGame] = useState<GameView | null>(null)
   const [chess, setChess] = useState<ChessView | null>(null)
+  const [ludo, setLudo] = useState<LudoState | null>(null)
   const [reactions, setReactions] = useState<FloatingReaction[]>([])
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [notice, setNotice] = useState<string | null>(null)
@@ -67,9 +68,11 @@ export default function App() {
   const playerIds =
     chess && chess.status === 'playing'
       ? [chess.whiteId, chess.blackId]
-      : game && game.status === 'playing'
-        ? game.players.map((p) => p.id)
-        : (room?.seats ?? [])
+      : ludo && ludo.status === 'playing'
+        ? ludo.players.map((p) => p.id)
+        : game && game.status === 'playing'
+          ? game.players.map((p) => p.id)
+          : (room?.seats ?? [])
 
   const voice = useVoice(room?.code ?? null, selfId, playerIds, showNotice)
 
@@ -149,6 +152,7 @@ export default function App() {
     const onRoomState = (view: RoomView) => setRoom(view)
     const onGameState = (view: GameView | null) => setGame(view)
     const onChessState = (view: ChessView | null) => setChess(view)
+    const onLudoState = (view: LudoState | null) => setLudo(view)
     const onReaction = (r: { memberId: string; pseudo: string; emoji: string }) => {
       const key = ++reactionKey.current
       setReactions((prev) => [...prev.slice(-11), { key, ...r }])
@@ -200,6 +204,7 @@ export default function App() {
     socket.on('room:state', onRoomState)
     socket.on('game:state', onGameState)
     socket.on('chess:state', onChessState)
+    socket.on('ludo:state', onLudoState)
     socket.on('reaction', onReaction)
     socket.on('chat:message', onChatMessage)
     socket.on('presence:update', onPresence)
@@ -214,6 +219,7 @@ export default function App() {
       socket.off('room:state', onRoomState)
       socket.off('game:state', onGameState)
       socket.off('chess:state', onChessState)
+      socket.off('ludo:state', onLudoState)
       socket.off('reaction', onReaction)
       socket.off('chat:message', onChatMessage)
       socket.off('presence:update', onPresence)
@@ -283,6 +289,7 @@ export default function App() {
     setRoom(null)
     setGame(null)
     setChess(null)
+    setLudo(null)
     setSelfId(null)
     setChatMessages([])
   }
@@ -300,7 +307,20 @@ export default function App() {
   }
 
   const handlers = {
-    onCreate: () => enterRoom('room:create', { ...identity }),
+    // Depuis le hub : créer un salon directement sur le jeu choisi.
+    onCreate: (gameType: GameRules['gameType'] = 'dominos') => {
+      socket.emit('room:create', { ...identity }, (res: Ack & { resumeKey?: string }) => {
+        if (res.ok && res.selfId) {
+          setSelfId(res.selfId)
+          if (res.code && res.resumeKey) {
+            saveSession({ code: res.code, memberId: res.selfId, resumeKey: res.resumeKey })
+          }
+          if (gameType !== 'dominos') {
+            socket.emit('room:rules', { gameType }, () => {})
+          }
+        } else if (!res.ok) showNotice(res.error)
+      })
+    },
     onJoin: (code: string) => enterRoom('room:join', { code, ...identity }),
     onProfile: (p: Profile) => {
       saveProfile(p)
@@ -343,6 +363,9 @@ export default function App() {
     onChessMove: (from: string, to: string, promotion?: string) =>
       simpleEmit('chess:move', { from, to, promotion }),
     onResign: () => simpleEmit('chess:resign'),
+    onLudoRoll: () => simpleEmit('ludo:roll'),
+    onLudoPlay: (pawn: number) => simpleEmit('ludo:play', { pawn }),
+    onLudoTarget: (player: number, pawn: number) => simpleEmit('ludo:target', { player, pawn }),
     onLeave: leaveRoomLocal,
   }
 
@@ -388,6 +411,7 @@ export default function App() {
           room={room}
           game={game}
           chess={chess}
+          ludo={ludo}
           selfId={selfId}
           reactions={reactions}
           chat={chatMessages}

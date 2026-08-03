@@ -35,6 +35,8 @@ function craftState(partial: {
       gameType: 'dominos',
       chessMinutes: 10,
       chessIncrement: 0,
+      ludoSixes: 3,
+      ludoBonus: false,
       ...partial.rules,
     },
     players: Object.entries(partial.hands).map(([id, hand]) => ({ id, hand })),

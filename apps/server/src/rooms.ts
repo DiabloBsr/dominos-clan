@@ -18,6 +18,13 @@ import {
   stopChess,
   type ChessGameState,
 } from './chess'
+import {
+  createLudo,
+  ludoPlay,
+  ludoRoll,
+  ludoTarget,
+  type LudoState,
+} from '@dominos-clan/engine'
 
 export interface Member {
   id: string
@@ -40,6 +47,8 @@ export interface Room {
   game: GameState | null
   /** Partie d'échecs en cours (quand rules.gameType === 'chess'). */
   chessGame: ChessGameState | null
+  /** Partie de Ludo en cours (quand rules.gameType === 'ludo'). */
+  ludoGame: LudoState | null
   status: RoomStatus
   lastWinnerId: string | null
   rules: GameRules
@@ -113,6 +122,7 @@ export function createRoom(
     queue: [],
     game: null,
     chessGame: null,
+    ludoGame: null,
     status: 'lobby',
     lastWinnerId: null,
     rules: { ...DEFAULT_RULES },
@@ -190,7 +200,7 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
   if (instantWinScore !== null && (!Number.isInteger(instantWinScore) || instantWinScore < 1 || instantWinScore > 1000)) {
     throw new RoomError('Seuil de victoire éclair invalide (1 à 1000 points)')
   }
-  const gameType = r.gameType === 'chess' ? 'chess' : 'dominos'
+  const gameType = r.gameType === 'chess' ? 'chess' : r.gameType === 'ludo' ? 'ludo' : 'dominos'
   // Les échecs se jouent à 2 : la table est bornée automatiquement.
   const maxSeats = gameType === 'chess' ? 2 : Number(r.maxSeats ?? 3)
   if (!Number.isInteger(maxSeats) || maxSeats < 2 || maxSeats > MAX_SEATS) {
@@ -204,6 +214,10 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
   if (!Number.isInteger(chessIncrement) || chessIncrement < 0 || chessIncrement > 30) {
     throw new RoomError('Incrément invalide (0 à 30 secondes)')
   }
+  const ludoSixes = Number(r.ludoSixes ?? 3)
+  if (!Number.isInteger(ludoSixes) || ludoSixes < 2 || ludoSixes > 4) {
+    throw new RoomError('6 successifs : 2 à 4')
+  }
   room.rules = {
     targetScore,
     openThreshold,
@@ -214,6 +228,8 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
     gameType,
     chessMinutes,
     chessIncrement,
+    ludoSixes,
+    ludoBonus: Boolean(r.ludoBonus),
   }
   // Table réduite : les sièges en trop repartent en tête de file.
   while (room.seats.length > maxSeats) {
@@ -278,6 +294,7 @@ export function restartRoom(room: Room, hostId: string, rawPromoteId?: unknown):
   if (hostId !== room.hostId) throw new RoomError('Seul l’hôte peut tout remettre à zéro')
   if (room.chessGame) stopChess(room.chessGame)
   room.chessGame = null
+  room.ludoGame = null
   room.game = null
   room.status = 'lobby'
   room.lastWinnerId = null
@@ -341,6 +358,20 @@ export function startGame(room: Room, memberId: string): void {
     const blackId = room.seats[1 - flip]!
     room.chessGame = createChess(whiteId, blackId, room.rules.chessMinutes, room.rules.chessIncrement)
     room.game = null
+    room.ludoGame = null
+    room.status = 'playing'
+    room.lastWinnerId = null
+    return
+  }
+
+  // Ludo : 2 à 4 joueurs, dé côté serveur.
+  if (room.rules.gameType === 'ludo') {
+    room.ludoGame = createLudo(room.seats, {
+      maxSixes: room.rules.ludoSixes,
+      bonusMode: room.rules.ludoBonus,
+    })
+    room.game = null
+    room.chessGame = null
     room.status = 'playing'
     room.lastWinnerId = null
     return
@@ -354,7 +385,46 @@ export function startGame(room: Room, memberId: string): void {
     room.lastStarterSeatIndex = null
   }
   room.chessGame = null
+  room.ludoGame = null
   dealNewGame(room)
+}
+
+/** Fin de partie de Ludo : le gagnant reste, la file monte. */
+function settleLudoEnd(room: Room): void {
+  const g = room.ludoGame
+  if (!g || g.status !== 'finished' || g.winnerId === null) return
+  room.status = 'finished'
+  room.lastWinnerId = g.winnerId
+  const rotated = rotateWinnerStays(room.seats, room.queue, g.winnerId)
+  room.seats = rotated.seats
+  room.queue = rotated.queue
+}
+
+const serverRand = () => randomInt(1_000_000) / 1_000_000
+
+export function ludoRollRoom(room: Room, memberId: string): void {
+  if (room.status !== 'playing' || !room.ludoGame) throw new RoomError('Aucune partie en cours')
+  ludoRoll(room.ludoGame, memberId, randomInt(1, 7))
+  settleLudoEnd(room)
+}
+
+export function ludoPlayRoom(room: Room, memberId: string, rawPawn: unknown): void {
+  if (room.status !== 'playing' || !room.ludoGame) throw new RoomError('Aucune partie en cours')
+  const pawn = Number(rawPawn)
+  if (!Number.isInteger(pawn) || pawn < 0 || pawn > 3) throw new RoomError('Pion invalide')
+  ludoPlay(room.ludoGame, memberId, pawn, serverRand)
+  settleLudoEnd(room)
+}
+
+export function ludoTargetRoom(
+  room: Room,
+  memberId: string,
+  rawPlayer: unknown,
+  rawPawn: unknown,
+): void {
+  if (room.status !== 'playing' || !room.ludoGame) throw new RoomError('Aucune partie en cours')
+  ludoTarget(room.ludoGame, memberId, Number(rawPlayer), Number(rawPawn))
+  settleLudoEnd(room)
 }
 
 /** Fin de partie d'échecs : gagnant reste (nulle → on rejoue à l'identique). */
@@ -500,6 +570,9 @@ export function gameRole(room: Room, memberId: string): Role {
       ? 'player'
       : 'spectator'
   }
+  if (room.ludoGame) {
+    return room.ludoGame.players.some((p) => p.id === memberId) ? 'player' : 'spectator'
+  }
   return room.game?.players.some((p) => p.id === memberId) ? 'player' : 'spectator'
 }
 
@@ -517,6 +590,7 @@ export function removeMember(room: Room, memberId: string): { empty: boolean; ab
   ) {
     if (room.chessGame) stopChess(room.chessGame)
     room.chessGame = null
+    room.ludoGame = null
     room.game = null
     room.status = 'lobby'
     room.lastWinnerId = null

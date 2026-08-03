@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { GameRules } from '@dominos-clan/engine'
 import { DominoTile } from './DominoTile'
 import {
   AVATARS,
@@ -7,6 +8,36 @@ import {
   type FriendStatus,
   type Profile,
 } from '../profile'
+
+const GAMES: Array<{
+  type: GameRules['gameType']
+  emoji: string
+  name: string
+  tag: string
+  desc: string
+}> = [
+  {
+    type: 'dominos',
+    emoji: '🁫',
+    name: 'Dominos',
+    tag: '2-4 joueurs',
+    desc: 'Le classique de la table — claquage autorisé.',
+  },
+  {
+    type: 'chess',
+    emoji: '♟️',
+    name: 'Échecs',
+    tag: '1 vs 1 · blitz',
+    desc: 'Pendules 10 min, mat ou drapeau.',
+  },
+  {
+    type: 'ludo',
+    emoji: '🎲',
+    name: 'Ludo',
+    tag: '2-4 joueurs',
+    desc: 'Petits chevaux, gros chaos — mode bonus 🎁.',
+  },
+]
 
 export function Home({
   profile,
@@ -26,12 +57,13 @@ export function Home({
   onAddFriend: (code: string) => void
   onRemoveFriend: (id: string) => void
   onKnock: (id: string) => void
-  onCreate: () => void
+  onCreate: (gameType: GameRules['gameType']) => void
   onJoin: (code: string) => void
 }) {
   const [code, setCode] = useState('')
   const [friendCode, setFriendCode] = useState('')
   const [copied, setCopied] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
 
   const ready = profile.pseudo.trim().length > 0
 
@@ -41,60 +73,54 @@ export function Home({
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
-      // le presse-papier peut être indisponible : le code reste affiché
+      // presse-papier indisponible : le code reste affiché
     }
   }
 
+  const requirePseudo = (fn: () => void) => () => {
+    if (!ready) {
+      setProfileOpen(true)
+      return
+    }
+    fn()
+  }
+
   return (
-    <main className="home">
-      <div className="deco-tiles" aria-hidden="true">
-        <span className="deco deco-1">
-          <DominoTile a={6} b={6} vertical />
-        </span>
-        <span className="deco deco-2">
-          <DominoTile a={3} b={5} vertical />
-        </span>
+    <main className="home hub">
+      <header className="hub-header">
+        <h1 className="wordmark small">
+          Domino’s <span>Clan</span>
+        </h1>
+        <button
+          className={`profile-btn ${!ready ? 'attention' : ''}`}
+          onClick={() => setProfileOpen(true)}
+          title="Ton profil"
+        >
+          <span className="profile-avatar">{profile.avatar}</span>
+          <span className="profile-name">{profile.pseudo.trim() || 'Ton profil'}</span>
+        </button>
+      </header>
+
+      <p className="tagline">Le jeu entre potes — mic ouvert, chambrage permis.</p>
+
+      <div className="hub-games">
+        {GAMES.map((g, i) => (
+          <button
+            key={g.type}
+            className="game-card"
+            style={{ ['--i' as string]: i }}
+            onClick={requirePseudo(() => onCreate(g.type))}
+          >
+            <span className="game-emoji">{g.emoji}</span>
+            <span className="game-name">{g.name}</span>
+            <span className="game-tag">{g.tag}</span>
+            <span className="game-desc">{g.desc}</span>
+            <span className="game-cta">Créer un salon →</span>
+          </button>
+        ))}
       </div>
 
-      <h1 className="wordmark">
-        Domino’s <span>Clan</span>
-      </h1>
-      <p className="tagline">Le domino entre potes — mic ouvert, chambrage permis.</p>
-
-      <div className="card">
-        <div className="avatar-row" role="radiogroup" aria-label="Ton avatar">
-          {AVATARS.map((a) => (
-            <button
-              key={a}
-              className={`avatar-pick ${profile.avatar === a ? 'active' : ''}`}
-              onClick={() => onProfile({ ...profile, avatar: a })}
-            >
-              {a}
-            </button>
-          ))}
-        </div>
-
-        <label className="field">
-          <span>Pseudo</span>
-          <input
-            className="input"
-            value={profile.pseudo}
-            maxLength={20}
-            placeholder="ex. Diablo, Bokolo, Del's"
-            onChange={(e) => onProfile({ ...profile, pseudo: e.target.value })}
-          />
-        </label>
-
-        <button className="friend-code" onClick={copyFriendCode} title="Copier ton code ami">
-          code ami : <b>{profile.id}</b> {copied ? '✔' : '⧉'}
-        </button>
-
-        <button className="btn" disabled={!ready} onClick={onCreate}>
-          Créer un salon
-        </button>
-
-        <div className="or">— ou —</div>
-
+      <div className="card join-card">
         <div className="join-row">
           <input
             className="input code"
@@ -105,10 +131,10 @@ export function Home({
           />
           <button
             className="btn ghost"
-            disabled={!ready || code.trim().length !== 4}
-            onClick={() => onJoin(code.trim())}
+            disabled={code.trim().length !== 4}
+            onClick={requirePseudo(() => onJoin(code.trim()))}
           >
-            Rejoindre
+            Rejoindre un salon
           </button>
         </div>
       </div>
@@ -132,7 +158,7 @@ export function Home({
                 <button
                   className="btn ghost sm"
                   title="Lui demander de t’inviter dans sa partie"
-                  onClick={() => onKnock(f.id)}
+                  onClick={requirePseudo(() => onKnock(f.id))}
                 >
                   Rejoindre
                 </button>
@@ -141,7 +167,11 @@ export function Home({
                 className="icon-btn tiny"
                 title="Retirer cet ami"
                 onClick={() => {
-                  if (window.confirm(`Retirer ${f.pseudo || f.id} de tes amis ? Il faudra ré-échanger vos codes pour le retrouver.`)) {
+                  if (
+                    window.confirm(
+                      `Retirer ${f.pseudo || f.id} de tes amis ? Il faudra ré-échanger vos codes pour le retrouver.`,
+                    )
+                  ) {
                     onRemoveFriend(f.id)
                   }
                 }}
@@ -173,6 +203,54 @@ export function Home({
       </div>
 
       <p className="hint">2 à 4 à table · jusqu’à 20 en file · le gagnant reste 👑</p>
+
+      {profileOpen && (
+        <>
+          <div className="panel-veil" onClick={() => setProfileOpen(false)} />
+          <aside className="profile-panel">
+            <div className="panel-head">
+              <h2 className="card-title">Ton profil</h2>
+              <button className="icon-btn tiny" onClick={() => setProfileOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="avatar-row" role="radiogroup" aria-label="Ton avatar">
+              {AVATARS.map((a) => (
+                <button
+                  key={a}
+                  className={`avatar-pick ${profile.avatar === a ? 'active' : ''}`}
+                  onClick={() => onProfile({ ...profile, avatar: a })}
+                >
+                  {a}
+                </button>
+              ))}
+            </div>
+            <label className="field">
+              <span>Pseudo</span>
+              <input
+                className="input"
+                value={profile.pseudo}
+                maxLength={20}
+                placeholder="ex. Diablo, Bokolo, Del's"
+                onChange={(e) => onProfile({ ...profile, pseudo: e.target.value })}
+              />
+            </label>
+            <button className="friend-code" onClick={copyFriendCode} title="Copier ton code ami">
+              code ami : <b>{profile.id}</b> {copied ? '✔' : '⧉'}
+            </button>
+            <p className="hint">Partage ton code ami pour qu’on te retrouve.</p>
+          </aside>
+        </>
+      )}
+
+      <div className="deco-tiles" aria-hidden="true">
+        <span className="deco deco-1">
+          <DominoTile a={6} b={6} vertical />
+        </span>
+        <span className="deco deco-2">
+          <DominoTile a={3} b={5} vertical />
+        </span>
+      </div>
     </main>
   )
 }

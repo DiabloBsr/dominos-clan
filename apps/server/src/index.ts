@@ -20,6 +20,9 @@ import {
   getRoom,
   joinRoom,
   leaveSeat,
+  ludoPlayRoom,
+  ludoRollRoom,
+  ludoTargetRoom,
   markDisconnected,
   resumeMember,
   playMove,
@@ -109,6 +112,7 @@ function broadcast(room: Room): void {
     socket.emit('room:state', view)
     socket.emit('game:state', room.game ? viewFor(room.game, member.id, gameRole(room, member.id)) : null)
     socket.emit('chess:state', room.chessGame ? chessViewOf(room.chessGame) : null)
+    socket.emit('ludo:state', room.ludoGame ?? null)
   }
 }
 
@@ -277,6 +281,30 @@ io.on('connection', (socket: Socket) => {
         broadcast(room)
         armFlag(room)
       }),
+  )
+
+  socket.on('ludo:roll', (_payload: unknown, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      ludoRollRoom(room, memberId)
+      broadcast(room)
+    }),
+  )
+
+  socket.on('ludo:play', (payload: { pawn?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      ludoPlayRoom(room, memberId, payload?.pawn)
+      broadcast(room)
+    }),
+  )
+
+  socket.on('ludo:target', (payload: { player?: unknown; pawn?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      ludoTargetRoom(room, memberId, payload?.player, payload?.pawn)
+      broadcast(room)
+    }),
   )
 
   socket.on('chess:resign', (_payload: unknown, ack?: Ack) =>

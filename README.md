@@ -1,8 +1,18 @@
-# Domino's Clan 🁫♟️
+# Domino's Clan 🁫♟️🎲
 
-**Plateforme multi-jeux entre potes** : dominos ET échecs blitz, toujours au mic.
-L'hôte choisit le jeu du salon dans ⚙️ Règles ; tout le social (amis, invitations,
+**Plateforme multi-jeux entre potes** : dominos, échecs blitz ET Ludo — toujours au mic.
+L'accueil est un **hub** : on choisit son jeu, le salon se crée dessus (l'hôte peut
+changer de jeu dans ⚙️ Règles). Tout le social (profil en icône, amis, invitations,
 voix ciblée, chat, réactions, spectateurs, file, reprise de session) est commun.
+
+## 🎲 Mode Ludo
+
+- **2 à 4 joueurs**, plateau classique 15×15, dé lancé côté serveur.
+- Sortie sur 6, un 6 fait rejouer, **6 successifs réglables (2-4, défaut 3)**.
+- Captures sauf cases sûres (départs + étoiles ⭐), couloir + **arrivée exacte**.
+- **Partie simple ou avec bonus 🎁** : deuxième lancer, boost 1-6, prison au choix,
+  bouclier, échange de places, téléport étoile (cf. [docs/LUDO.md](docs/LUDO.md)).
+- Pions animés, dé qui culbute, gagnant reste — la file monte.
 
 ## ♟️ Mode Échecs
 

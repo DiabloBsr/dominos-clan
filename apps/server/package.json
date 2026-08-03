@@ -9,6 +9,7 @@
     "smoke": "tsx scripts/smoke.ts",
     "smoke:match": "tsx scripts/smoke-match.ts",
     "smoke:chess": "tsx scripts/smoke-chess.ts",
+    "smoke:ludo": "tsx scripts/smoke-ludo.ts",
     "check:livekit": "tsx scripts/check-livekit.ts",
     "probe:voice": "tsx scripts/probe-voice.ts",
     "typecheck": "tsc --noEmit"

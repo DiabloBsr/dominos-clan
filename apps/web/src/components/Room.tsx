@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ChessView, GameRules, GameView, Move, RoomView } from '@dominos-clan/engine'
+import type { ChessView, GameRules, GameView, LudoState, Move, RoomView } from '@dominos-clan/engine'
+import { LudoBoard } from './LudoBoard'
 import type { ChatMessage, FloatingReaction } from '../App'
 import type { VoiceAudience, VoiceControls } from '../useVoice'
 import { STATUS_LABELS, type Friend, type FriendStatus } from '../profile'
@@ -20,6 +21,7 @@ export function Room({
   room,
   game,
   chess,
+  ludo,
   selfId,
   reactions,
   chat,
@@ -42,11 +44,15 @@ export function Room({
   onRedeal,
   onChessMove,
   onResign,
+  onLudoRoll,
+  onLudoPlay,
+  onLudoTarget,
   onLeave,
 }: {
   room: RoomView
   game: GameView | null
   chess: ChessView | null
+  ludo: LudoState | null
   selfId: string
   reactions: FloatingReaction[]
   chat: ChatMessage[]
@@ -69,6 +75,9 @@ export function Room({
   onRedeal: () => void
   onChessMove: (from: string, to: string, promotion?: string) => void
   onResign: () => void
+  onLudoRoll: () => void
+  onLudoPlay: (pawn: number) => void
+  onLudoTarget: (player: number, pawn: number) => void
   onLeave: () => void
 }) {
   const [copied, setCopied] = useState(false)
@@ -286,6 +295,7 @@ export function Room({
           >
             <option value="dominos">🁫 Dominos</option>
             <option value="chess">♟️ Échecs</option>
+            <option value="ludo">🎲 Ludo</option>
           </select>
           {room.rules.gameType === 'chess' && (
             <>
@@ -328,18 +338,44 @@ export function Room({
             </>
           )}
           {room.rules.gameType !== 'chess' && (
+            <select
+              className="voice-audience"
+              disabled={!isHost}
+              value={String(room.rules.maxSeats)}
+              title="Nombre de joueurs à table"
+              onChange={(e) => onRules({ ...room.rules, maxSeats: Number(e.target.value) })}
+            >
+              <option value="2">Table à 2</option>
+              <option value="3">Table à 3</option>
+              <option value="4">Table à 4</option>
+            </select>
+          )}
+          {room.rules.gameType === 'ludo' && (
+            <>
+              <select
+                className="voice-audience"
+                disabled={!isHost}
+                value={String(room.rules.ludoSixes)}
+                title="Nombre de 6 successifs autorisés avant que le tour saute"
+                onChange={(e) => onRules({ ...room.rules, ludoSixes: Number(e.target.value) })}
+              >
+                <option value="2">2 six max</option>
+                <option value="3">3 six max</option>
+                <option value="4">4 six max</option>
+              </select>
+              <label className="rules-check" title="Partie avec cases bonus 🎁 (sinon simple)">
+                <input
+                  type="checkbox"
+                  disabled={!isHost}
+                  checked={room.rules.ludoBonus}
+                  onChange={(e) => onRules({ ...room.rules, ludoBonus: e.target.checked })}
+                />
+                Bonus 🎁
+              </label>
+            </>
+          )}
+          {room.rules.gameType === 'dominos' && (
           <>
-          <select
-            className="voice-audience"
-            disabled={!isHost}
-            value={String(room.rules.maxSeats)}
-            title="Nombre de joueurs à table"
-            onChange={(e) => onRules({ ...room.rules, maxSeats: Number(e.target.value) })}
-          >
-            <option value="2">Table à 2</option>
-            <option value="3">Table à 3</option>
-            <option value="4">Table à 4</option>
-          </select>
           <select
             className="voice-audience"
             disabled={!isHost}
@@ -465,7 +501,7 @@ export function Room({
         </div>
       )}
 
-      {room.rules.targetScore !== null && room.rules.gameType !== 'chess' && (
+      {room.rules.targetScore !== null && room.rules.gameType === 'dominos' && (
         <div className="scoreboard">
           <span className="group-label">
             🏁 Match en {room.rules.targetScore} pts
@@ -545,7 +581,20 @@ export function Room({
         </div>
       )}
 
-      {room.rules.gameType === 'chess' && chess && room.status !== 'lobby' ? (
+      {room.rules.gameType === 'ludo' && ludo && room.status !== 'lobby' ? (
+        <LudoBoard
+          state={ludo}
+          room={room}
+          selfId={selfId}
+          isHost={isHost}
+          onRoll={onLudoRoll}
+          onPlay={onLudoPlay}
+          onTarget={onLudoTarget}
+          onStart={onStart}
+          voiceIds={voice.state.inVoice}
+          speaking={voice.state.speaking}
+        />
+      ) : room.rules.gameType === 'chess' && chess && room.status !== 'lobby' ? (
         <ChessBoard
           view={chess}
           room={room}
@@ -573,7 +622,9 @@ export function Room({
         <section className="lobby">
           <div className="table-felt idle">
             <p className="felt-hint">
-              La table est ouverte — {room.seats.length}/4 assis, {room.members.length}/10 dans le salon.
+              {room.rules.gameType === 'chess' ? '♟️' : room.rules.gameType === 'ludo' ? '🎲' : '🁫'}{' '}
+              La table est ouverte — {room.seats.length}/{room.rules.maxSeats} assis,{' '}
+              {room.members.length}/24 dans le salon.
             </p>
           </div>
           <div className="lobby-actions">
@@ -589,7 +640,8 @@ export function Room({
               ))}
             {isHost && (
               <button className="btn" onClick={onStart} disabled={room.seats.length < 2}>
-                Lancer la manche ({room.seats.length} joueur{room.seats.length > 1 ? 's' : ''})
+                {room.rules.gameType === 'dominos' ? 'Lancer la manche' : 'Lancer la partie'} (
+                {room.seats.length} joueur{room.seats.length > 1 ? 's' : ''})
               </button>
             )}
             {!isHost && <p className="hint">L’hôte ⭐ lance la manche.</p>}
