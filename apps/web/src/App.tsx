@@ -73,6 +73,20 @@ export default function App() {
 
   const voice = useVoice(room?.code ?? null, selfId, playerIds, showNotice)
 
+  // Bouton « retour » piégé : dans un salon, revenir en arrière ne quitte
+  // plus la page par accident — on reste, et « Quitter » reste le seul chemin.
+  const inRoom = room !== null
+  useEffect(() => {
+    if (!inRoom) return
+    history.pushState({ dc: 'room' }, '')
+    const onPop = () => {
+      history.pushState({ dc: 'room' }, '')
+      showNotice('Tu es toujours dans le salon — utilise « Quitter » pour sortir 😉')
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [inRoom, showNotice])
+
   // Micro actif par défaut : on rejoint la voix dès l'entrée dans le salon
   // (une seule tentative par salon ; l'utilisateur gère ensuite muet/parler).
   const voiceAttempt = useRef<string | null>(null)
