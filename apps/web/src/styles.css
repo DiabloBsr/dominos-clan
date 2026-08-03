@@ -1572,6 +1572,64 @@ button.domino:disabled {
   background: transparent;
 }
 
+/* ─── Vraie table : les joueurs autour du feutre ─────────────────── */
+
+.table-arena {
+  display: grid;
+  grid-template-areas:
+    '. top .'
+    'left felt right'
+    '. bottom .';
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto);
+  gap: 0.55rem 0.65rem;
+  align-items: center;
+  justify-items: center;
+}
+
+.arena-top {
+  grid-area: top;
+}
+
+.arena-left {
+  grid-area: left;
+}
+
+.arena-right {
+  grid-area: right;
+}
+
+.arena-bottom {
+  grid-area: bottom;
+}
+
+.arena-felt {
+  grid-area: felt;
+}
+
+.arena-left .seat-chip,
+.arena-right .seat-chip {
+  max-width: 9.5rem;
+}
+
+.arena-left .seat-tiles,
+.arena-right .seat-tiles {
+  max-width: 8.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .table-arena {
+    gap: 0.4rem 0.3rem;
+  }
+
+  .arena-left .seat-chip,
+  .arena-right .seat-chip {
+    max-width: 6.2rem;
+    font-size: 0.75rem;
+  }
+}
+
 /* Confort : moins d'animations si l'appareil le demande */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { End, GameView, Move, RoomView, Tile } from '@dominos-clan/engine'
+import type { End, GameView, Move, PublicPlayer, RoomView, Tile } from '@dominos-clan/engine'
 import { layoutBoard } from '../boardLayout'
 import { playTap } from '../sounds'
 import { DominoBack, DominoTile } from './DominoTile'
@@ -168,6 +168,57 @@ export function Game({
     height: z.h * u,
   })
 
+  // Vraie table : soi en bas, les adversaires autour du feutre dans l'ordre du tour
+  // (1 adversaire → en face ; 2 → droite/gauche ; 3 → droite/en face/gauche).
+  const selfIdx = game.players.findIndex((p) => p.id === selfId)
+  const orderedSeats =
+    selfIdx >= 0
+      ? [...game.players.slice(selfIdx), ...game.players.slice(0, selfIdx)]
+      : game.players
+  const opponents = orderedSeats.slice(1)
+  const arenaSpots: Record<'top' | 'left' | 'right' | 'bottom', PublicPlayer[]> = {
+    top: [],
+    left: [],
+    right: [],
+    bottom: orderedSeats[0] ? [orderedSeats[0]] : [],
+  }
+  if (opponents.length === 1) arenaSpots.top = [opponents[0]!]
+  else if (opponents.length === 2) {
+    arenaSpots.right = [opponents[0]!]
+    arenaSpots.left = [opponents[1]!]
+  } else if (opponents.length >= 3) {
+    arenaSpots.right = [opponents[0]!]
+    arenaSpots.top = [opponents[1]!]
+    arenaSpots.left = [opponents[2]!]
+  }
+
+  const renderSeat = (p: PublicPlayer) => (
+    <div
+      key={p.id}
+      className={`seat-chip ${p.id === game.currentPlayerId ? 'turn' : ''} ${
+        speaking.includes(p.id) ? 'speaking' : ''
+      }`}
+    >
+      <span className="seat-name">
+        {avatarOf(room, p.id)} {pseudoOf(room, p.id)}
+        {voiceIds.includes(p.id) ? ' 🎙' : ''}
+        {p.id === selfId ? ' (toi)' : ''}
+      </span>
+      <span className="seat-tiles">
+        {Array.from({ length: p.tileCount }, (_, i) => (
+          <DominoBack key={i} />
+        ))}
+      </span>
+      {p.hand && (showHands || game.status === 'finished') && (
+        <span className="spy-hand">
+          {p.hand.map((t, i) => (
+            <DominoTile key={i} a={t.hi} b={t.lo} vertical size="sm" />
+          ))}
+        </span>
+      )}
+    </div>
+  )
+
   return (
     <section className="game">
       {(game.status === 'redeal' || (game.redeals.length > 0 && !hideRedeals)) && (
@@ -209,36 +260,13 @@ export function Game({
         </div>
       )}
 
-      <div className="players-row">
-        {game.players.map((p) => (
-          <div
-            key={p.id}
-            className={`seat-chip ${p.id === game.currentPlayerId ? 'turn' : ''} ${
-              speaking.includes(p.id) ? 'speaking' : ''
-            }`}
-          >
-            <span className="seat-name">
-              {avatarOf(room, p.id)} {pseudoOf(room, p.id)}
-              {voiceIds.includes(p.id) ? ' 🎙' : ''}
-              {p.id === selfId ? ' (toi)' : ''}
-            </span>
-            <span className="seat-tiles">
-              {Array.from({ length: p.tileCount }, (_, i) => (
-                <DominoBack key={i} />
-              ))}
-            </span>
-            {p.hand && (showHands || game.status === 'finished') && (
-              <span className="spy-hand">
-                {p.hand.map((t, i) => (
-                  <DominoTile key={i} a={t.hi} b={t.lo} vertical size="sm" />
-                ))}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
+      <div className="table-arena">
+        <div className="arena-top">{arenaSpots.top.map(renderSeat)}</div>
+        <div className="arena-left">{arenaSpots.left.map(renderSeat)}</div>
+        <div className="arena-right">{arenaSpots.right.map(renderSeat)}</div>
+        <div className="arena-bottom">{arenaSpots.bottom.map(renderSeat)}</div>
 
-      <div className={`table-felt ${shaking ? 'slam-shake' : ''}`}>
+        <div className={`arena-felt table-felt ${shaking ? 'slam-shake' : ''}`}>
         <div className="board-wrap" ref={boardRef}>
           {game.line.length === 0 ? (
             <p
@@ -294,12 +322,13 @@ export function Game({
             )
           )}
         </div>
-        {game.ends && (
-          <p className="ends-hint">
-            bouts ouverts : <b>{game.ends.left}</b> · <b>{game.ends.right}</b>
-            {game.sleepingCount > 0 && <span> — {game.sleepingCount} dominos dorment</span>}
-          </p>
-        )}
+          {game.ends && (
+            <p className="ends-hint">
+              bouts ouverts : <b>{game.ends.left}</b> · <b>{game.ends.right}</b>
+              {game.sleepingCount > 0 && <span> — {game.sleepingCount} dominos dorment</span>}
+            </p>
+          )}
+        </div>
       </div>
 
       {isSpectator ? (

@@ -348,33 +348,31 @@ function settleRoundEnd(room: Room): void {
   if (result.winnerId === null) return
 
   if (room.rules.targetScore !== null) {
-    const current = room.scores.get(result.winnerId) ?? 0
-
-    // Victoire éclair : personne n'a encore marqué et le premier gain
-    // atteint le seuil → match gagné immédiatement.
-    const nobodyScored = [...room.scores.values()].every((s) => s === 0)
-    if (
-      room.rules.instantWinScore !== null &&
-      nobodyScored &&
-      result.gain >= room.rules.instantWinScore
-    ) {
-      room.scores.set(result.winnerId, result.gain)
-      room.matchWinnerId = result.winnerId
-      const rotated = rotateWinnerStays(room.seats, room.queue, result.winnerId)
-      room.seats = rotated.seats
-      room.queue = rotated.queue
-      return
-    }
-
     // Match aux points : le gagnant encaisse la somme des mains adverses,
     // avec le seuil d'ouverture sur la toute première marque.
+    const current = room.scores.get(result.winnerId) ?? 0
     const counted = current === 0 && result.gain < room.rules.openThreshold ? 0 : result.gain
     const total = current + counted
     room.scores.set(result.winnerId, total)
-    if (total >= room.rules.targetScore) {
-      // Match remporté : la table tourne pour le match suivant.
+
+    // Victoire éclair : le gagnant cumule ≥ seuil alors que TOUS les autres
+    // joueurs de la table sont encore à 0 → match gagné immédiatement.
+    const othersAtZero = room.seats
+      .filter((id) => id !== result.winnerId)
+      .every((id) => (room.scores.get(id) ?? 0) === 0)
+    const instantWin =
+      room.rules.instantWinScore !== null && othersAtZero && total >= room.rules.instantWinScore
+
+    if (instantWin || total >= room.rules.targetScore) {
+      // Match remporté : la table tourne pour le match suivant —
+      // plus petits scores sortants, égalité départagée à gauche du gagnant.
       room.matchWinnerId = result.winnerId
-      const rotated = rotateWinnerStays(room.seats, room.queue, result.winnerId)
+      const rotated = rotateWinnerStays(
+        room.seats,
+        room.queue,
+        result.winnerId,
+        Object.fromEntries(room.scores),
+      )
       room.seats = rotated.seats
       room.queue = rotated.queue
       return
@@ -385,7 +383,8 @@ function settleRoundEnd(room: Room): void {
     return
   }
 
-  // Manche sèche : rotation immédiate, le gagnant reste.
+  // Manche sèche : rotation immédiate, le gagnant reste (pas de scores :
+  // à égalité complète, c'est le voisin de gauche du gagnant qui sort).
   const rotated = rotateWinnerStays(room.seats, room.queue, result.winnerId)
   room.seats = rotated.seats
   room.queue = rotated.queue

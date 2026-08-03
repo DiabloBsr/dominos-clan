@@ -35,23 +35,37 @@ export interface RoomView {
 }
 
 /**
- * Rotation "le gagnant reste" : les perdants partent en fin de file,
- * les premiers de la file prennent les sièges libérés. Sans spectateurs
- * en attente, les mêmes joueurs rejouent (gagnant en tête).
+ * Rotation "le gagnant reste" (à la victoire) : la file prend les places des
+ * perdants. S'il y a moins de remplaçants que de perdants, sortent en
+ * priorité les **plus petits scores** ; à égalité, **celui qui est à gauche
+ * du gagnant** (le siège précédent dans l'ordre du tour) cède sa place en
+ * premier. Sans file, les mêmes joueurs rejouent (gagnant en tête).
  */
 export function rotateWinnerStays(
   seats: readonly string[],
   queue: readonly string[],
   winnerId: string,
+  scores: Record<string, number> = {},
 ): { seats: string[]; queue: string[] } {
-  if (!seats.includes(winnerId)) {
+  const winnerIndex = seats.indexOf(winnerId)
+  if (winnerIndex < 0) {
     throw new Error(`Le gagnant ${winnerId} n'est pas assis`)
   }
-  const losers = seats.filter((id) => id !== winnerId)
-  const candidates = [...queue, ...losers]
-  const openSeats = seats.length - 1
+  const n = seats.length
+  const openSeats = n - 1
+  const incoming = queue.slice(0, openSeats)
+
+  // Distance « à gauche du gagnant » : 1 = siège immédiatement à sa gauche.
+  const leftDistance = (id: string) => (winnerIndex - seats.indexOf(id) + n) % n
+  const evictionOrder = seats
+    .filter((id) => id !== winnerId)
+    .sort((a, b) => (scores[a] ?? 0) - (scores[b] ?? 0) || leftDistance(a) - leftDistance(b))
+
+  const evicted = evictionOrder.slice(0, incoming.length)
+  const survivors = seats.filter((id) => id !== winnerId && !evicted.includes(id))
+
   return {
-    seats: [winnerId, ...candidates.slice(0, openSeats)],
-    queue: candidates.slice(openSeats),
+    seats: [winnerId, ...incoming, ...survivors],
+    queue: [...queue.slice(incoming.length), ...evicted],
   }
 }
