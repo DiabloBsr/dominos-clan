@@ -1653,6 +1653,12 @@ button.domino:disabled {
   .arena-felt {
     width: 100%;
   }
+
+  /* Le plateau prend le maximum de place : marges internes réduites. */
+  .table-felt {
+    padding: 0.7rem 0.45rem 0.55rem;
+    border-radius: 20px;
+  }
 }
 
 /* ─── Échecs ─────────────────────────────────────────────────────── */
