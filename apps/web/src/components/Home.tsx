@@ -140,7 +140,11 @@ export function Home({
               <button
                 className="icon-btn tiny"
                 title="Retirer cet ami"
-                onClick={() => onRemoveFriend(f.id)}
+                onClick={() => {
+                  if (window.confirm(`Retirer ${f.pseudo || f.id} de tes amis ? Il faudra ré-échanger vos codes pour le retrouver.`)) {
+                    onRemoveFriend(f.id)
+                  }
+                }}
               >
                 ✕
               </button>

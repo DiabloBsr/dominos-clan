@@ -17,6 +17,7 @@ interface Client {
   name: string
   socket: Socket
   selfId: string
+  resumeKey?: string
   game: GameView | null
   room: RoomView | null
 }
@@ -89,6 +90,7 @@ async function main(): Promise<void> {
     const c = await connect(name)
     const res = await emitAck(c.socket, 'room:join', { code, pseudo: name })
     c.selfId = res.selfId as string
+    c.resumeKey = res.resumeKey as string
     clients.push(c)
   }
 
@@ -224,6 +226,23 @@ async function main(): Promise<void> {
     console.log(`manche terminée en ${moves} coups — gagnant : ${winner} (${final.result.reason}, +${final.result.gain} pts)`)
     console.log(`rotation OK, nouveaux sièges : ${seatsAfter.join(',')}`)
   }
+  // Reprise de session : Chloé « recharge sa page » et doit revenir dans le salon.
+  const chloe = clients[2]!
+  chloe.socket.close()
+  await sleep(250)
+  const chloeBis = await connect('Chloé-bis')
+  const resumed = await emitAck(chloeBis.socket, 'room:resume', {
+    code,
+    memberId: chloe.selfId,
+    resumeKey: chloe.resumeKey,
+  })
+  if (resumed.selfId !== chloe.selfId) throw new Error('reprise : mauvais memberId')
+  await sleep(150)
+  const back = chloeBis.room?.members.find((m) => m.id === chloe.selfId)
+  if (!back || back.connected !== true) throw new Error('reprise : membre non reconnecté')
+  console.log('reprise de session après rechargement ✔')
+  clients.push(chloeBis)
+
   console.log('SMOKE OK ✔ (aucune fuite de main détectée sur tous les états reçus)')
   clients.forEach((c) => c.socket.close())
 }

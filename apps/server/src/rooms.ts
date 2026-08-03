@@ -19,6 +19,8 @@ export interface Member {
   avatar: string
   socketId: string
   connected: boolean
+  /** Jeton secret de reprise de session (rechargement de page). */
+  resumeKey: string
 }
 
 export interface Room {
@@ -91,6 +93,7 @@ export function createRoom(
     avatar: identity.avatar,
     socketId,
     connected: true,
+    resumeKey: randomBytes(12).toString('base64url'),
   }
   const room: Room = {
     code: generateCode(),
@@ -130,6 +133,7 @@ export function joinRoom(
     avatar: identity.avatar,
     socketId,
     connected: true,
+    resumeKey: randomBytes(12).toString('base64url'),
   }
   room.members.set(member.id, member)
   // Une partie en cours (ou un salon déjà plein en sièges) → on arrive spectateur.
@@ -385,6 +389,29 @@ function settleRoundEnd(room: Room): void {
   const rotated = rotateWinnerStays(room.seats, room.queue, result.winnerId)
   room.seats = rotated.seats
   room.queue = rotated.queue
+}
+
+/** Marque un membre déconnecté (période de grâce avant retrait définitif). */
+export function markDisconnected(room: Room, memberId: string): void {
+  const member = room.members.get(memberId)
+  if (member) member.connected = false
+}
+
+/** Reprise de session après rechargement : re-lie le membre à son nouveau socket. */
+export function resumeMember(
+  room: Room,
+  rawMemberId: unknown,
+  rawKey: unknown,
+  socketId: string,
+): Member {
+  if (typeof rawMemberId !== 'string' || typeof rawKey !== 'string') {
+    throw new RoomError('Session invalide')
+  }
+  const member = room.members.get(rawMemberId)
+  if (!member || member.resumeKey !== rawKey) throw new RoomError('Session expirée')
+  member.socketId = socketId
+  member.connected = true
+  return member
 }
 
 /** Rôle vis-à-vis de la manche EN COURS (pas des sièges du prochain tour). */

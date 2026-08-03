@@ -74,3 +74,34 @@ export function loadFriends(): Friend[] {
 export function saveFriends(friends: Friend[]): void {
   localStorage.setItem(FRIENDS_KEY, JSON.stringify(friends))
 }
+
+/** Session de salon en cours — pour revenir dans la partie après un rechargement. */
+export interface RoomSession {
+  code: string
+  memberId: string
+  resumeKey: string
+}
+
+const SESSION_KEY = 'dc:session'
+
+export function loadSession(): RoomSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    const s = JSON.parse(raw) as RoomSession
+    if (typeof s.code === 'string' && typeof s.memberId === 'string' && typeof s.resumeKey === 'string') {
+      return s
+    }
+  } catch {
+    // session corrompue
+  }
+  return null
+}
+
+export function saveSession(session: RoomSession): void {
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+}
+
+export function clearSession(): void {
+  localStorage.removeItem(SESSION_KEY)
+}

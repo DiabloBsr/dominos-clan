@@ -3,10 +3,13 @@ import type { GameRules, GameView, Move, RoomView } from '@dominos-clan/engine'
 import { socket, type Ack } from './socket'
 import { useVoice } from './useVoice'
 import {
+  clearSession,
   loadFriends,
   loadProfile,
+  loadSession,
   saveFriends,
   saveProfile,
+  saveSession,
   type Friend,
   type FriendStatus,
   type Profile,
@@ -204,13 +207,37 @@ export default function App() {
 
   const enterRoom = useCallback(
     (event: 'room:create' | 'room:join', payload: Record<string, string>) => {
-      socket.emit(event, payload, (res: Ack) => {
-        if (res.ok && res.selfId) setSelfId(res.selfId)
-        else if (!res.ok) showNotice(res.error)
+      socket.emit(event, payload, (res: Ack & { resumeKey?: string }) => {
+        if (res.ok && res.selfId) {
+          setSelfId(res.selfId)
+          // Session persistante : un rechargement de page ramène dans le salon.
+          if (res.code && res.resumeKey) {
+            saveSession({ code: res.code, memberId: res.selfId, resumeKey: res.resumeKey })
+          }
+        } else if (!res.ok) showNotice(res.error)
       })
     },
     [showNotice],
   )
+
+  // Reprise de session : au chargement (ou à la reconnexion), on retourne
+  // directement dans le salon au lieu de repasser par l'accueil.
+  useEffect(() => {
+    const tryResume = () => {
+      if (selfId) return
+      const session = loadSession()
+      if (!session) return
+      socket.emit('room:resume', session, (res: Ack) => {
+        if (res.ok && res.selfId) setSelfId(res.selfId)
+        else clearSession()
+      })
+    }
+    tryResume()
+    socket.on('connect', tryResume)
+    return () => {
+      socket.off('connect', tryResume)
+    }
+  }, [selfId])
 
   const simpleEmit = useCallback(
     (event: string, payload: Record<string, unknown> = {}) => {
@@ -229,6 +256,7 @@ export default function App() {
 
   const leaveRoomLocal = () => {
     voice.leave()
+    clearSession()
     simpleEmit('room:leave')
     setRoom(null)
     setGame(null)

@@ -1423,3 +1423,162 @@ button.domino:disabled {
     padding: 0.6rem 0.7rem;
   }
 }
+
+/* ══════════════ Passe premium ══════════════
+   Raffinements de profondeur, lumière et micro-interactions —
+   surcouche en cascade, ne redéfinit que le nécessaire. */
+
+/* Emojis parfaitement centrés dans les cercles */
+.icon-btn,
+.avatar-pick,
+.chat-fab,
+.chip-add {
+  line-height: 1;
+  padding: 0;
+}
+
+.chip-avatar,
+.chip-ic {
+  display: inline-grid;
+  place-items: center;
+  line-height: 1;
+}
+
+/* Cartes en verre dépoli, ombre profonde */
+.card {
+  background: linear-gradient(180deg, rgba(24, 44, 34, 0.92), rgba(13, 26, 20, 0.94));
+  border: 1px solid rgba(247, 242, 231, 0.09);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+}
+
+/* Wordmark : or dégradé + halo */
+.wordmark {
+  text-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+}
+
+.wordmark span {
+  background: linear-gradient(180deg, #ffd07a 20%, #e09a2a 85%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 12px rgba(255, 182, 72, 0.35));
+}
+
+/* Table : liseré intérieur + vignette de feutre */
+.table-felt::after {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow:
+    inset 0 14px 34px rgba(0, 0, 0, 0.28),
+    inset 0 -10px 24px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+}
+
+/* Dominos : ivoire biseauté, pips en relief */
+.domino {
+  background: linear-gradient(155deg, #fcf8ef 0%, #f2ebd9 55%, #e9dfc8 100%);
+  box-shadow:
+    0 3px 0 var(--bone-shadow),
+    0 10px 20px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.pip {
+  background: radial-gradient(circle at 35% 30%, #4d463c, #211c16 75%);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.55),
+    0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+/* Main : les dominos jouables respirent au survol */
+.hand-rack .domino {
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.hand-rack .domino:not(:disabled):hover {
+  transform: translateY(-7px) rotate(-1.5deg);
+  box-shadow:
+    0 3px 0 var(--bone-shadow),
+    0 18px 28px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+/* Joueur au tour : anneau qui respire */
+.seat-chip.turn {
+  animation: turn-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes turn-glow {
+  0%, 100% { box-shadow: 0 0 0 1.5px var(--amber), 0 0 14px rgba(255, 182, 72, 0.25); }
+  50% { box-shadow: 0 0 0 2.5px var(--amber), 0 0 26px rgba(255, 182, 72, 0.5); }
+}
+
+/* Zones de dépôt : lueur plus riche */
+.drop-zone {
+  box-shadow: 0 0 0 4px rgba(255, 182, 72, 0.08), 0 0 24px rgba(255, 182, 72, 0.2);
+  backdrop-filter: blur(2px);
+}
+
+/* Panneaux flottants : ombre + liseré doux */
+.chat-panel,
+.invite-panel,
+.invite-toast,
+.toast {
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Accueil : entrée en scène étagée */
+.home > * {
+  animation: fade-up 0.45s ease both;
+}
+
+.home > *:nth-child(2) { animation-delay: 0.05s; }
+.home > *:nth-child(3) { animation-delay: 0.1s; }
+.home > *:nth-child(4) { animation-delay: 0.16s; }
+.home > *:nth-child(5) { animation-delay: 0.22s; }
+.home > *:nth-child(6) { animation-delay: 0.28s; }
+
+/* Focus clavier visible (accessibilité) */
+:where(button, input, select):focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Scrollbars discrètes */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(247, 242, 231, 0.14);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(247, 242, 231, 0.25);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Confort : moins d'animations si l'appareil le demande */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -16,6 +16,8 @@ import {
   getRoom,
   joinRoom,
   leaveSeat,
+  markDisconnected,
+  resumeMember,
   playMove,
   promoteToSeat,
   redealNow,
@@ -71,6 +73,19 @@ interface SocketState {
   memberId?: string
 }
 
+/** Grâce après déconnexion : le temps d'un rechargement de page, la place est gardée. */
+const GRACE_MS = 90_000
+const pendingRemovals = new Map<string, ReturnType<typeof setTimeout>>()
+
+function cancelPendingRemoval(code: string, memberId: string): void {
+  const key = `${code}:${memberId}`
+  const timer = pendingRemovals.get(key)
+  if (timer) {
+    clearTimeout(timer)
+    pendingRemovals.delete(key)
+  }
+}
+
 type Ack = (response: { ok: true; [key: string]: unknown } | { ok: false; error: string }) => void
 
 /**
@@ -121,7 +136,7 @@ io.on('connection', (socket: Socket) => {
         state.memberId = member.id
         socket.join(room.code)
         broadcast(room)
-        return { code: room.code, selfId: member.id }
+        return { code: room.code, selfId: member.id, resumeKey: member.resumeKey }
       }),
   )
 
@@ -136,7 +151,24 @@ io.on('connection', (socket: Socket) => {
         state.memberId = member.id
         socket.join(room.code)
         broadcast(room)
-        return { code: room.code, selfId: member.id }
+        return { code: room.code, selfId: member.id, resumeKey: member.resumeKey }
+      }),
+  )
+
+  socket.on(
+    'room:resume',
+    (payload: { code?: unknown; memberId?: unknown; resumeKey?: unknown }, ack?: Ack) =>
+      handle(ack, () => {
+        if (state.roomCode) throw new RoomError('Déjà dans un salon')
+        if (typeof payload?.code !== 'string') throw new RoomError('Session invalide')
+        const room = getRoom(payload.code.trim().toUpperCase())
+        const member = resumeMember(room, payload.memberId, payload.resumeKey, socket.id)
+        cancelPendingRemoval(room.code, member.id)
+        state.roomCode = room.code
+        state.memberId = member.id
+        socket.join(room.code)
+        broadcast(room)
+        return { code: room.code, selfId: member.id, resumeKey: member.resumeKey }
       }),
   )
 
@@ -295,6 +327,7 @@ io.on('connection', (socket: Socket) => {
 
   const leave = (): void => {
     if (!state.roomCode || !state.memberId) return
+    cancelPendingRemoval(state.roomCode, state.memberId)
     try {
       const room = getRoom(state.roomCode)
       const { empty, aborted } = removeMember(room, state.memberId)
@@ -318,7 +351,40 @@ io.on('connection', (socket: Socket) => {
   )
 
   socket.on('disconnect', () => {
-    leave()
+    // Déconnexion (rechargement, réseau…) : on GARDE la place pendant la
+    // période de grâce — la reprise de session (room:resume) la récupère.
+    if (state.roomCode && state.memberId) {
+      const code = state.roomCode
+      const memberId = state.memberId
+      state.roomCode = undefined
+      state.memberId = undefined
+      try {
+        const room = getRoom(code)
+        markDisconnected(room, memberId)
+        broadcast(room)
+        const key = `${code}:${memberId}`
+        pendingRemovals.set(
+          key,
+          setTimeout(() => {
+            pendingRemovals.delete(key)
+            try {
+              const r = getRoom(code)
+              const member = r.members.get(memberId)
+              if (!member || member.connected) return
+              const { empty, aborted } = removeMember(r, memberId)
+              if (!empty) {
+                if (aborted) io.to(code).emit('game:aborted', { memberId })
+                broadcast(r)
+              }
+            } catch {
+              // Salon déjà supprimé entre-temps.
+            }
+          }, GRACE_MS),
+        )
+      } catch {
+        // Salon déjà supprimé.
+      }
+    }
     presence.disconnect(io, socket.id)
   })
 })
