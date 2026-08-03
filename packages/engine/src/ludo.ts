@@ -9,6 +9,8 @@
  * Les fonctions MUTENT l'état passé (le serveur en est l'unique détenteur).
  */
 
+import { mulberry32 } from './tiles'
+
 export const LUDO_TRACK = 52
 export const LUDO_HOME_STEPS = 5
 const FULL_PATH = LUDO_TRACK + LUDO_HOME_STEPS // 57 = arrivée exacte
@@ -21,6 +23,11 @@ export type LudoPawn =
 
 export interface LudoPlayerState {
   id: string
+  /**
+   * Coin/couleur occupé (0-3). Règle de base : à 2 joueurs, coins OPPOSÉS
+   * (0 et 2) ; à 3, trois coins ; à 4, les quatre.
+   */
+  slot: number
   pawns: LudoPawn[]
   /** 🛡 Bouclier actif (mode bonus) : annule la prochaine capture subie. */
   shield: boolean
@@ -36,6 +43,8 @@ export interface LudoRulesConfig {
 
 export interface LudoState {
   rules: LudoRulesConfig
+  /** Cases bonus 🎁 ÉPARPILLÉES : un bonus ramassé se replace ailleurs au hasard. */
+  bonusCells: number[]
   players: LudoPlayerState[]
   turn: number
   /** Dé lancé, en attente du choix de pion (null = il faut lancer). */
@@ -63,11 +72,25 @@ export function ludoSafeCells(): number[] {
   return [...[0, 1, 2, 3].map(ludoStartCell), ...ludoStarCells()]
 }
 
-export const LUDO_BONUS_CELLS = [4, 17, 30, 43, 10, 23, 36, 49]
+export const LUDO_BONUS_COUNT = 8
 
 const BONUS_DECK: LudoBonus[] = ['reroll', 'boost', 'prison', 'shield', 'swap', 'star']
 
-export function createLudo(playerIds: string[], rules: Partial<LudoRulesConfig> = {}): LudoState {
+/** Tire une case libre (ni sûre, ni déjà bonus) pour y placer un 🎁. */
+function drawBonusCell(taken: readonly number[], rand: () => number): number | null {
+  const forbidden = new Set([...ludoSafeCells(), ...taken])
+  for (let attempt = 0; attempt < 300; attempt++) {
+    const cell = Math.floor(rand() * LUDO_TRACK)
+    if (!forbidden.has(cell)) return cell
+  }
+  return null
+}
+
+export function createLudo(
+  playerIds: string[],
+  rules: Partial<LudoRulesConfig> = {},
+  rand: () => number = mulberry32(1),
+): LudoState {
   if (playerIds.length < 2 || playerIds.length > 4) {
     throw new LudoError(`Il faut 2 à 4 joueurs, reçu ${playerIds.length}`)
   }
@@ -75,10 +98,20 @@ export function createLudo(playerIds: string[], rules: Partial<LudoRulesConfig> 
   if (!Number.isInteger(maxSixes) || maxSixes < 2 || maxSixes > 4) {
     throw new LudoError('maxSixes doit être 2, 3 ou 4')
   }
+  const bonusCells: number[] = []
+  if (rules.bonusMode) {
+    while (bonusCells.length < LUDO_BONUS_COUNT) {
+      const cell = drawBonusCell(bonusCells, rand)
+      if (cell === null) break
+      bonusCells.push(cell)
+    }
+  }
   return {
     rules: { maxSixes, bonusMode: rules.bonusMode ?? false },
-    players: playerIds.map((id) => ({
+    bonusCells,
+    players: playerIds.map((id, i) => ({
       id,
+      slot: (playerIds.length === 2 ? [0, 2] : [0, 1, 2, 3])[i]!,
       pawns: [{ zone: 'base' }, { zone: 'base' }, { zone: 'base' }, { zone: 'base' }],
       shield: false,
     })),
@@ -92,25 +125,25 @@ export function createLudo(playerIds: string[], rules: Partial<LudoRulesConfig> 
   }
 }
 
-/** Progression relative (0..56) d'un pion sur son chemin personnel. */
-function relOf(playerIndex: number, pawn: LudoPawn): number | null {
+/** Progression relative (0..56) d'un pion sur le chemin de son coin (slot). */
+function relOf(slot: number, pawn: LudoPawn): number | null {
   if (pawn.zone === 'track') {
-    return (pawn.cell - ludoStartCell(playerIndex) + LUDO_TRACK) % LUDO_TRACK
+    return (pawn.cell - ludoStartCell(slot) + LUDO_TRACK) % LUDO_TRACK
   }
   if (pawn.zone === 'home') return LUDO_TRACK + pawn.step
   return null
 }
 
 /** Destination d'un pion pour `steps` pas — null si coup impossible. */
-function destinationOf(playerIndex: number, pawn: LudoPawn, steps: number): LudoPawn | null {
+function destinationOf(slot: number, pawn: LudoPawn, steps: number): LudoPawn | null {
   if (pawn.zone === 'done') return null
   if (pawn.zone === 'base') {
-    return steps === 6 ? { zone: 'track', cell: ludoStartCell(playerIndex) } : null
+    return steps === 6 ? { zone: 'track', cell: ludoStartCell(slot) } : null
   }
-  const rel = relOf(playerIndex, pawn)!
+  const rel = relOf(slot, pawn)!
   const next = rel + steps
   if (next < LUDO_TRACK) {
-    return { zone: 'track', cell: (ludoStartCell(playerIndex) + next) % LUDO_TRACK }
+    return { zone: 'track', cell: (ludoStartCell(slot) + next) % LUDO_TRACK }
   }
   if (next < FULL_PATH) return { zone: 'home', step: next - LUDO_TRACK }
   if (next === FULL_PATH) return { zone: 'done' }
@@ -121,7 +154,7 @@ export function ludoLegalPawns(state: LudoState, playerIndex: number): number[] 
   if (state.dice === null) return []
   const player = state.players[playerIndex]!
   return player.pawns
-    .map((pawn, i) => (destinationOf(playerIndex, pawn, state.dice!) ? i : -1))
+    .map((pawn, i) => (destinationOf(player.slot, pawn, state.dice!) ? i : -1))
     .filter((i) => i >= 0)
 }
 
@@ -231,7 +264,7 @@ function drawBonus(
     case 'boost': {
       const steps = 1 + Math.floor(rand() * 6)
       const pawn = player.pawns[pawnIndex]!
-      const dest = destinationOf(playerIndex, pawn, steps)
+      const dest = destinationOf(player.slot, pawn, steps)
       if (dest) {
         player.pawns[pawnIndex] = dest
         if (dest.zone === 'track') resolveCaptures(state, playerIndex, dest.cell)
@@ -243,7 +276,7 @@ function drawBonus(
     case 'star': {
       const pawn = player.pawns[pawnIndex]!
       if (pawn.zone === 'track') {
-        const rel = relOf(playerIndex, pawn)!
+        const rel = relOf(player.slot, pawn)!
         for (let k = 1; rel + k < LUDO_TRACK; k++) {
           const cell = (pawn.cell + k) % LUDO_TRACK
           if (ludoStarCells().includes(cell)) {
@@ -283,7 +316,7 @@ export function ludoPlay(
 
   const roll = state.dice
   const player = state.players[index]!
-  const dest = destinationOf(index, player.pawns[pawnIndex]!, roll)!
+  const dest = destinationOf(player.slot, player.pawns[pawnIndex]!, roll)!
   player.pawns[pawnIndex] = dest
   state.lastEvent = null
 
@@ -292,12 +325,13 @@ export function ludoPlay(
   if (state.status === 'finished') return
 
   let rollAgain = roll === 6
-  if (
-    state.rules.bonusMode &&
-    dest.zone === 'track' &&
-    LUDO_BONUS_CELLS.includes(dest.cell)
-  ) {
+  if (state.rules.bonusMode && dest.zone === 'track' && state.bonusCells.includes(dest.cell)) {
+    const landed = dest.cell
     rollAgain = drawBonus(state, index, pawnIndex, rollAgain, rand)
+    // Le bonus ramassé se replace ailleurs, au hasard.
+    const next = drawBonusCell(state.bonusCells, rand)
+    state.bonusCells = state.bonusCells.filter((c) => c !== landed)
+    if (next !== null && next !== landed) state.bonusCells.push(next)
     checkWin(state, index)
     if (state.winnerId !== null) return
   }

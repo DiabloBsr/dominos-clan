@@ -370,12 +370,13 @@ export function startGame(room: Room, memberId: string): void {
     return
   }
 
-  // Ludo : 2 à 4 joueurs, dé côté serveur.
+  // Ludo : 2 à 4 joueurs, dé côté serveur (1v1 = coins opposés).
   if (room.rules.gameType === 'ludo') {
-    room.ludoGame = createLudo(room.seats, {
-      maxSixes: room.rules.ludoSixes,
-      bonusMode: room.rules.ludoBonus,
-    })
+    room.ludoGame = createLudo(
+      room.seats,
+      { maxSixes: room.rules.ludoSixes, bonusMode: room.rules.ludoBonus },
+      serverRand,
+    )
     room.game = null
     room.chessGame = null
     room.status = 'playing'

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  LUDO_BONUS_CELLS,
   LudoError,
   createLudo,
   ludoLegalPawns,
@@ -18,7 +17,8 @@ const noRand = () => 0.99 // évite les cases bonus par défaut (index 5 = star�
 /** rand qui force le tirage d'un bonus précis (deck: reroll,boost,prison,shield,swap,star). */
 const bonusRand = (bonusIndex: number, ...next: number[]) => {
   const queue = [bonusIndex / 6 + 0.001, ...next]
-  return () => queue.shift() ?? 0.5
+  let fallback = 0
+  return () => queue.shift() ?? (fallback = (fallback + 7) % 13) / 13
 }
 
 describe('createLudo', () => {
@@ -35,6 +35,24 @@ describe('createLudo', () => {
   it('maxSixes configurable 2-4', () => {
     expect(createLudo(['a', 'b'], { maxSixes: 4 }).rules.maxSixes).toBe(4)
     expect(() => createLudo(['a', 'b'], { maxSixes: 5 })).toThrowError(LudoError)
+  })
+
+  it('1v1 : coins OPPOSÉS (slots 0 et 2) ; à 3-4, coins successifs', () => {
+    expect(createLudo(['a', 'b']).players.map((p) => p.slot)).toEqual([0, 2])
+    expect(createLudo(['a', 'b', 'c']).players.map((p) => p.slot)).toEqual([0, 1, 2])
+    expect(createLudo(['a', 'b', 'c', 'd']).players.map((p) => p.slot)).toEqual([0, 1, 2, 3])
+  })
+
+  it('mode bonus : 8 cases éparpillées, jamais sur des cases sûres', () => {
+    const state = createLudo(['a', 'b'], { bonusMode: true })
+    expect(state.bonusCells).toHaveLength(8)
+    expect(new Set(state.bonusCells).size).toBe(8)
+    for (const cell of state.bonusCells) {
+      expect(ludoSafeCells()).not.toContain(cell)
+      expect(cell).toBeGreaterThanOrEqual(0)
+      expect(cell).toBeLessThan(52)
+    }
+    expect(createLudo(['a', 'b']).bonusCells).toEqual([])
   })
 })
 
@@ -149,9 +167,10 @@ describe('couloir et arrivée exacte', () => {
 })
 
 describe('bonus 🎁', () => {
-  const bonusCell = LUDO_BONUS_CELLS[0]! // 4
+  const bonusCell = 4
 
   function landOnBonus(state: LudoState, rand: () => number) {
+    state.bonusCells = [bonusCell]
     craft(state, 0, 0, { zone: 'track', cell: bonusCell - 3 })
     ludoRoll(state, 'a', 3)
     ludoPlay(state, 'a', 0, rand)
@@ -165,9 +184,17 @@ describe('bonus 🎁', () => {
 
   it('🎲 deuxième lancer', () => {
     const state = createLudo(['a', 'b'], { bonusMode: true })
-    landOnBonus(state, bonusRand(0))
+    landOnBonus(state, bonusRand(0, 0.5))
     expect(state.turn).toBe(0)
     expect(state.dice).toBeNull()
+  })
+
+  it('un bonus ramassé se replace ailleurs, au hasard (jamais sur une case sûre)', () => {
+    const state = createLudo(['a', 'b'], { bonusMode: true })
+    landOnBonus(state, bonusRand(0, 0.5))
+    expect(state.bonusCells).toHaveLength(1)
+    expect(state.bonusCells).not.toContain(bonusCell)
+    expect(ludoSafeCells()).not.toContain(state.bonusCells[0])
   })
 
   it('🍀 boost avance le pion du tirage', () => {

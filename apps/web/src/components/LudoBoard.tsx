@@ -1,18 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
-import {
-  LUDO_BONUS_CELLS,
-  ludoLegalPawns,
-  ludoStarCells,
-  ludoStartCell,
-  type LudoState,
-} from '@dominos-clan/engine'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ludoLegalPawns, ludoSafeCells, ludoStarCells, ludoStartCell, type LudoState } from '@dominos-clan/engine'
 import type { RoomView } from '@dominos-clan/engine'
 
 type LudoPawnPos = LudoState['players'][number]['pawns'][number]
 
-const CELL = 100 / 15 // % d'une case de la grille 15×15
-
-/** Piste de 52 cases → coordonnées (ligne, colonne) sur la grille 15×15. */
+/** Piste de 52 cases → (ligne, colonne) sur la grille 15×15 (coin 0 en haut-gauche). */
 const TRACK: Array<[number, number]> = [
   [6, 1], [6, 2], [6, 3], [6, 4], [6, 5],
   [5, 6], [4, 6], [3, 6], [2, 6], [1, 6], [0, 6],
@@ -49,8 +41,11 @@ const BASE_ZONES: Array<[number, number]> = [
   [9, 0],
 ]
 
-export const LUDO_COLORS = ['#e2574c', '#4d9de0', '#ffb648', '#7ee0a3']
-const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅']
+/** Rotation de la flèche d'entrée de chaque coin (sens de la marche). */
+const START_ARROWS = [0, 90, 180, 270]
+
+export const LUDO_COLORS = ['#e2574c', '#4d9de0', '#f2a53c', '#54b87c']
+const CELL = 100 / 15
 
 function pseudoOf(room: RoomView, id: string): string {
   return room.members.find((m) => m.id === id)?.pseudo ?? '???'
@@ -58,6 +53,59 @@ function pseudoOf(room: RoomView, id: string): string {
 
 function avatarOf(room: RoomView, id: string): string {
   return room.members.find((m) => m.id === id)?.avatar ?? ''
+}
+
+/** Pion « épingle » façon jeu de société : tête ronde + corps conique + socle. */
+function PawnPin({ color }: { color: string }) {
+  return (
+    <svg viewBox="0 0 40 48" className="pawn-svg" aria-hidden="true">
+      <ellipse cx="20" cy="43.5" rx="12" ry="3.6" fill="rgba(0,0,0,0.25)" stroke="none" />
+      <path
+        d="M20 14 C12 24 9 32 9 38 C9 42 14 44 20 44 C26 44 31 42 31 38 C31 32 28 24 20 14 Z"
+        fill={color}
+        stroke="#241f18"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <circle cx="20" cy="10.5" r="7.5" fill={color} stroke="#241f18" strokeWidth="1.6" />
+      <circle cx="17" cy="8" r="2.4" fill="rgba(255,255,255,0.75)" stroke="none" />
+    </svg>
+  )
+}
+
+/** Dé animé : culbute + faces au hasard, puis se pose sur le résultat. */
+const DIE_PIPS: Record<number, number[]> = {
+  1: [4],
+  2: [0, 8],
+  3: [0, 4, 8],
+  4: [0, 2, 6, 8],
+  5: [0, 2, 4, 6, 8],
+  6: [0, 2, 3, 5, 6, 8],
+}
+
+function Die({ value, animKey }: { value: number; animKey: number }) {
+  const [face, setFace] = useState(value)
+  const [rolling, setRolling] = useState(true)
+  useEffect(() => {
+    setRolling(true)
+    const spin = setInterval(() => setFace(1 + Math.floor(Math.random() * 6)), 85)
+    const settle = setTimeout(() => {
+      clearInterval(spin)
+      setFace(value)
+      setRolling(false)
+    }, 620)
+    return () => {
+      clearInterval(spin)
+      clearTimeout(settle)
+    }
+  }, [animKey, value])
+  return (
+    <span className={`ludo-die ${rolling ? 'rolling' : 'settled'}`}>
+      {Array.from({ length: 9 }, (_, i) => (
+        <span key={i} className={`die-pip ${DIE_PIPS[face]!.includes(i) ? 'on' : ''}`} />
+      ))}
+    </span>
+  )
 }
 
 export function LudoBoard({
@@ -88,7 +136,6 @@ export function LudoBoard({
   const targeting = state.pendingBonus !== null && state.pendingBonus.playerIndex === myIndex
   const legal = myTurn && state.dice !== null ? ludoLegalPawns(state, myIndex) : []
 
-  // Animation du dé à chaque nouveau lancer.
   const [diceAnim, setDiceAnim] = useState(0)
   useEffect(() => {
     if (state.dice !== null) setDiceAnim((n) => n + 1)
@@ -96,31 +143,28 @@ export function LudoBoard({
 
   const stars = ludoStarCells()
   const starts = [0, 1, 2, 3].map(ludoStartCell)
+  const safes = useMemo(() => ludoSafeCells(), [])
 
-  const pos = (row: number, col: number) => ({
-    top: `${row * CELL}%`,
-    left: `${col * CELL}%`,
-  })
+  const pos = (row: number, col: number) => ({ top: `${row * CELL}%`, left: `${col * CELL}%` })
 
-  /** Coordonnées (ligne, colonne) d'un pion sur la grille. */
-  const gridOf = (playerIndex: number, pawnIndex: number, pawn: LudoPawnPos): [number, number] => {
-    if (pawn.zone === 'base') return BASE_SLOTS[playerIndex]![pawnIndex]!
+  const gridOf = (slot: number, pawnIndex: number, pawn: LudoPawnPos): [number, number] => {
+    if (pawn.zone === 'base') return BASE_SLOTS[slot]![pawnIndex]!
     if (pawn.zone === 'track') return TRACK[pawn.cell]!
-    if (pawn.zone === 'home') return HOME[playerIndex]![pawn.step]!
-    return [6.6 + playerIndex * 0.5, 6.6 + pawnIndex * 0.4]
+    if (pawn.zone === 'home') return HOME[slot]![pawn.step]!
+    return [6.55 + slot * 0.55, 6.55 + pawnIndex * 0.45]
   }
 
-  // ── Saut case par case : on anime les positions intermédiaires du chemin ──
-  const relOfPawn = (playerIndex: number, pawn: LudoPawnPos): number | null => {
-    if (pawn.zone === 'track') return (pawn.cell - ludoStartCell(playerIndex) + 52) % 52
+  // ── Sautillement case par case : file d'étapes + rebond visible ──
+  const relOfPawn = (slot: number, pawn: LudoPawnPos): number | null => {
+    if (pawn.zone === 'track') return (pawn.cell - ludoStartCell(slot) + 52) % 52
     if (pawn.zone === 'home') return 52 + pawn.step
     if (pawn.zone === 'done') return 57
     return null
   }
 
-  const pawnAtRel = (playerIndex: number, rel: number): LudoPawnPos =>
+  const pawnAtRel = (slot: number, rel: number): LudoPawnPos =>
     rel < 52
-      ? { zone: 'track', cell: (ludoStartCell(playerIndex) + rel) % 52 }
+      ? { zone: 'track', cell: (ludoStartCell(slot) + rel) % 52 }
       : rel < 57
         ? { zone: 'home', step: rel - 52 }
         : { zone: 'done' }
@@ -128,6 +172,7 @@ export function LudoBoard({
   const prevPawns = useRef<Map<string, LudoPawnPos>>(new Map())
   const queues = useRef<Map<string, Array<[number, number]>>>(new Map())
   const [display, setDisplay] = useState<Record<string, [number, number]>>({})
+  const [moving, setMoving] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const next = new Map<string, LudoPawnPos>()
@@ -137,16 +182,14 @@ export function LudoBoard({
         next.set(key, pawn)
         const prev = prevPawns.current.get(key)
         if (!prev || JSON.stringify(prev) === JSON.stringify(pawn)) return
-        const fromRel = relOfPawn(pi, prev)
-        const toRel = relOfPawn(pi, pawn)
-        // En avant sur son chemin → une étape par case ; sinon (sortie,
-        // capture, échange, prison…) → un seul saut direct.
+        const fromRel = relOfPawn(player.slot, prev)
+        const toRel = relOfPawn(player.slot, pawn)
         if (fromRel !== null && toRel !== null && toRel > fromRel && toRel - fromRel <= 12) {
           const path: Array<[number, number]> = []
-          for (let r = fromRel + 1; r <= toRel; r++) path.push(gridOf(pi, pwi, pawnAtRel(pi, r)))
+          for (let r = fromRel + 1; r <= toRel; r++) path.push(gridOf(player.slot, pwi, pawnAtRel(player.slot, r)))
           queues.current.set(key, path)
         } else {
-          queues.current.set(key, [gridOf(pi, pwi, pawn)])
+          queues.current.set(key, [gridOf(player.slot, pwi, pawn)])
         }
       }),
     )
@@ -161,15 +204,24 @@ export function LudoBoard({
         if (step) updates[key] = step
         if (queue.length === 0) queues.current.delete(key)
       }
+      const nowMoving = new Set([...queues.current.keys(), ...Object.keys(updates)])
+      setMoving((prev) =>
+        prev.size === nowMoving.size && [...prev].every((k) => nowMoving.has(k)) ? prev : nowMoving,
+      )
       if (Object.keys(updates).length > 0) setDisplay((prev) => ({ ...prev, ...updates }))
-    }, 200)
+    }, 230)
     return () => clearInterval(timer)
   }, [])
 
-  const pawnPos = (playerIndex: number, pawnIndex: number, pawn: LudoPawnPos) => {
-    const shown = display[`${playerIndex}-${pawnIndex}`] ?? gridOf(playerIndex, pawnIndex, pawn)
+  const pawnPos = (slot: number, key: string, pawnIndex: number, pawn: LudoPawnPos) => {
+    const shown = display[key] ?? gridOf(slot, pawnIndex, pawn)
     return pos(shown[0], shown[1])
   }
+
+  const grid = (r: number, c: number, spanR = 1, spanC = 1) => ({
+    gridRow: `${r + 1} / span ${spanR}`,
+    gridColumn: `${c + 1} / span ${spanC}`,
+  })
 
   return (
     <section className="game ludo-game">
@@ -180,7 +232,7 @@ export function LudoBoard({
             className={`seat-chip ludo-chip ${state.turn === i && state.status === 'playing' ? 'turn' : ''} ${
               speaking.includes(p.id) ? 'speaking' : ''
             }`}
-            style={{ ['--pc' as string]: LUDO_COLORS[i] }}
+            style={{ ['--pc' as string]: LUDO_COLORS[p.slot] }}
           >
             <span className="ludo-dot" />
             <span className="seat-name">
@@ -195,76 +247,87 @@ export function LudoBoard({
       </div>
 
       <div className="ludo-board">
-        {BASE_ZONES.map(([r, c], i) => (
-          <div
-            key={i}
-            className="ludo-base"
-            style={{ ...pos(r, c), width: `${6 * CELL}%`, height: `${6 * CELL}%`, ['--pc' as string]: LUDO_COLORS[i] }}
-          />
+        {BASE_ZONES.map(([r, c], slot) => (
+          <div key={slot} className="ludo-base" style={{ ...grid(r, c, 6, 6), ['--pc' as string]: LUDO_COLORS[slot] }}>
+            <div className="ludo-base-inner" />
+          </div>
         ))}
-        <div
-          className="ludo-goal"
-          style={{ ...pos(6, 6), width: `${3 * CELL}%`, height: `${3 * CELL}%` }}
-        >
-          🏆
-        </div>
+
+        <div className="ludo-goal" style={grid(6, 6, 3, 3)} />
 
         {TRACK.map(([r, c], cell) => {
           const startOwner = starts.indexOf(cell)
           return (
             <div
               key={cell}
-              className={`ludo-cell ${stars.includes(cell) ? 'star' : ''}`}
-              style={{
-                ...pos(r, c),
-                ...(startOwner >= 0 ? { background: LUDO_COLORS[startOwner], opacity: 0.9 } : {}),
-              }}
+              className={`ludo-cell ${startOwner >= 0 ? 'start' : ''}`}
+              style={{ ...grid(r, c), ['--pc' as string]: startOwner >= 0 ? LUDO_COLORS[startOwner] : undefined }}
             >
-              {startOwner < 0 && stars.includes(cell) && '⭐'}
-              {state.rules.bonusMode && LUDO_BONUS_CELLS.includes(cell) && '🎁'}
+              {startOwner >= 0 && (
+                <span className="ludo-arrow" style={{ transform: `rotate(${START_ARROWS[startOwner]}deg)` }}>
+                  ➤
+                </span>
+              )}
+              {startOwner < 0 && stars.includes(cell) && <span className="ludo-star">★</span>}
+              {state.rules.bonusMode && state.bonusCells.includes(cell) && !safes.includes(cell) && (
+                <span className="ludo-gift">🎁</span>
+              )}
             </div>
           )
         })}
 
-        {HOME.map((column, playerIndex) =>
+        {HOME.map((column, slot) =>
           column.map(([r, c], step) => (
             <div
-              key={`${playerIndex}-${step}`}
+              key={`${slot}-${step}`}
               className="ludo-cell home"
-              style={{ ...pos(r, c), ['--pc' as string]: LUDO_COLORS[playerIndex] }}
+              style={{ ...grid(r, c), ['--pc' as string]: LUDO_COLORS[slot] }}
             />
           )),
         )}
 
-        {state.players.map((player, pi) =>
-          player.pawns.map((pawn, pwi) => {
-            const mine = pi === myIndex
-            const playable = mine && legal.includes(pwi) && !targeting
-            const targetable = targeting && !mine && pawn.zone === 'track'
-            return (
-              <button
-                key={`${pi}-${pwi}`}
-                className={`ludo-pawn ${playable ? 'playable' : ''} ${targetable ? 'targetable' : ''}`}
-                style={{ ...pawnPos(pi, pwi, pawn), ['--pc' as string]: LUDO_COLORS[pi] }}
-                disabled={!playable && !targetable}
-                onClick={() => {
-                  if (targetable) onTarget(pi, pwi)
-                  else if (playable) onPlay(pwi)
-                }}
+        <div className="ludo-overlay">
+          {BASE_SLOTS.map((slots, slot) =>
+            slots.map(([r, c], si) => (
+              <span
+                key={`${slot}-${si}`}
+                className="ludo-ring"
+                style={{ ...pos(r, c), ['--pc' as string]: LUDO_COLORS[slot] }}
               />
-            )
-          }),
-        )}
+            )),
+          )}
+
+          {state.players.map((player, pi) =>
+            player.pawns.map((pawn, pwi) => {
+              const key = `${pi}-${pwi}`
+              const mine = pi === myIndex
+              const playable = mine && legal.includes(pwi) && !targeting
+              const targetable = targeting && !mine && pawn.zone === 'track'
+              return (
+                <button
+                  key={key}
+                  className={`ludo-pawn ${playable ? 'playable' : ''} ${targetable ? 'targetable' : ''} ${
+                    moving.has(key) ? 'moving' : ''
+                  }`}
+                  style={pawnPos(player.slot, key, pwi, pawn)}
+                  disabled={!playable && !targetable}
+                  onClick={() => {
+                    if (targetable) onTarget(pi, pwi)
+                    else if (playable) onPlay(pwi)
+                  }}
+                >
+                  <PawnPin color={LUDO_COLORS[player.slot]!} />
+                </button>
+              )
+            }),
+          )}
+        </div>
       </div>
 
       <div className="ludo-hud">
         {state.status === 'playing' && (
           <>
-            {state.dice !== null && (
-              <span key={diceAnim} className="ludo-dice-face">
-                {DICE_FACES[state.dice - 1]}
-              </span>
-            )}
+            {state.dice !== null && <Die value={state.dice} animKey={diceAnim} />}
             {myTurn && state.dice === null && !targeting && (
               <button className="btn ludo-roll" onClick={onRoll}>
                 🎲 Lancer le dé
@@ -275,9 +338,7 @@ export function LudoBoard({
             )}
             {targeting && <span className="turn-hint live">Choisis un pion adverse 🎯</span>}
             {!myTurn && myIndex >= 0 && (
-              <span className="turn-hint">
-                Au tour de {pseudoOf(room, state.players[state.turn]!.id)}…
-              </span>
+              <span className="turn-hint">Au tour de {pseudoOf(room, state.players[state.turn]!.id)}…</span>
             )}
             {myIndex < 0 && <span className="turn-hint">👀 Spectateur</span>}
           </>
