@@ -64,9 +64,20 @@ export interface RoundResult {
   gain: number
 }
 
+/** Donne annulée (4 ou 5 doubles dans une main) — montrée à tout le monde. */
+export interface RedealInfo {
+  /** Le joueur qui avait trop de doubles. */
+  culpritId: string
+  doublesCount: number
+  /** Toutes les mains de la donne annulée (révélées : la donne est morte). */
+  hands: { id: string; hand: Tile[] }[]
+}
+
 export interface GameState {
   /** Règles de la manche (freePass influe sur les coups légaux). */
   rules: GameRules
+  /** Donnes annulées pour excès de doubles avant celle-ci (affichées à tous). */
+  redeals: RedealInfo[]
   /** Joueurs dans l'ordre du tour (2 à 4). */
   players: PlayerState[]
   line: PlacedTile[]
@@ -115,4 +126,6 @@ export interface GameView {
   you: { id: string; hand: Tile[]; legalMoves: Move[] } | null
   /** Le spectateur/joueur peut-il reprendre son dernier domino posé ? */
   canUndo: boolean
+  /** Donnes annulées pour excès de doubles (visibles par tous). */
+  redeals: RedealInfo[]
 }

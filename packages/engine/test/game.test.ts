@@ -44,6 +44,7 @@ function craftState(partial: {
     forcedOpening: null,
     openingMaxPips: partial.openingMaxPips ?? null,
     lastPlay: null,
+    redeals: [],
   }
 }
 
@@ -376,6 +377,26 @@ describe('evaluateDeal (règle des doubles à la donne)', () => {
         expect(p.hand.filter(isDouble).length).toBeLessThanOrEqual(3)
       }
     }
+  })
+
+  it('les donnes annulées sont publiées : coupable, compte de doubles, toutes les mains', () => {
+    let seen = 0
+    for (let seed = 1; seed <= 300; seed++) {
+      const state = createGame(['a', 'b'], seed)
+      for (const redeal of state.redeals) {
+        seen++
+        expect(redeal.doublesCount === 4 || redeal.doublesCount === 5).toBe(true)
+        expect(redeal.hands).toHaveLength(2)
+        for (const h of redeal.hands) expect(h.hand).toHaveLength(7)
+        const culpritHand = redeal.hands.find((h) => h.id === redeal.culpritId)!
+        expect(culpritHand.hand.filter(isDouble).length).toBe(redeal.doublesCount)
+        // Et la vue les expose à tout le monde, joueur comme spectateur.
+        expect(viewFor(state, 'a', 'player').redeals).toEqual(state.redeals)
+        expect(viewFor(state, 'x', 'spectator').redeals).toEqual(state.redeals)
+      }
+    }
+    // Sur 300 seeds à 2 joueurs, la règle doit s'être déclenchée au moins une fois.
+    expect(seen).toBeGreaterThan(0)
   })
 })
 

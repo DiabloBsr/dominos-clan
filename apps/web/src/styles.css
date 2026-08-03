@@ -424,6 +424,60 @@ body::before {
   filter: saturate(0.55);
 }
 
+/* ─── Donne annulée (excès de doubles) ───────────────────────────── */
+
+.redeal-banner {
+  background: rgba(255, 182, 72, 0.08);
+  border: 1.5px dashed rgba(255, 182, 72, 0.5);
+  border-radius: 16px;
+  padding: 0.9rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  animation: fade-up 0.25s ease;
+}
+
+.redeal-banner h3 {
+  font-family: var(--font-display);
+  color: var(--amber);
+  font-size: 1.05rem;
+}
+
+.redeal-item p {
+  margin: 0 0 0.4rem;
+  font-size: 0.9rem;
+}
+
+.redeal-hands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.2rem;
+}
+
+.redeal-hand {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.redeal-hand.culprit .redeal-name {
+  color: var(--amber);
+}
+
+.redeal-name {
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.redeal-tiles {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.redeal-banner .btn {
+  align-self: flex-start;
+}
+
 /* ─── Table & jeu ────────────────────────────────────────────────── */
 
 /* Une vraie table vue de dessus : rectangle 4/3 sur grand écran, carrée sur téléphone. */

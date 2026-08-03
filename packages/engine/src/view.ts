@@ -41,5 +41,7 @@ export function viewFor(state: GameState, viewerId: string, role: Role): GameVie
         ? { id: self.id, hand: deepClone(self.hand), legalMoves: legalMoves(state, viewerId) }
         : null,
     canUndo,
+    // Les donnes annulées sont mortes : on peut les montrer à tout le monde.
+    redeals: deepClone(state.redeals),
   }
 }

@@ -51,7 +51,7 @@ Exemple : 6 potes dans le salon, 3 jouent un 1v1v1, les 3 autres regardent (et c
 
 ### 🁡 Règles toujours actives
 
-- **Doubles à la donne** : une main qui reçoit **4 ou 5 doubles** → on redistribue ; **6 ou 7 doubles** → victoire immédiate de la manche, points comptés normalement.
+- **Doubles à la donne** : une main qui reçoit **4 ou 5 doubles** → on redistribue, et tout le monde voit le panneau « *{pseudo} avait N doubles — donne annulée* » avec **toutes les mains de la donne annulée** ; **6 ou 7 doubles** → victoire immédiate de la manche, points comptés normalement.
 - **Reprise** : tu peux **reprendre ton domino posé** (bouton ↩) tant que le joueur suivant n'a ni posé ni passé.
 - **Fin de manche transparente** : dès que la manche se termine (domino, blocage ou doubles), **toutes les mains sont révélées à tout le monde** avec les points restants.
 - **Micro auto** : on entre dans le salon déjà connecté à la voix (si configurée) — on ne gère que muet/parler.

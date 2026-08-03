@@ -58,6 +58,13 @@ export function Game({
     setDrag(null)
   }, [game.line.length, game.currentPlayerId])
 
+  // Donnes annulées (excès de doubles) : panneau montré à chaque nouvelle donne.
+  const [hideRedeals, setHideRedeals] = useState(false)
+  const redealKey = game.redeals.map((r) => `${r.culpritId}:${r.doublesCount}`).join('|')
+  useEffect(() => {
+    setHideRedeals(false)
+  }, [redealKey])
+
   const you = game.you
   const isSpectator = you === null
   const playMoves = (you?.legalMoves ?? []).filter(
@@ -141,6 +148,35 @@ export function Game({
 
   return (
     <section className="game">
+      {game.redeals.length > 0 && !hideRedeals && (
+        <div className="redeal-banner">
+          <h3>🁡 Redistribution !</h3>
+          {game.redeals.map((redeal, i) => (
+            <div key={i} className="redeal-item">
+              <p>
+                <b>{pseudoOf(room, redeal.culpritId)}</b> avait{' '}
+                <b>{redeal.doublesCount} doubles</b> — donne annulée :
+              </p>
+              <div className="redeal-hands">
+                {redeal.hands.map((h) => (
+                  <div key={h.id} className={`redeal-hand ${h.id === redeal.culpritId ? 'culprit' : ''}`}>
+                    <span className="redeal-name">{pseudoOf(room, h.id)}</span>
+                    <span className="redeal-tiles">
+                      {h.hand.map((t, j) => (
+                        <DominoTile key={j} a={t.hi} b={t.lo} vertical size="sm" />
+                      ))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          <button className="btn sm" onClick={() => setHideRedeals(true)}>
+            OK, on joue !
+          </button>
+        </div>
+      )}
+
       <div className="players-row">
         {game.players.map((p) => (
           <div

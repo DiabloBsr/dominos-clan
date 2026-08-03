@@ -1,4 +1,4 @@
-import type { GameRules, GameState, Move, PlayMove, RoundResult, Tile } from './types'
+import type { GameRules, GameState, Move, PlayMove, RedealInfo, RoundResult, Tile } from './types'
 import { DEFAULT_RULES } from './types'
 import { isDouble, makeDeck, mulberry32, shuffle, tileEquals, tilePips } from './tiles'
 import { deepClone } from './clone'
@@ -57,8 +57,10 @@ export function createGame(
   let players: { id: string; hand: Tile[] }[] = []
   let sleeping: Tile[] = []
   let instantWinnerIndex: number | null = null
+  const redeals: RedealInfo[] = []
 
-  // Règle des doubles à la donne : 4-5 doubles → on redistribue ; 6-7 → victoire immédiate.
+  // Règle des doubles à la donne : 4-5 doubles → on redistribue (donne montrée
+  // à tout le monde) ; 6-7 → victoire immédiate.
   for (let attempt = 0; attempt < 60; attempt++) {
     const deck = shuffle(makeDeck(), rng)
     players = playerIds.map((id, i) => ({
@@ -71,13 +73,24 @@ export function createGame(
       instantWinnerIndex = verdict.winnerIndex
       break
     }
-    if (verdict.type === 'redeal') continue
+    if (verdict.type === 'redeal') {
+      const culprit = players.reduce((a, b) =>
+        a.hand.filter(isDouble).length >= b.hand.filter(isDouble).length ? a : b,
+      )
+      redeals.push({
+        culpritId: culprit.id,
+        doublesCount: culprit.hand.filter(isDouble).length,
+        hands: players.map((p) => ({ id: p.id, hand: deepClone(p.hand) })),
+      })
+      continue
+    }
     break
   }
 
   if (instantWinnerIndex !== null) {
     const state: GameState = {
       rules: mergedRules,
+      redeals,
       players,
       line: [],
       sleeping,
@@ -119,6 +132,7 @@ export function createGame(
 
   return {
     rules: mergedRules,
+    redeals,
     players,
     line: [],
     sleeping,
