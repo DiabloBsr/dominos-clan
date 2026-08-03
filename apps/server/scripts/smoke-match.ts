@@ -128,8 +128,16 @@ async function main(): Promise<void> {
         `seat:promote cassé : sièges=${alice.room!.seats.join(',')} file=${alice.room!.queue.join(',')}`,
       )
     }
+    // Remise à zéro par l'hôte : retour lobby, scores effacés.
+    await emitAck(alice.socket, 'room:restart', {})
+    await sleep(120)
+    if (alice.room!.status !== 'lobby' || Object.keys(alice.room!.scores).length !== 0) {
+      throw new Error(
+        `room:restart cassé : status=${alice.room!.status} scores=${JSON.stringify(alice.room!.scores)}`,
+      )
+    }
     console.log(
-      `SMOKE MATCH OK ✔ gagnant ${winner} (+${result.gain} pts, score ${winnerScore}), Carol à table, perdant en file, puis ajouté à la table (3 joueurs) ✔`,
+      `SMOKE MATCH OK ✔ gagnant ${winner} (+${result.gain} pts, score ${winnerScore}), Carol à table, perdant en file, ajout à la table ✔, remise à zéro ✔`,
     )
   }
   clients.forEach((c) => c.socket.close())

@@ -70,7 +70,16 @@ function assertNoLeak(client: Client, view: GameView): void {
 
 async function main(): Promise<void> {
   const alice = await connect('Alice')
-  const created = await emitAck(alice.socket, 'room:create', { pseudo: 'Alice' })
+  await emitAck(alice.socket, 'presence:hello', {
+    userId: 'alice0user1',
+    pseudo: 'Alice',
+    avatar: '😎',
+  })
+  const created = await emitAck(alice.socket, 'room:create', {
+    pseudo: 'Alice',
+    userId: 'alice0user1',
+    avatar: '😎',
+  })
   alice.selfId = created.selfId as string
   const code = created.code as string
   console.log(`salon créé : ${code}`)
@@ -117,11 +126,6 @@ async function main(): Promise<void> {
 
   // Présence + invitation directe : Alice (en salon) invite Diego par son code ami.
   const diego = clients[3]!
-  await emitAck(alice.socket, 'presence:hello', {
-    userId: 'alice0user1',
-    pseudo: 'Alice',
-    avatar: '😎',
-  })
   await emitAck(diego.socket, 'presence:hello', {
     userId: 'diego0user9',
     pseudo: 'Diego',
@@ -148,6 +152,19 @@ async function main(): Promise<void> {
     throw new Error(`invitation inattendue : ${JSON.stringify(inv)}`)
   }
   console.log(`présence : Alice ${aliceStatus} ✔ — invitation relayée vers Diego (salon ${inv.code}) ✔`)
+
+  // Toc-toc : Diego demande à Alice (en salon) de l'inviter.
+  const knocked = new Promise<{ fromPseudo: string }>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('friend:knocked jamais reçu')), 3000)
+    alice.socket.once('friend:knocked', (k: { fromPseudo: string }) => {
+      clearTimeout(timer)
+      resolve(k)
+    })
+  })
+  await emitAck(diego.socket, 'friend:knock', { toUserId: 'alice0user1' })
+  const kn = await knocked
+  if (kn.fromPseudo !== 'Diego') throw new Error(`toc-toc inattendu : ${JSON.stringify(kn)}`)
+  console.log('toc-toc : demande de Diego reçue par Alice ✔')
 
   // Diego se lève : il sera notre spectateur.
   await emitAck(diego.socket, 'seat:leave', {})

@@ -15,6 +15,7 @@ export function Home({
   onProfile,
   onAddFriend,
   onRemoveFriend,
+  onKnock,
   onCreate,
   onJoin,
 }: {
@@ -24,6 +25,7 @@ export function Home({
   onProfile: (p: Profile) => void
   onAddFriend: (code: string) => void
   onRemoveFriend: (id: string) => void
+  onKnock: (id: string) => void
   onCreate: () => void
   onJoin: (code: string) => void
 }) {
@@ -126,6 +128,15 @@ export function Home({
                 {f.avatar} {f.pseudo || f.id}
               </span>
               <span className={`friend-status ${status}`}>{STATUS_LABELS[status]}</span>
+              {(status === 'room' || status === 'playing') && (
+                <button
+                  className="btn ghost sm"
+                  title="Lui demander de t’inviter dans sa partie"
+                  onClick={() => onKnock(f.id)}
+                >
+                  Rejoindre
+                </button>
+              )}
               <button
                 className="icon-btn tiny"
                 title="Retirer cet ami"

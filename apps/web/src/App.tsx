@@ -42,6 +42,9 @@ export default function App() {
   const [invite, setInvite] = useState<{ fromPseudo: string; fromAvatar: string; code: string } | null>(
     null,
   )
+  const [knock, setKnock] = useState<{ fromUserId: string; fromPseudo: string; fromAvatar: string } | null>(
+    null,
+  )
   const [slamFx, setSlamFx] = useState<{ key: number; pseudo: string } | null>(null)
   const reactionKey = useRef(0)
   const chatKey = useRef(0)
@@ -146,6 +149,10 @@ export default function App() {
     }
     const onInvited = (inv: { fromPseudo: string; fromAvatar: string; code: string }) =>
       setInvite(inv)
+    const onKnocked = (k: { fromUserId: string; fromPseudo: string; fromAvatar: string }) =>
+      setKnock(k)
+    const onRestarted = (r: { byPseudo: string }) =>
+      showNotice(`🔄 ${r.byPseudo} a tout remis à zéro — nouvelle partie !`)
     const onSlam = (s: { pseudo: string }) => {
       playSlam()
       const key = ++slamKey.current
@@ -166,6 +173,8 @@ export default function App() {
     socket.on('chat:message', onChatMessage)
     socket.on('presence:update', onPresence)
     socket.on('friend:invited', onInvited)
+    socket.on('friend:knocked', onKnocked)
+    socket.on('room:restarted', onRestarted)
     socket.on('game:slam', onSlam)
     socket.on('game:aborted', onAborted)
     socket.on('disconnect', onDisconnect)
@@ -176,6 +185,8 @@ export default function App() {
       socket.off('chat:message', onChatMessage)
       socket.off('presence:update', onPresence)
       socket.off('friend:invited', onInvited)
+      socket.off('friend:knocked', onKnocked)
+      socket.off('room:restarted', onRestarted)
       socket.off('game:slam', onSlam)
       socket.off('game:aborted', onAborted)
       socket.off('disconnect', onDisconnect)
@@ -249,6 +260,12 @@ export default function App() {
       socket.emit('friend:invite', { toUserId }, (res: Ack) =>
         showNotice(res.ok ? 'Invitation envoyée ✔' : res.error),
       ),
+    onKnock: (toUserId: string) =>
+      socket.emit('friend:knock', { toUserId }, (res: Ack) =>
+        showNotice(res.ok ? 'Demande envoyée — il peut t’inviter ✔' : res.error),
+      ),
+    onRestart: (promoteId?: string) =>
+      simpleEmit('room:restart', promoteId ? { promoteId } : {}),
     onSit: () => simpleEmit('seat:take'),
     onPromote: (memberId: string) => simpleEmit('seat:promote', { memberId }),
     onStand: () => simpleEmit('seat:leave'),
@@ -278,6 +295,26 @@ export default function App() {
           </button>
         </div>
       )}
+      {knock && (
+        <div className="invite-toast">
+          <span>
+            🚪 {knock.fromAvatar} <b>{knock.fromPseudo}</b> veut rejoindre ta partie
+          </span>
+          <button
+            className="btn sm"
+            disabled={!room}
+            onClick={() => {
+              handlers.onInvite(knock.fromUserId)
+              setKnock(null)
+            }}
+          >
+            L’inviter
+          </button>
+          <button className="btn ghost sm" onClick={() => setKnock(null)}>
+            Ignorer
+          </button>
+        </div>
+      )}
       {room && selfId ? (
         <Room
           room={room}
@@ -299,6 +336,7 @@ export default function App() {
           onProfile={handlers.onProfile}
           onAddFriend={handlers.onAddFriend}
           onRemoveFriend={handlers.onRemoveFriend}
+          onKnock={handlers.onKnock}
           onCreate={handlers.onCreate}
           onJoin={handlers.onJoin}
         />

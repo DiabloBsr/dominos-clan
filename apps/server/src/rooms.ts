@@ -226,6 +226,30 @@ export function promoteToSeat(room: Room, hostId: string, rawMemberId: unknown):
   room.seats.push(rawMemberId)
 }
 
+/**
+ * Remise à zéro par l'hôte : manche en cours annulée, scores et match
+ * effacés, retour au lobby. Peut aussi asseoir au passage un joueur de la
+ * file (« ajouter et tout recommencer »).
+ */
+export function restartRoom(room: Room, hostId: string, rawPromoteId?: unknown): void {
+  if (hostId !== room.hostId) throw new RoomError('Seul l’hôte peut tout remettre à zéro')
+  room.game = null
+  room.status = 'lobby'
+  room.lastWinnerId = null
+  room.scores = new Map()
+  room.matchWinnerId = null
+  room.roundIndex = 0
+  room.lastStarterSeatIndex = null
+  if (
+    typeof rawPromoteId === 'string' &&
+    room.queue.includes(rawPromoteId) &&
+    room.seats.length < MAX_SEATS
+  ) {
+    room.queue = room.queue.filter((id) => id !== rawPromoteId)
+    room.seats.push(rawPromoteId)
+  }
+}
+
 export function startGame(room: Room, memberId: string): void {
   if (memberId !== room.hostId) throw new RoomError('Seul l’hôte peut lancer la manche')
   if (room.status === 'playing') throw new RoomError('Une manche est déjà en cours')

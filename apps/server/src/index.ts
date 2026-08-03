@@ -19,6 +19,7 @@ import {
   playMove,
   promoteToSeat,
   removeMember,
+  restartRoom,
   roomView,
   sanitizeChatText,
   setRules,
@@ -155,6 +156,22 @@ io.on('connection', (socket: Socket) => {
     handle(ack, () => {
       const { room } = withRoom(state)
       presence.invite(io, socket.id, payload?.toUserId, room.code)
+    }),
+  )
+
+  socket.on('friend:knock', (payload: { toUserId?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      presence.knock(io, socket.id, payload?.toUserId)
+    }),
+  )
+
+  socket.on('room:restart', (payload: { promoteId?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      restartRoom(room, memberId, payload?.promoteId)
+      const host = room.members.get(memberId)
+      io.to(room.code).emit('room:restarted', { byPseudo: host?.pseudo ?? 'l’hôte' })
+      broadcast(room)
     }),
   )
 

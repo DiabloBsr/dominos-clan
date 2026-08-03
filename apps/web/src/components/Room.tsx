@@ -28,6 +28,7 @@ export function Room({
   onInvite,
   onSit,
   onPromote,
+  onRestart,
   onStand,
   onStart,
   onMove,
@@ -49,6 +50,7 @@ export function Room({
   onInvite: (toUserId: string) => void
   onSit: () => void
   onPromote: (memberId: string) => void
+  onRestart: (promoteId?: string) => void
   onStand: () => void
   onStart: () => void
   onMove: (move: Move, slam?: boolean) => void
@@ -172,6 +174,23 @@ export function Room({
             </button>
           )}
         </div>
+        {isHost && (
+          <button
+            className="icon-btn"
+            title="Tout remettre à zéro (manche et scores perdus)"
+            onClick={() => {
+              if (
+                window.confirm(
+                  'Tout remettre à zéro ? La manche en cours et tous les scores du match seront perdus.',
+                )
+              ) {
+                onRestart()
+              }
+            }}
+          >
+            🔄
+          </button>
+        )}
         <button className="btn ghost sm" onClick={onLeave}>
           Quitter
         </button>
@@ -213,6 +232,23 @@ export function Room({
                   onClick={() => onPromote(id)}
                 >
                   ＋
+                </button>
+              )}
+              {isHost && room.status === 'playing' && room.seats.length < 4 && (
+                <button
+                  className="chip-add"
+                  title="L’ajouter à la table et tout recommencer à zéro (manche et scores perdus)"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Ajouter ${pseudoOf(room, id)} à la table et tout recommencer ? La manche en cours et tous les scores seront perdus.`,
+                      )
+                    ) {
+                      onRestart(id)
+                    }
+                  }}
+                >
+                  ＋🔄
                 </button>
               )}
             </span>

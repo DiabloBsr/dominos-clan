@@ -146,6 +146,32 @@ export function invite(io: Server, fromSocketId: string, rawToUserId: unknown, c
   })
 }
 
+/** Toc-toc : demander à un ami en salon de nous inviter dans sa partie. */
+export function knock(io: Server, fromSocketId: string, rawToUserId: unknown): void {
+  const fromUserId = socketUser.get(fromSocketId)
+  const from = fromUserId ? users.get(fromUserId) : undefined
+  if (!from) throw new RoomError('Crée ton profil avant de demander')
+  if (typeof rawToUserId !== 'string' || !USER_ID_RE.test(rawToUserId)) {
+    throw new RoomError('Code ami invalide')
+  }
+  const target = users.get(rawToUserId)
+  if (!target || target.status === 'offline') throw new RoomError('Cet ami n’est pas en ligne')
+  if (!target.roomCode) throw new RoomError('Cet ami n’est pas dans un salon')
+
+  const throttleKey = `knock:${fromUserId}>${rawToUserId}`
+  const now = Date.now()
+  if (now - (lastInviteAt.get(throttleKey) ?? 0) < INVITE_THROTTLE_MS) {
+    throw new RoomError('Demande déjà envoyée, laisse-lui quelques secondes')
+  }
+  lastInviteAt.set(throttleKey, now)
+
+  io.to(target.socketId).emit('friend:knocked', {
+    fromUserId,
+    fromPseudo: from.pseudo,
+    fromAvatar: from.avatar,
+  })
+}
+
 export function disconnect(io: Server, socketId: string): void {
   for (const watched of socketWatches.get(socketId) ?? []) {
     watchers.get(watched)?.delete(socketId)
