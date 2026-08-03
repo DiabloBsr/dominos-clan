@@ -10,6 +10,14 @@ import {
   undoLastMove,
 } from '@dominos-clan/engine'
 import type { GameRules, GameState, Move, Role, RoomStatus, RoomView } from '@dominos-clan/engine'
+import {
+  chessCheckFlag,
+  chessMove,
+  chessResign,
+  createChess,
+  stopChess,
+  type ChessGameState,
+} from './chess'
 
 export interface Member {
   id: string
@@ -30,6 +38,8 @@ export interface Room {
   seats: string[]
   queue: string[]
   game: GameState | null
+  /** Partie d'échecs en cours (quand rules.gameType === 'chess'). */
+  chessGame: ChessGameState | null
   status: RoomStatus
   lastWinnerId: string | null
   rules: GameRules
@@ -102,6 +112,7 @@ export function createRoom(
     seats: [member.id],
     queue: [],
     game: null,
+    chessGame: null,
     status: 'lobby',
     lastWinnerId: null,
     rules: { ...DEFAULT_RULES },
@@ -179,9 +190,19 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
   if (instantWinScore !== null && (!Number.isInteger(instantWinScore) || instantWinScore < 1 || instantWinScore > 1000)) {
     throw new RoomError('Seuil de victoire éclair invalide (1 à 1000 points)')
   }
-  const maxSeats = Number(r.maxSeats ?? 3)
+  const gameType = r.gameType === 'chess' ? 'chess' : 'dominos'
+  // Les échecs se jouent à 2 : la table est bornée automatiquement.
+  const maxSeats = gameType === 'chess' ? 2 : Number(r.maxSeats ?? 3)
   if (!Number.isInteger(maxSeats) || maxSeats < 2 || maxSeats > MAX_SEATS) {
     throw new RoomError('Taille de table invalide (2 à 4 joueurs)')
+  }
+  const chessMinutes = Number(r.chessMinutes ?? 10)
+  if (!Number.isInteger(chessMinutes) || chessMinutes < 1 || chessMinutes > 60) {
+    throw new RoomError('Pendule invalide (1 à 60 minutes)')
+  }
+  const chessIncrement = Number(r.chessIncrement ?? 0)
+  if (!Number.isInteger(chessIncrement) || chessIncrement < 0 || chessIncrement > 30) {
+    throw new RoomError('Incrément invalide (0 à 30 secondes)')
   }
   room.rules = {
     targetScore,
@@ -190,6 +211,9 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
     openingMaxPips,
     instantWinScore,
     maxSeats,
+    gameType,
+    chessMinutes,
+    chessIncrement,
   }
   // Table réduite : les sièges en trop repartent en tête de file.
   while (room.seats.length > maxSeats) {
@@ -252,6 +276,8 @@ export function promoteToSeat(room: Room, hostId: string, rawMemberId: unknown):
  */
 export function restartRoom(room: Room, hostId: string, rawPromoteId?: unknown): void {
   if (hostId !== room.hostId) throw new RoomError('Seul l’hôte peut tout remettre à zéro')
+  if (room.chessGame) stopChess(room.chessGame)
+  room.chessGame = null
   room.game = null
   room.status = 'lobby'
   room.lastWinnerId = null
@@ -305,6 +331,21 @@ export function startGame(room: Room, memberId: string): void {
     throw new RoomError('Une manche est déjà en cours')
   }
   if (room.seats.length < MIN_SEATS) throw new RoomError('Il faut au moins 2 joueurs assis')
+
+  // Échecs : 2 joueurs, couleurs tirées au sort, pendules armées.
+  if (room.rules.gameType === 'chess') {
+    if (room.seats.length !== 2) throw new RoomError('Les échecs se jouent à 2')
+    if (room.chessGame) stopChess(room.chessGame)
+    const flip = randomInt(2)
+    const whiteId = room.seats[flip]!
+    const blackId = room.seats[1 - flip]!
+    room.chessGame = createChess(whiteId, blackId, room.rules.chessMinutes, room.rules.chessIncrement)
+    room.game = null
+    room.status = 'playing'
+    room.lastWinnerId = null
+    return
+  }
+
   // Le match précédent est terminé : on repart de zéro avec la table actuelle.
   if (room.matchWinnerId !== null) {
     room.scores = new Map()
@@ -312,7 +353,46 @@ export function startGame(room: Room, memberId: string): void {
     room.roundIndex = 0
     room.lastStarterSeatIndex = null
   }
+  room.chessGame = null
   dealNewGame(room)
+}
+
+/** Fin de partie d'échecs : gagnant reste (nulle → on rejoue à l'identique). */
+function settleChessEnd(room: Room): void {
+  const g = room.chessGame
+  if (!g || !g.result) return
+  stopChess(g)
+  room.status = 'finished'
+  room.lastWinnerId = g.result.winnerId
+  if (g.result.winnerId !== null) {
+    const rotated = rotateWinnerStays(room.seats, room.queue, g.result.winnerId)
+    room.seats = rotated.seats
+    room.queue = rotated.queue
+  }
+}
+
+export function chessMoveRoom(
+  room: Room,
+  memberId: string,
+  payload: { from?: unknown; to?: unknown; promotion?: unknown },
+): void {
+  if (room.status !== 'playing' || !room.chessGame) throw new RoomError('Aucune partie en cours')
+  chessMove(room.chessGame, memberId, payload.from, payload.to, payload.promotion)
+  if (room.chessGame.status === 'finished') settleChessEnd(room)
+}
+
+export function chessResignRoom(room: Room, memberId: string): void {
+  if (room.status !== 'playing' || !room.chessGame) throw new RoomError('Aucune partie en cours')
+  chessResign(room.chessGame, memberId)
+  settleChessEnd(room)
+}
+
+/** Drapeau serveur : retourne true si la partie vient de se terminer au temps. */
+export function chessFlagRoom(room: Room): boolean {
+  if (room.status !== 'playing' || !room.chessGame) return false
+  if (!chessCheckFlag(room.chessGame)) return false
+  settleChessEnd(room)
+  return true
 }
 
 /** L'hôte redistribue après une donne annulée (4-5 doubles). */
@@ -415,6 +495,11 @@ export function resumeMember(
 
 /** Rôle vis-à-vis de la manche EN COURS (pas des sièges du prochain tour). */
 export function gameRole(room: Room, memberId: string): Role {
+  if (room.chessGame) {
+    return memberId === room.chessGame.whiteId || memberId === room.chessGame.blackId
+      ? 'player'
+      : 'spectator'
+  }
   return room.game?.players.some((p) => p.id === memberId) ? 'player' : 'spectator'
 }
 
@@ -430,6 +515,8 @@ export function removeMember(room: Room, memberId: string): { empty: boolean; ab
     (room.status === 'playing' || room.status === 'redeal') &&
     gameRole(room, memberId) === 'player'
   ) {
+    if (room.chessGame) stopChess(room.chessGame)
+    room.chessGame = null
     room.game = null
     room.status = 'lobby'
     room.lastWinnerId = null

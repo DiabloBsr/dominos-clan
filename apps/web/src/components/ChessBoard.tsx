@@ -1,0 +1,204 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Chess, type Square } from 'chess.js'
+import type { ChessColor, ChessView, RoomView } from '@dominos-clan/engine'
+
+const GLYPHS: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚' }
+const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+
+function pseudoOf(room: RoomView, id: string): string {
+  return room.members.find((m) => m.id === id)?.pseudo ?? '???'
+}
+
+function avatarOf(room: RoomView, id: string): string {
+  return room.members.find((m) => m.id === id)?.avatar ?? ''
+}
+
+const REASONS: Record<string, string> = {
+  checkmate: 'échec et mat !',
+  timeout: 'gagne au temps ⏱',
+  resign: 'gagne par abandon 🏳',
+  stalemate: 'pat — partie nulle',
+  draw: 'partie nulle',
+  abandon: 'gagne par abandon',
+}
+
+export function ChessBoard({
+  view,
+  room,
+  selfId,
+  isHost,
+  onMove,
+  onResign,
+  onStart,
+  voiceIds,
+  speaking,
+}: {
+  view: ChessView
+  room: RoomView
+  selfId: string
+  isHost: boolean
+  onMove: (from: string, to: string, promotion?: string) => void
+  onResign: () => void
+  onStart: () => void
+  voiceIds: string[]
+  speaking: string[]
+}) {
+  const engine = useMemo(() => new Chess(view.fen), [view.fen])
+  const myColor: ChessColor | null =
+    selfId === view.whiteId ? 'w' : selfId === view.blackId ? 'b' : null
+  const flipped = myColor === 'b'
+  const myTurn = myColor !== null && view.turn === myColor && view.status === 'playing'
+  const [selected, setSelected] = useState<Square | null>(null)
+
+  useEffect(() => setSelected(null), [view.fen])
+
+  const targets = useMemo(() => {
+    if (!selected) return new Set<string>()
+    return new Set(engine.moves({ square: selected, verbose: true }).map((m) => m.to))
+  }, [engine, selected])
+
+  // Pendule active : décompte local depuis la réception de l'état serveur.
+  const receivedAt = useMemo(() => Date.now(), [view])
+  const [, tick] = useState(0)
+  useEffect(() => {
+    if (view.status !== 'playing') return
+    const timer = setInterval(() => tick((n) => n + 1), 250)
+    return () => clearInterval(timer)
+  }, [view])
+
+  const msOf = (color: ChessColor): number => {
+    const base = color === 'w' ? view.whiteMs : view.blackMs
+    if (view.status !== 'playing' || view.turn !== color) return base
+    return Math.max(0, base - (Date.now() - receivedAt))
+  }
+
+  const fmt = (ms: number): string => {
+    const totalSeconds = Math.max(0, Math.ceil(ms / 1000))
+    return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`
+  }
+
+  const clickSquare = (sq: Square): void => {
+    if (!myTurn) return
+    if (selected && targets.has(sq)) {
+      const move = engine.moves({ square: selected, verbose: true }).find((m) => m.to === sq)
+      onMove(selected, sq, move?.promotion ? 'q' : undefined)
+      setSelected(null)
+      return
+    }
+    const piece = engine.get(sq)
+    setSelected(piece && piece.color === myColor ? sq : null)
+  }
+
+  // Case du roi en échec (pour la surbrillance).
+  const checkedSquare = useMemo(() => {
+    if (!view.check) return null
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const piece = engine.board()[r]![c]
+        if (piece && piece.type === 'k' && piece.color === view.turn) {
+          return `${FILES[c]}${8 - r}`
+        }
+      }
+    }
+    return null
+  }, [engine, view.check, view.turn])
+
+  const topId = flipped ? view.whiteId : view.blackId
+  const bottomId = flipped ? view.blackId : view.whiteId
+  const topColor: ChessColor = flipped ? 'w' : 'b'
+  const bottomColor: ChessColor = flipped ? 'b' : 'w'
+
+  const playerRow = (id: string, color: ChessColor) => (
+    <div className={`chess-side ${speaking.includes(id) ? 'speaking' : ''}`}>
+      <span className={`chess-color-dot ${color === 'w' ? 'white' : 'black'}`} />
+      <span className="chess-name">
+        {avatarOf(room, id)} {pseudoOf(room, id)}
+        {voiceIds.includes(id) ? ' 🎙' : ''}
+        {id === selfId ? ' (toi)' : ''}
+      </span>
+      <span
+        className={`chess-clock ${view.status === 'playing' && view.turn === color ? 'active' : ''} ${
+          msOf(color) < 30_000 ? 'low' : ''
+        }`}
+      >
+        {fmt(msOf(color))}
+      </span>
+    </div>
+  )
+
+  const cells = []
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const rankIndex = flipped ? 7 - r : r
+      const fileIndex = flipped ? 7 - c : c
+      const sq = `${FILES[fileIndex]}${8 - rankIndex}` as Square
+      const piece = engine.board()[rankIndex]![fileIndex]
+      cells.push(
+        <button
+          key={sq}
+          className={`sq ${(r + c) % 2 === 0 ? 'light' : 'dark'} ${selected === sq ? 'sel' : ''} ${
+            targets.has(sq) ? 'tgt' : ''
+          } ${view.lastMove && (view.lastMove.from === sq || view.lastMove.to === sq) ? 'last' : ''} ${
+            checkedSquare === sq ? 'chk' : ''
+          }`}
+          onClick={() => clickSquare(sq)}
+        >
+          {piece && <span className={`pc pc-${piece.color}`}>{GLYPHS[piece.type]}</span>}
+        </button>,
+      )
+    }
+  }
+
+  return (
+    <section className="game chess-game">
+      {playerRow(topId, topColor)}
+
+      <div className="chess-board" role="grid" aria-label="Échiquier">
+        {cells}
+      </div>
+
+      {playerRow(bottomId, bottomColor)}
+
+      {view.status === 'finished' && view.result && (
+        <div className="banner">
+          <h2>
+            {view.result.winnerId === null
+              ? `🤝 ${REASONS[view.result.reason]}`
+              : `👑 ${pseudoOf(room, view.result.winnerId)} — ${REASONS[view.result.reason]}`}
+          </h2>
+          <p className="rotation-note">
+            {view.result.winnerId === null
+              ? 'Nulle : on rejoue à l’identique.'
+              : 'Le gagnant reste — la file monte au prochain lancement.'}
+          </p>
+          {isHost && (
+            <button className="btn" onClick={onStart}>
+              Nouvelle partie
+            </button>
+          )}
+        </div>
+      )}
+
+      {view.status === 'playing' && myColor && (
+        <div className="chess-actions">
+          <p className={`turn-hint ${myTurn ? 'live' : ''}`}>
+            {myTurn ? 'À toi de jouer !' : 'L’adversaire réfléchit…'}
+            {view.check ? ' — échec !' : ''}
+          </p>
+          <button
+            className="btn ghost sm"
+            onClick={() => {
+              if (window.confirm('Abandonner la partie ? Ton adversaire gagnera.')) onResign()
+            }}
+          >
+            🏳 Abandonner
+          </button>
+        </div>
+      )}
+
+      {view.status === 'playing' && !myColor && (
+        <p className="turn-hint">👀 Spectateur — trait aux {view.turn === 'w' ? 'blancs' : 'noirs'}</p>
+      )}
+    </section>
+  )
+}

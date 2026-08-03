@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { GameRules, GameView, Move, RoomView } from '@dominos-clan/engine'
+import type { ChessView, GameRules, GameView, Move, RoomView } from '@dominos-clan/engine'
 import { socket, type Ack } from './socket'
 import { useVoice } from './useVoice'
 import {
@@ -36,6 +36,7 @@ export default function App() {
   const [selfId, setSelfId] = useState<string | null>(null)
   const [room, setRoom] = useState<RoomView | null>(null)
   const [game, setGame] = useState<GameView | null>(null)
+  const [chess, setChess] = useState<ChessView | null>(null)
   const [reactions, setReactions] = useState<FloatingReaction[]>([])
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [notice, setNotice] = useState<string | null>(null)
@@ -62,9 +63,13 @@ export default function App() {
     noticeTimer.current = setTimeout(() => setNotice(null), 4000)
   }, [])
 
-  // « Joueurs » au sens voix/rôles : ceux de la manche en cours, sinon les assis.
+  // « Joueurs » au sens voix/rôles : ceux de la partie en cours, sinon les assis.
   const playerIds =
-    game && game.status === 'playing' ? game.players.map((p) => p.id) : (room?.seats ?? [])
+    chess && chess.status === 'playing'
+      ? [chess.whiteId, chess.blackId]
+      : game && game.status === 'playing'
+        ? game.players.map((p) => p.id)
+        : (room?.seats ?? [])
 
   const voice = useVoice(room?.code ?? null, selfId, playerIds, showNotice)
 
@@ -129,6 +134,7 @@ export default function App() {
   useEffect(() => {
     const onRoomState = (view: RoomView) => setRoom(view)
     const onGameState = (view: GameView | null) => setGame(view)
+    const onChessState = (view: ChessView | null) => setChess(view)
     const onReaction = (r: { memberId: string; pseudo: string; emoji: string }) => {
       const key = ++reactionKey.current
       setReactions((prev) => [...prev.slice(-11), { key, ...r }])
@@ -179,6 +185,7 @@ export default function App() {
 
     socket.on('room:state', onRoomState)
     socket.on('game:state', onGameState)
+    socket.on('chess:state', onChessState)
     socket.on('reaction', onReaction)
     socket.on('chat:message', onChatMessage)
     socket.on('presence:update', onPresence)
@@ -192,6 +199,7 @@ export default function App() {
     return () => {
       socket.off('room:state', onRoomState)
       socket.off('game:state', onGameState)
+      socket.off('chess:state', onChessState)
       socket.off('reaction', onReaction)
       socket.off('chat:message', onChatMessage)
       socket.off('presence:update', onPresence)
@@ -260,6 +268,7 @@ export default function App() {
     simpleEmit('room:leave')
     setRoom(null)
     setGame(null)
+    setChess(null)
     setSelfId(null)
     setChatMessages([])
   }
@@ -317,6 +326,9 @@ export default function App() {
     onRules: (rules: GameRules) => simpleEmit('room:rules', { ...rules }),
     onUndo: () => simpleEmit('game:undo'),
     onRedeal: () => simpleEmit('game:redeal'),
+    onChessMove: (from: string, to: string, promotion?: string) =>
+      simpleEmit('chess:move', { from, to, promotion }),
+    onResign: () => simpleEmit('chess:resign'),
     onLeave: leaveRoomLocal,
   }
 
@@ -361,6 +373,7 @@ export default function App() {
         <Room
           room={room}
           game={game}
+          chess={chess}
           selfId={selfId}
           reactions={reactions}
           chat={chatMessages}

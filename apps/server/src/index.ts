@@ -7,10 +7,14 @@ import { viewFor } from '@dominos-clan/engine'
 import type { Move } from '@dominos-clan/engine'
 import { createVoiceToken, voiceEnabled } from './voice'
 import * as presence from './presence'
+import { armChessFlag, chessViewOf } from './chess'
 import {
   RoomError,
   canChat,
   canReact,
+  chessFlagRoom,
+  chessMoveRoom,
+  chessResignRoom,
   createRoom,
   gameRole,
   getRoom,
@@ -104,7 +108,22 @@ function broadcast(room: Room): void {
     if (!socket) continue
     socket.emit('room:state', view)
     socket.emit('game:state', room.game ? viewFor(room.game, member.id, gameRole(room, member.id)) : null)
+    socket.emit('chess:state', room.chessGame ? chessViewOf(room.chessGame) : null)
   }
+}
+
+/** Arme le drapeau serveur de la partie d'échecs en cours (s'il y en a une). */
+function armFlag(room: Room): void {
+  if (room.status !== 'playing' || !room.chessGame) return
+  const code = room.code
+  armChessFlag(room.chessGame, () => {
+    try {
+      const r = getRoom(code)
+      if (chessFlagRoom(r)) broadcast(r)
+    } catch {
+      // Salon supprimé entre-temps.
+    }
+  })
 }
 
 function withRoom(state: SocketState): { room: Room; memberId: string } {
@@ -244,6 +263,26 @@ io.on('connection', (socket: Socket) => {
     handle(ack, () => {
       const { room, memberId } = withRoom(state)
       startGame(room, memberId)
+      broadcast(room)
+      armFlag(room)
+    }),
+  )
+
+  socket.on(
+    'chess:move',
+    (payload: { from?: unknown; to?: unknown; promotion?: unknown }, ack?: Ack) =>
+      handle(ack, () => {
+        const { room, memberId } = withRoom(state)
+        chessMoveRoom(room, memberId, payload ?? {})
+        broadcast(room)
+        armFlag(room)
+      }),
+  )
+
+  socket.on('chess:resign', (_payload: unknown, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      chessResignRoom(room, memberId)
       broadcast(room)
     }),
   )

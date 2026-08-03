@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import type { GameRules, GameView, Move, RoomView } from '@dominos-clan/engine'
+import type { ChessView, GameRules, GameView, Move, RoomView } from '@dominos-clan/engine'
 import type { ChatMessage, FloatingReaction } from '../App'
 import type { VoiceAudience, VoiceControls } from '../useVoice'
 import { STATUS_LABELS, type Friend, type FriendStatus } from '../profile'
+import { ChessBoard } from './ChessBoard'
 import { Game } from './Game'
 
 const REACTIONS = ['😂', '🔥', '👏', '😮', '😭', '😈', '🤝', '💀']
@@ -18,6 +19,7 @@ function avatarOf(room: RoomView, id: string): string {
 export function Room({
   room,
   game,
+  chess,
   selfId,
   reactions,
   chat,
@@ -38,10 +40,13 @@ export function Room({
   onRules,
   onUndo,
   onRedeal,
+  onChessMove,
+  onResign,
   onLeave,
 }: {
   room: RoomView
   game: GameView | null
+  chess: ChessView | null
   selfId: string
   reactions: FloatingReaction[]
   chat: ChatMessage[]
@@ -62,6 +67,8 @@ export function Room({
   onRules: (rules: GameRules) => void
   onUndo: () => void
   onRedeal: () => void
+  onChessMove: (from: string, to: string, promotion?: string) => void
+  onResign: () => void
   onLeave: () => void
 }) {
   const [copied, setCopied] = useState(false)
@@ -271,6 +278,60 @@ export function Room({
           <select
             className="voice-audience"
             disabled={!isHost}
+            value={room.rules.gameType}
+            title="Jeu du salon"
+            onChange={(e) =>
+              onRules({ ...room.rules, gameType: e.target.value as GameRules['gameType'] })
+            }
+          >
+            <option value="dominos">🁫 Dominos</option>
+            <option value="chess">♟️ Échecs</option>
+          </select>
+          {room.rules.gameType === 'chess' && (
+            <>
+              <label className="rules-num" title="Minutes à la pendule pour chaque joueur">
+                pendule
+                <input
+                  key={`cm-${room.rules.chessMinutes}`}
+                  type="number"
+                  min={1}
+                  max={60}
+                  disabled={!isHost}
+                  defaultValue={room.rules.chessMinutes}
+                  onBlur={(e) =>
+                    onRules({
+                      ...room.rules,
+                      chessMinutes: Math.max(1, Math.min(60, Number(e.target.value) || 10)),
+                    })
+                  }
+                />
+                min
+              </label>
+              <label className="rules-num" title="Secondes ajoutées à la pendule après chaque coup">
+                +
+                <input
+                  key={`ci-${room.rules.chessIncrement}`}
+                  type="number"
+                  min={0}
+                  max={30}
+                  disabled={!isHost}
+                  defaultValue={room.rules.chessIncrement}
+                  onBlur={(e) =>
+                    onRules({
+                      ...room.rules,
+                      chessIncrement: Math.max(0, Math.min(30, Number(e.target.value) || 0)),
+                    })
+                  }
+                />
+                s/coup
+              </label>
+            </>
+          )}
+          {room.rules.gameType !== 'chess' && (
+          <>
+          <select
+            className="voice-audience"
+            disabled={!isHost}
             value={String(room.rules.maxSeats)}
             title="Nombre de joueurs à table"
             onChange={(e) => onRules({ ...room.rules, maxSeats: Number(e.target.value) })}
@@ -398,11 +459,13 @@ export function Room({
             />
             Passe libre
           </label>
+          </>
+          )}
           {!isHost && <span className="empty">réglé par l’hôte ⭐</span>}
         </div>
       )}
 
-      {room.rules.targetScore !== null && (
+      {room.rules.targetScore !== null && room.rules.gameType !== 'chess' && (
         <div className="scoreboard">
           <span className="group-label">
             🏁 Match en {room.rules.targetScore} pts
@@ -482,7 +545,19 @@ export function Room({
         </div>
       )}
 
-      {game && room.status !== 'lobby' ? (
+      {room.rules.gameType === 'chess' && chess && room.status !== 'lobby' ? (
+        <ChessBoard
+          view={chess}
+          room={room}
+          selfId={selfId}
+          isHost={isHost}
+          onMove={onChessMove}
+          onResign={onResign}
+          onStart={onStart}
+          voiceIds={voice.state.inVoice}
+          speaking={voice.state.speaking}
+        />
+      ) : game && room.status !== 'lobby' ? (
         <Game
           game={game}
           room={room}

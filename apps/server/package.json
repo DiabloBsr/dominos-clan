@@ -8,12 +8,14 @@
     "start": "tsx src/index.ts",
     "smoke": "tsx scripts/smoke.ts",
     "smoke:match": "tsx scripts/smoke-match.ts",
+    "smoke:chess": "tsx scripts/smoke-chess.ts",
     "check:livekit": "tsx scripts/check-livekit.ts",
     "probe:voice": "tsx scripts/probe-voice.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@dominos-clan/engine": "*",
+    "chess.js": "^1.0.0",
     "livekit-server-sdk": "^2.9.0",
     "sirv": "^3.0.0",
     "socket.io": "^4.8.1"

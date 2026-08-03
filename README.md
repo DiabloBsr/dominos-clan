@@ -1,4 +1,20 @@
-# Domino's Clan 🁫
+# Domino's Clan 🁫♟️
+
+**Plateforme multi-jeux entre potes** : dominos ET échecs blitz, toujours au mic.
+L'hôte choisit le jeu du salon dans ⚙️ Règles ; tout le social (amis, invitations,
+voix ciblée, chat, réactions, spectateurs, file, reprise de session) est commun.
+
+## ♟️ Mode Échecs
+
+- **Blitz à 2 joueurs** (la table se borne à 2 automatiquement), couleurs tirées au sort.
+- **Pendules serveur** : minutes de départ réglables (défaut **10 min** chacun) + incrément
+  par coup (défaut 0 s) ; le drapeau tombe côté serveur — l'adversaire gagne au temps.
+- Règles complètes via chess.js : mat, pat, nulles (matériel insuffisant, répétition…),
+  promotion (dame automatique), roque, prise en passant.
+- Interaction : tape ta pièce → les coups légaux s'illuminent → tape la destination.
+  Dernier coup surligné, échec en rouge, plateau orienté selon ta couleur.
+- **🏳 Abandon** avec confirmation ; fin de partie → le gagnant reste, la file monte.
+- Les spectateurs voient tout (échecs = information complète) et papotent au mic.
 
 Jeu de dominos **chill entre amis**, jouable sur **web et mobile**.
 L'idée : pas juste un jeu de dominos, mais un endroit où on traîne avec les potes — on parle au **mic**, on balance des **réactions**, on enchaîne les parties.

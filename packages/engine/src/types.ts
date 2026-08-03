@@ -45,6 +45,12 @@ export interface GameRules {
   instantWinScore: number | null
   /** Nombre de joueurs à table (2 à 4). Défaut : 3 — on joue toujours à 3. */
   maxSeats: number
+  /** Jeu du salon : dominos ou échecs blitz (2 joueurs, pendules). */
+  gameType: 'dominos' | 'chess'
+  /** Échecs : minutes au départ pour chaque pendule (défaut 10). */
+  chessMinutes: number
+  /** Échecs : secondes ajoutées après chaque coup (défaut 0). */
+  chessIncrement: number
 }
 
 export const DEFAULT_RULES: GameRules = {
@@ -54,6 +60,31 @@ export const DEFAULT_RULES: GameRules = {
   openingMaxPips: null,
   instantWinScore: null,
   maxSeats: 3,
+  gameType: 'dominos',
+  chessMinutes: 10,
+  chessIncrement: 0,
+}
+
+/* ─── Échecs ──────────────────────────────────────────────────────── */
+
+export type ChessColor = 'w' | 'b'
+
+export type ChessEndReason = 'checkmate' | 'timeout' | 'resign' | 'stalemate' | 'draw' | 'abandon'
+
+/** Vue d'une partie d'échecs — information complète (rien à cacher aux échecs). */
+export interface ChessView {
+  fen: string
+  whiteId: string
+  blackId: string
+  /** Temps restants (ms) au moment de l'envoi ; la pendule active décompte côté client. */
+  whiteMs: number
+  blackMs: number
+  turn: ChessColor
+  serverNow: number
+  status: 'playing' | 'finished'
+  check: boolean
+  lastMove: { from: string; to: string } | null
+  result: { winnerId: string | null; reason: ChessEndReason } | null
 }
 
 export interface RoundResult {
