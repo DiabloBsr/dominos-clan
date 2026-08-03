@@ -103,9 +103,10 @@ export function useVoice(
     if (voiceRef.current || !roomCode) return
     setState((s) => ({ ...s, status: 'connecting' }))
 
+    const attempt = (retry: boolean) => {
     socket.emit(
       'voice:token',
-      {},
+      { retry },
       (res: { ok: true; url: string; token: string } | { ok: false; error: string }) => {
         void (async () => {
           if (!res.ok) {
@@ -166,6 +167,12 @@ export function useVoice(
           } catch (err) {
             voiceRef.current = null
             void room.disconnect()
+            if (!retry) {
+              // Échec de connexion (quota du projet ?) : le serveur bascule le
+              // salon vers le projet LiveKit suivant du pool, et on retente.
+              attempt(true)
+              return
+            }
             setState((s) => ({ ...s, status: 'off' }))
             onError(
               err instanceof Error && err.name === 'NotAllowedError'
@@ -176,6 +183,8 @@ export function useVoice(
         })()
       },
     )
+    }
+    attempt(false)
   }, [roomCode, onError, refreshRoster, applyFilterFor])
 
   const toggleMute = useCallback(() => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   LUDO_BONUS_CELLS,
   ludoLegalPawns,
@@ -7,6 +7,8 @@ import {
   type LudoState,
 } from '@dominos-clan/engine'
 import type { RoomView } from '@dominos-clan/engine'
+
+type LudoPawnPos = LudoState['players'][number]['pawns'][number]
 
 const CELL = 100 / 15 // % d'une case de la grille 15×15
 
@@ -100,26 +102,73 @@ export function LudoBoard({
     left: `${col * CELL}%`,
   })
 
-  /** Position d'un pion sur le plateau (en %). */
-  const pawnPos = (
-    playerIndex: number,
-    pawnIndex: number,
-    pawn: LudoState['players'][number]['pawns'][number],
-  ) => {
-    if (pawn.zone === 'base') {
-      const [r, c] = BASE_SLOTS[playerIndex]![pawnIndex]!
-      return pos(r, c)
-    }
-    if (pawn.zone === 'track') {
-      const [r, c] = TRACK[pawn.cell]!
-      return pos(r, c)
-    }
-    if (pawn.zone === 'home') {
-      const [r, c] = HOME[playerIndex]![pawn.step]!
-      return pos(r, c)
-    }
-    // done : au centre, léger décalage par joueur
-    return pos(6.6 + playerIndex * 0.5, 6.6 + pawnIndex * 0.4)
+  /** Coordonnées (ligne, colonne) d'un pion sur la grille. */
+  const gridOf = (playerIndex: number, pawnIndex: number, pawn: LudoPawnPos): [number, number] => {
+    if (pawn.zone === 'base') return BASE_SLOTS[playerIndex]![pawnIndex]!
+    if (pawn.zone === 'track') return TRACK[pawn.cell]!
+    if (pawn.zone === 'home') return HOME[playerIndex]![pawn.step]!
+    return [6.6 + playerIndex * 0.5, 6.6 + pawnIndex * 0.4]
+  }
+
+  // ── Saut case par case : on anime les positions intermédiaires du chemin ──
+  const relOfPawn = (playerIndex: number, pawn: LudoPawnPos): number | null => {
+    if (pawn.zone === 'track') return (pawn.cell - ludoStartCell(playerIndex) + 52) % 52
+    if (pawn.zone === 'home') return 52 + pawn.step
+    if (pawn.zone === 'done') return 57
+    return null
+  }
+
+  const pawnAtRel = (playerIndex: number, rel: number): LudoPawnPos =>
+    rel < 52
+      ? { zone: 'track', cell: (ludoStartCell(playerIndex) + rel) % 52 }
+      : rel < 57
+        ? { zone: 'home', step: rel - 52 }
+        : { zone: 'done' }
+
+  const prevPawns = useRef<Map<string, LudoPawnPos>>(new Map())
+  const queues = useRef<Map<string, Array<[number, number]>>>(new Map())
+  const [display, setDisplay] = useState<Record<string, [number, number]>>({})
+
+  useEffect(() => {
+    const next = new Map<string, LudoPawnPos>()
+    state.players.forEach((player, pi) =>
+      player.pawns.forEach((pawn, pwi) => {
+        const key = `${pi}-${pwi}`
+        next.set(key, pawn)
+        const prev = prevPawns.current.get(key)
+        if (!prev || JSON.stringify(prev) === JSON.stringify(pawn)) return
+        const fromRel = relOfPawn(pi, prev)
+        const toRel = relOfPawn(pi, pawn)
+        // En avant sur son chemin → une étape par case ; sinon (sortie,
+        // capture, échange, prison…) → un seul saut direct.
+        if (fromRel !== null && toRel !== null && toRel > fromRel && toRel - fromRel <= 12) {
+          const path: Array<[number, number]> = []
+          for (let r = fromRel + 1; r <= toRel; r++) path.push(gridOf(pi, pwi, pawnAtRel(pi, r)))
+          queues.current.set(key, path)
+        } else {
+          queues.current.set(key, [gridOf(pi, pwi, pawn)])
+        }
+      }),
+    )
+    prevPawns.current = next
+  }, [state])
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const updates: Record<string, [number, number]> = {}
+      for (const [key, queue] of [...queues.current.entries()]) {
+        const step = queue.shift()
+        if (step) updates[key] = step
+        if (queue.length === 0) queues.current.delete(key)
+      }
+      if (Object.keys(updates).length > 0) setDisplay((prev) => ({ ...prev, ...updates }))
+    }, 200)
+    return () => clearInterval(timer)
+  }, [])
+
+  const pawnPos = (playerIndex: number, pawnIndex: number, pawn: LudoPawnPos) => {
+    const shown = display[`${playerIndex}-${pawnIndex}`] ?? gridOf(playerIndex, pawnIndex, pawn)
+    return pos(shown[0], shown[1])
   }
 
   return (

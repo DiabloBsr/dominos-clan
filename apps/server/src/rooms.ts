@@ -59,6 +59,10 @@ export interface Room {
   roundIndex: number
   /** Index de siège de l'ouvreur de la dernière manche (rotation gauche → droite). */
   lastStarterSeatIndex: number | null
+  /** Projet LiveKit du salon (pool) : collé au salon, avancé en cas d'échec. */
+  voiceProjectIndex: number | null
+  /** Dernière bascule de projet vocal (throttle des retries). */
+  voiceAdvancedAt: number
   /** Timestamp de la dernière réaction par membre (anti-spam). */
   lastReactionAt: Map<string, number>
   /** Timestamp du dernier message chat par membre (anti-spam). */
@@ -130,6 +134,8 @@ export function createRoom(
     matchWinnerId: null,
     roundIndex: 0,
     lastStarterSeatIndex: null,
+    voiceProjectIndex: null,
+    voiceAdvancedAt: 0,
     lastReactionAt: new Map(),
     lastChatAt: new Map(),
   }

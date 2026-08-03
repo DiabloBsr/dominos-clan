@@ -80,6 +80,9 @@ interface SocketState {
   memberId?: string
 }
 
+/** Répartition round-robin des salons entre les projets LiveKit du pool. */
+let voiceRoundRobin = 0
+
 /** Grâce après déconnexion : le temps d'un rechargement de page, la place est gardée. */
 const GRACE_MS = 90_000
 const pendingRemovals = new Map<string, ReturnType<typeof setTimeout>>()
@@ -353,14 +356,28 @@ io.on('connection', (socket: Socket) => {
 
   // Token vocal : délivré uniquement à un membre effectif d'un salon,
   // pour la room LiveKit de CE salon. L'audio ne transite pas par ici.
-  socket.on('voice:token', (_payload: unknown, ack?: Ack) => {
+  // Pool : projet assigné au salon en round-robin ; `retry` (échec de
+  // connexion côté client) fait basculer le salon au projet suivant.
+  socket.on('voice:token', (payload: { retry?: unknown }, ack?: Ack) => {
     void (async () => {
       try {
         const { room, memberId } = withRoom(state)
         const member = room.members.get(memberId)
         if (!member) throw new RoomError('Membre inconnu')
-        const { url, token } = await createVoiceToken(room.code, memberId, member.pseudo)
-        ack?.({ ok: true, url, token })
+        if (room.voiceProjectIndex === null) {
+          room.voiceProjectIndex = voiceRoundRobin++
+        } else if (payload?.retry === true && Date.now() - room.voiceAdvancedAt > 10_000) {
+          room.voiceProjectIndex += 1
+          room.voiceAdvancedAt = Date.now()
+          console.log(`[dominos-clan] salon ${room.code} : bascule vers le projet vocal suivant`)
+        }
+        const { url, token, project } = await createVoiceToken(
+          room.code,
+          memberId,
+          member.pseudo,
+          room.voiceProjectIndex,
+        )
+        ack?.({ ok: true, url, token, project })
       } catch (err) {
         ack?.({ ok: false, error: err instanceof Error ? err.message : 'Erreur inconnue' })
       }
