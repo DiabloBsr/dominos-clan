@@ -284,17 +284,13 @@ export function Room({
       {room.status !== 'playing' && (
         <div className="rules-bar">
           <span className="group-label">⚙️ Règles</span>
-          <select
-            className="voice-audience"
-            disabled={!isHost}
-            value={room.rules.gameType}
-            title="Jeu du salon"
-            onChange={(e) =>
-              onRules({ ...room.rules, gameType: e.target.value as GameRules['gameType'] })
-            }
-          >
-            <option value="dominos">🁫 Dominos</option>
-          </select>
+          <span className="game-badge" title="Jeu du salon (choisi à la création)">
+            {room.rules.gameType === 'chess'
+              ? '♟️ Échecs'
+              : room.rules.gameType === 'ludo'
+                ? '🎲 Ludo'
+                : '🁫 Dominos'}
+          </span>
           {room.rules.gameType === 'chess' && (
             <>
               <label className="rules-num" title="Minutes à la pendule pour chaque joueur">
