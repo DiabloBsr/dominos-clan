@@ -294,7 +294,6 @@ export function Room({
             }
           >
             <option value="dominos">🁫 Dominos</option>
-            <option value="chess">♟️ Échecs</option>
           </select>
           {room.rules.gameType === 'chess' && (
             <>

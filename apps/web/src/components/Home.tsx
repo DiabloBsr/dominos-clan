@@ -15,6 +15,7 @@ const GAMES: Array<{
   name: string
   tag: string
   desc: string
+  soon?: boolean
 }> = [
   {
     type: 'dominos',
@@ -29,8 +30,16 @@ const GAMES: Array<{
     name: 'Échecs',
     tag: '1 vs 1 · blitz',
     desc: 'Pendules 10 min, mat ou drapeau.',
+    soon: true,
   },
-  // Ludo : masqué le temps de refaire le plateau aux petits oignons.
+  {
+    type: 'ludo',
+    emoji: '🎲',
+    name: 'Ludo',
+    tag: '2-4 joueurs',
+    desc: 'Petits chevaux, gros chaos — mode bonus 🎁.',
+    soon: true,
+  },
 ]
 
 export function Home({
@@ -58,6 +67,7 @@ export function Home({
   const [friendCode, setFriendCode] = useState('')
   const [copied, setCopied] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [gamePanel, setGamePanel] = useState<GameRules['gameType'] | null>(null)
 
   const ready = profile.pseudo.trim().length > 0
 
@@ -101,100 +111,70 @@ export function Home({
         {GAMES.map((g, i) => (
           <button
             key={g.type}
-            className="game-card"
+            className={`game-card ${g.soon ? 'soon' : ''}`}
             style={{ ['--i' as string]: i }}
-            onClick={requirePseudo(() => onCreate(g.type))}
+            disabled={g.soon}
+            onClick={g.soon ? undefined : requirePseudo(() => setGamePanel(g.type))}
           >
             <span className="game-emoji">{g.emoji}</span>
             <span className="game-name">{g.name}</span>
             <span className="game-tag">{g.tag}</span>
             <span className="game-desc">{g.desc}</span>
-            <span className="game-cta">Créer un salon →</span>
+            {g.soon ? (
+              <span className="game-soon">⏳ Bientôt disponible</span>
+            ) : (
+              <span className="game-cta">Créer un salon →</span>
+            )}
           </button>
         ))}
       </div>
 
-      <div className="card join-card">
-        <div className="join-row">
-          <input
-            className="input code"
-            value={code}
-            maxLength={4}
-            placeholder="CODE"
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-          />
-          <button
-            className="btn ghost"
-            disabled={code.trim().length !== 4}
-            onClick={requirePseudo(() => onJoin(code.trim()))}
-          >
-            Rejoindre un salon
-          </button>
-        </div>
-      </div>
-
-      <div className="card friends-card">
-        <h2 className="card-title">👥 Tes amis</h2>
-        {friends.length === 0 && (
-          <p className="empty">
-            Échangez vos codes amis, et tu verras qui est chaud pour une partie.
-          </p>
-        )}
-        {friends.map((f) => {
-          const status = statuses[f.id] ?? 'offline'
-          return (
-            <div key={f.id} className="friend-row">
-              <span className="friend-name">
-                {f.avatar} {f.pseudo || f.id}
-              </span>
-              <span className={`friend-status ${status}`}>{STATUS_LABELS[status]}</span>
-              {(status === 'room' || status === 'playing') && (
-                <button
-                  className="btn ghost sm"
-                  title="Lui demander de t’inviter dans sa partie"
-                  onClick={requirePseudo(() => onKnock(f.id))}
-                >
-                  Rejoindre
-                </button>
-              )}
-              <button
-                className="icon-btn tiny"
-                title="Retirer cet ami"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      `Retirer ${f.pseudo || f.id} de tes amis ? Il faudra ré-échanger vos codes pour le retrouver.`,
-                    )
-                  ) {
-                    onRemoveFriend(f.id)
-                  }
-                }}
-              >
+      {gamePanel && (
+        <>
+          <div className="panel-veil" onClick={() => setGamePanel(null)} />
+          <div className="game-modal card">
+            <div className="panel-head">
+              <h2 className="card-title">
+                {GAMES.find((g) => g.type === gamePanel)?.emoji}{' '}
+                {GAMES.find((g) => g.type === gamePanel)?.name}
+              </h2>
+              <button className="icon-btn tiny" onClick={() => setGamePanel(null)}>
                 ✕
               </button>
             </div>
-          )
-        })}
-        <div className="join-row">
-          <input
-            className="input"
-            value={friendCode}
-            maxLength={24}
-            placeholder="code ami à ajouter"
-            onChange={(e) => setFriendCode(e.target.value.trim())}
-          />
-          <button
-            className="btn ghost sm"
-            disabled={friendCode.trim().length < 6}
-            onClick={() => {
-              onAddFriend(friendCode.trim())
-              setFriendCode('')
-            }}
-          >
-            Ajouter
-          </button>
-        </div>
-      </div>
+            <button
+              className="btn"
+              onClick={() => {
+                setGamePanel(null)
+                onCreate(gamePanel)
+              }}
+            >
+              Créer un salon
+            </button>
+            <div className="or">— ou —</div>
+            <div className="join-row">
+              <input
+                className="input code"
+                value={code}
+                maxLength={4}
+                placeholder="CODE"
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+              />
+              <button
+                className="btn ghost"
+                disabled={code.trim().length !== 4}
+                onClick={() => {
+                  setGamePanel(null)
+                  onJoin(code.trim())
+                }}
+              >
+                Rejoindre
+              </button>
+            </div>
+            <p className="hint">Le code du salon est donné par celui qui l’a créé.</p>
+          </div>
+        </>
+      )}
 
       <p className="hint">2 à 4 à table · jusqu’à 20 en file · le gagnant reste 👑</p>
 
@@ -233,6 +213,69 @@ export function Home({
               code ami : <b>{profile.id}</b> {copied ? '✔' : '⧉'}
             </button>
             <p className="hint">Partage ton code ami pour qu’on te retrouve.</p>
+
+            <div className="panel-friends">
+              <h2 className="card-title">👥 Tes amis</h2>
+              {friends.length === 0 && (
+                <p className="empty">
+                  Échangez vos codes amis, et tu verras qui est chaud pour une partie.
+                </p>
+              )}
+              {friends.map((f) => {
+                const status = statuses[f.id] ?? 'offline'
+                return (
+                  <div key={f.id} className="friend-row">
+                    <span className="friend-name">
+                      {f.avatar} {f.pseudo || f.id}
+                    </span>
+                    <span className={`friend-status ${status}`}>{STATUS_LABELS[status]}</span>
+                    {(status === 'room' || status === 'playing') && (
+                      <button
+                        className="btn ghost sm"
+                        title="Lui demander de t’inviter dans sa partie"
+                        onClick={requirePseudo(() => onKnock(f.id))}
+                      >
+                        Rejoindre
+                      </button>
+                    )}
+                    <button
+                      className="icon-btn tiny"
+                      title="Retirer cet ami"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Retirer ${f.pseudo || f.id} de tes amis ? Il faudra ré-échanger vos codes pour le retrouver.`,
+                          )
+                        ) {
+                          onRemoveFriend(f.id)
+                        }
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )
+              })}
+              <div className="join-row">
+                <input
+                  className="input"
+                  value={friendCode}
+                  maxLength={24}
+                  placeholder="code ami à ajouter"
+                  onChange={(e) => setFriendCode(e.target.value.trim())}
+                />
+                <button
+                  className="btn ghost sm"
+                  disabled={friendCode.trim().length < 6}
+                  onClick={() => {
+                    onAddFriend(friendCode.trim())
+                    setFriendCode('')
+                  }}
+                >
+                  Ajouter
+                </button>
+              </div>
+            </div>
           </aside>
         </>
       )}

@@ -1968,6 +1968,63 @@ button.domino:disabled {
   transform: none;
 }
 
+.game-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(22rem, 92vw);
+  z-index: 75;
+  animation: modal-in 0.25s cubic-bezier(0.3, 1.2, 0.4, 1);
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.92);
+  }
+}
+
+.panel-friends {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  border-top: 1px solid rgba(247, 242, 231, 0.12);
+  padding-top: 1rem;
+}
+
+.game-card.soon {
+  cursor: not-allowed;
+  filter: saturate(0.45) brightness(0.8);
+}
+
+.game-card.soon:hover {
+  transform: none;
+  border-color: rgba(247, 242, 231, 0.12);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.game-card.soon:hover::after {
+  opacity: 0;
+}
+
+.game-card.soon:hover .game-emoji {
+  transform: none;
+}
+
+.game-soon {
+  margin-top: 0.5rem;
+  font-weight: 800;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px dashed rgba(247, 242, 231, 0.25);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+}
+
 @keyframes card-in {
   from {
     opacity: 0;
