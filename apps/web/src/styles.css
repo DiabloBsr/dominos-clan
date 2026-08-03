@@ -1673,14 +1673,11 @@ button.domino:disabled {
 .chess-board {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  width: min(92vw, 56vh, 30rem);
+  width: min(94vw, 58vh, 30rem);
   aspect-ratio: 1;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
-  border: 6px solid var(--wood-hi);
-  box-shadow:
-    0 14px 34px rgba(0, 0, 0, 0.45),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
 }
 
 .sq {
@@ -1694,28 +1691,28 @@ button.domino:disabled {
 }
 
 .sq.light {
-  background: #e9dfc4;
+  background: #eef0d2;
 }
 
 .sq.dark {
-  background: #4d7c5f;
+  background: #7a9b5e;
 }
 
 .sq.last {
-  box-shadow: inset 0 0 0 100vmax rgba(255, 182, 72, 0.28);
+  box-shadow: inset 0 0 0 100vmax rgba(247, 247, 105, 0.5);
 }
 
 .sq.sel {
-  box-shadow: inset 0 0 0 3px var(--amber);
+  box-shadow: inset 0 0 0 100vmax rgba(247, 247, 105, 0.75);
 }
 
 .sq.tgt::after {
   content: '';
   position: absolute;
-  width: 26%;
-  height: 26%;
+  width: 30%;
+  height: 30%;
   border-radius: 50%;
-  background: rgba(11, 23, 18, 0.35);
+  background: rgba(0, 0, 0, 0.16);
 }
 
 .sq.chk {
@@ -1723,12 +1720,12 @@ button.domino:disabled {
 }
 
 .pc {
-  width: 82%;
-  height: 82%;
+  width: 94%;
+  height: 94%;
   display: grid;
   place-items: center;
   pointer-events: none;
-  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
+  filter: drop-shadow(0 2px 1.5px rgba(0, 0, 0, 0.3));
 }
 
 .piece-svg {
@@ -1757,11 +1754,11 @@ button.domino:disabled {
 }
 
 .sq.light .coord {
-  color: #4d7c5f;
+  color: #7a9b5e;
 }
 
 .sq.dark .coord {
-  color: #e9dfc4;
+  color: #eef0d2;
 }
 
 .captured-row {
