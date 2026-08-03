@@ -3,8 +3,10 @@ import {
   GameError,
   applyMove,
   createGame,
+  evaluateDeal,
   legalMoves,
   lineEnds,
+  undoLastMove,
   viewFor,
   isDouble,
   tileEquals,
@@ -28,6 +30,7 @@ function craftState(partial: {
       openThreshold: 0,
       freePass: false,
       openingMaxPips: null,
+      instantWinScore: null,
       ...partial.rules,
     },
     players: Object.entries(partial.hands).map(([id, hand]) => ({ id, hand })),
@@ -40,6 +43,7 @@ function craftState(partial: {
     lastPlayerIndex: partial.lastPlayerIndex ?? null,
     forcedOpening: null,
     openingMaxPips: partial.openingMaxPips ?? null,
+    lastPlay: null,
   }
 }
 
@@ -77,16 +81,15 @@ describe('createGame', () => {
     }
   })
 
-  it('ouverture « smallest-double » : le plus petit double en main (1-1 → 6-6) désigne l’ouvreur', () => {
+  it('ouverture « smallest-double » : le plus petit double en main (0-0 → 6-6) désigne l’ouvreur', () => {
     for (const seed of [1, 5, 42, 77, 2026]) {
       const state = createGame(['a', 'b', 'c'], seed, {}, { policy: 'smallest-double' })
       const opening = state.forcedOpening!
       const allTiles = state.players.flatMap((p) => p.hand)
       const doubles = allTiles.filter(isDouble)
       if (doubles.length > 0) {
-        // Ordre de recherche : 1,2,…,6 puis 0.
-        const order = [1, 2, 3, 4, 5, 6, 0]
-        const best = order.find((v) => doubles.some((d) => d.hi === v))!
+        // Ordre de recherche : 0-0 d'abord, puis 1,2,…,6.
+        const best = Math.min(...doubles.map((d) => d.hi))
         expect(isDouble(opening)).toBe(true)
         expect(opening.hi).toBe(best)
       }
@@ -337,6 +340,109 @@ describe('viewFor (anti-triche)', () => {
     const view = viewFor(state, 'spec-1', 'spectator')
     view.players[0]!.hand!.pop()
     expect(state.players[0]!.hand).toHaveLength(7)
+  })
+})
+
+describe('evaluateDeal (règle des doubles à la donne)', () => {
+  const doubles = (values: number[]): Tile[] => values.map((v) => ({ hi: v, lo: v }))
+  const filler = (n: number): Tile[] =>
+    Array.from({ length: n }, (_, i) => ({ hi: 6, lo: i % 6 }))
+
+  it('main normale (≤ 3 doubles) : donne valide', () => {
+    expect(evaluateDeal([[...doubles([0, 1, 2]), ...filler(4)], filler(7)])).toEqual({ type: 'ok' })
+  })
+
+  it('4 ou 5 doubles dans une main : on redistribue', () => {
+    expect(evaluateDeal([[...doubles([0, 1, 2, 3]), ...filler(3)], filler(7)])).toEqual({ type: 'redeal' })
+    expect(evaluateDeal([filler(7), [...doubles([0, 1, 2, 3, 4]), ...filler(2)]])).toEqual({ type: 'redeal' })
+  })
+
+  it('6 ou 7 doubles dans une main : victoire immédiate', () => {
+    expect(evaluateDeal([[...doubles([0, 1, 2, 3, 4, 5]), ...filler(1)], filler(7)])).toEqual({
+      type: 'instant-win',
+      winnerIndex: 0,
+    })
+    expect(evaluateDeal([filler(7), doubles([0, 1, 2, 3, 4, 5, 6])])).toEqual({
+      type: 'instant-win',
+      winnerIndex: 1,
+    })
+  })
+
+  it('aucune donne jouable ne contient 4 doubles ou plus', () => {
+    for (let seed = 1; seed <= 300; seed++) {
+      const state = createGame(['a', 'b'], seed)
+      if (state.status !== 'playing') continue
+      for (const p of state.players) {
+        expect(p.hand.filter(isDouble).length).toBeLessThanOrEqual(3)
+      }
+    }
+  })
+})
+
+describe('undoLastMove (reprendre son domino)', () => {
+  const base = () =>
+    craftState({
+      hands: { a: [{ hi: 5, lo: 2 }, { hi: 3, lo: 3 }], b: [{ hi: 4, lo: 3 }, { hi: 2, lo: 1 }] },
+      line: [{ tile: { hi: 5, lo: 4 }, left: 5, right: 4 }],
+      turn: 0,
+    })
+
+  it('reprend le domino tant que le suivant n’a pas agi', () => {
+    const played = applyMove(base(), 'a', { type: 'play', tile: { hi: 5, lo: 2 }, end: 'left' })
+    expect(viewFor(played, 'a', 'player').canUndo).toBe(true)
+    const undone = undoLastMove(played, 'a')
+    expect(undone.line).toEqual(base().line)
+    expect(undone.turn).toBe(0)
+    expect(undone.players[0]!.hand.some((t) => tileEquals(t, { hi: 5, lo: 2 }))).toBe(true)
+    // Et on peut rejouer autre chose.
+    expect(legalMoves(undone, 'a').length).toBeGreaterThan(0)
+  })
+
+  it('trop tard si le joueur suivant a posé', () => {
+    const played = applyMove(base(), 'a', { type: 'play', tile: { hi: 5, lo: 2 }, end: 'left' })
+    const next = applyMove(played, 'b', { type: 'play', tile: { hi: 4, lo: 3 }, end: 'right' })
+    expect(() => undoLastMove(next, 'a')).toThrowError(GameError)
+    expect(viewFor(next, 'a', 'player').canUndo).toBe(false)
+  })
+
+  it('trop tard si le joueur suivant a passé', () => {
+    const state = craftState({
+      hands: { a: [{ hi: 5, lo: 2 }, { hi: 3, lo: 3 }], b: [{ hi: 1, lo: 0 }] },
+      line: [{ tile: { hi: 5, lo: 4 }, left: 5, right: 4 }],
+      turn: 0,
+    })
+    const played = applyMove(state, 'a', { type: 'play', tile: { hi: 5, lo: 2 }, end: 'left' })
+    const passed = applyMove(played, 'b', { type: 'pass' })
+    expect(() => undoLastMove(passed, 'a')).toThrowError(GameError)
+  })
+
+  it('pas de double reprise ni de reprise par un autre joueur', () => {
+    const played = applyMove(base(), 'a', { type: 'play', tile: { hi: 5, lo: 2 }, end: 'left' })
+    expect(() => undoLastMove(played, 'b')).toThrowError(GameError)
+    const undone = undoLastMove(played, 'a')
+    expect(() => undoLastMove(undone, 'a')).toThrowError(GameError)
+  })
+})
+
+describe('révélation des mains en fin de manche', () => {
+  it('manche finie : tout le monde voit toutes les mains', () => {
+    const state = craftState({
+      hands: { a: [{ hi: 4, lo: 2 }], b: [{ hi: 6, lo: 6 }, { hi: 1, lo: 0 }] },
+      line: [{ tile: { hi: 5, lo: 4 }, left: 5, right: 4 }],
+      turn: 0,
+    })
+    const done = applyMove(state, 'a', { type: 'play', tile: { hi: 4, lo: 2 }, end: 'right' })
+    const view = viewFor(done, 'b', 'player')
+    for (const p of view.players) {
+      expect(p.hand).toEqual(done.players.find((sp) => sp.id === p.id)!.hand)
+    }
+  })
+
+  it('manche en cours : les mains adverses restent cachées', () => {
+    const view = viewFor(createGame(['a', 'b'], 3), 'a', 'player')
+    for (const p of view.players) {
+      expect(p).not.toHaveProperty('hand')
+    }
   })
 })
 

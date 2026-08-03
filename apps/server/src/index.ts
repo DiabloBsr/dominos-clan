@@ -22,6 +22,7 @@ import {
   setRules,
   startGame,
   takeSeat,
+  undoMove,
   type Room,
 } from './rooms'
 
@@ -163,6 +164,14 @@ io.on('connection', (socket: Socket) => {
       const { room, memberId } = withRoom(state)
       if (!payload?.move) throw new RoomError('Coup manquant')
       playMove(room, memberId, payload.move)
+      broadcast(room)
+    }),
+  )
+
+  socket.on('game:undo', (_payload: unknown, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      undoMove(room, memberId)
       broadcast(room)
     }),
   )

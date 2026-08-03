@@ -37,6 +37,12 @@ export interface GameRules {
    * un domino dont le total de points est ≤ à ce nombre.
    */
   openingMaxPips: number | null
+  /**
+   * Victoire éclair (mode match) : si PERSONNE n'a encore marqué et que le
+   * premier gain de la rencontre atteint ce nombre, le match est gagné
+   * immédiatement. null = désactivé.
+   */
+  instantWinScore: number | null
 }
 
 export const DEFAULT_RULES: GameRules = {
@@ -44,12 +50,14 @@ export const DEFAULT_RULES: GameRules = {
   openThreshold: 0,
   freePass: false,
   openingMaxPips: null,
+  instantWinScore: null,
 }
 
 export interface RoundResult {
   /** null = manche nulle (blocage avec égalité au minimum de points) : personne ne marque. */
   winnerId: string | null
-  reason: 'domino' | 'blocked'
+  /** 'doubles' = 6 ou 7 doubles dans une main à la donne → victoire immédiate. */
+  reason: 'domino' | 'blocked' | 'doubles'
   /** Points restants dans chaque main à la fin de la manche. */
   pips: Record<string, number>
   /** Points pris par le gagnant (somme des mains adverses) ; 0 si manche nulle. */
@@ -79,6 +87,11 @@ export interface GameState {
    * (à défaut, son domino le plus léger).
    */
   openingMaxPips: number | null
+  /**
+   * Dernière pose (pour la reprise) : tant que le joueur suivant n'a pas agi,
+   * son auteur peut reprendre son domino. Remis à null par toute passe ou reprise.
+   */
+  lastPlay: { playerIndex: number; end: End } | null
 }
 
 export type Role = 'player' | 'spectator'
@@ -100,4 +113,6 @@ export interface GameView {
   sleepingCount: number
   /** Présent uniquement pour un joueur : sa main et ses coups légaux. */
   you: { id: string; hand: Tile[]; legalMoves: Move[] } | null
+  /** Le spectateur/joueur peut-il reprendre son dernier domino posé ? */
+  canUndo: boolean
 }

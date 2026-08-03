@@ -12,7 +12,8 @@ export class GameError extends Error {
       | 'DUPLICATE_PLAYER'
       | 'GAME_FINISHED'
       | 'NOT_YOUR_TURN'
-      | 'ILLEGAL_MOVE',
+      | 'ILLEGAL_MOVE'
+      | 'CANNOT_UNDO',
     message: string,
   ) {
     super(message)
@@ -28,7 +29,7 @@ export class GameError extends Error {
  *
  * Ouverture selon `opening.policy` :
  * - 'classic' (défaut) : plus gros double en jeu, sinon domino le plus lourd — imposé.
- * - 'smallest-double' : plus petit double en main (1-1 → 6-6, puis 0-0) — imposé ;
+ * - 'smallest-double' : plus petit double en main (0-0 → 6-6) — imposé ;
  *   si aucun double n'est en main, retombe sur 'classic'.
  * - 'rotate' : l'ouvreur est fourni (`starterIndex`) ; il doit poser un domino
  *   de total ≤ rules.openingMaxPips (à défaut, son domino le plus léger).
@@ -51,14 +52,49 @@ export function createGame(
     throw new GameError('DUPLICATE_PLAYER', 'Identifiants de joueurs en double')
   }
 
-  const deck = shuffle(makeDeck(), mulberry32(seed))
-  const players = playerIds.map((id, i) => ({
-    id,
-    hand: deck.slice(i * HAND_SIZE, (i + 1) * HAND_SIZE),
-  }))
-  const sleeping = deck.slice(playerIds.length * HAND_SIZE)
-  const hands = players.map((p) => p.hand)
   const mergedRules = { ...DEFAULT_RULES, ...rules }
+  const rng = mulberry32(seed)
+  let players: { id: string; hand: Tile[] }[] = []
+  let sleeping: Tile[] = []
+  let instantWinnerIndex: number | null = null
+
+  // Règle des doubles à la donne : 4-5 doubles → on redistribue ; 6-7 → victoire immédiate.
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const deck = shuffle(makeDeck(), rng)
+    players = playerIds.map((id, i) => ({
+      id,
+      hand: deck.slice(i * HAND_SIZE, (i + 1) * HAND_SIZE),
+    }))
+    sleeping = deck.slice(playerIds.length * HAND_SIZE)
+    const verdict = evaluateDeal(players.map((p) => p.hand))
+    if (verdict.type === 'instant-win') {
+      instantWinnerIndex = verdict.winnerIndex
+      break
+    }
+    if (verdict.type === 'redeal') continue
+    break
+  }
+
+  if (instantWinnerIndex !== null) {
+    const state: GameState = {
+      rules: mergedRules,
+      players,
+      line: [],
+      sleeping,
+      turn: instantWinnerIndex,
+      consecutivePasses: 0,
+      status: 'finished',
+      result: null,
+      lastPlayerIndex: null,
+      forcedOpening: null,
+      openingMaxPips: null,
+      lastPlay: null,
+    }
+    state.result = buildResult(state, players[instantWinnerIndex]!.id, 'doubles')
+    return state
+  }
+
+  const hands = players.map((p) => p.hand)
 
   let starterIndex: number
   let openingTile: Tile | null
@@ -93,14 +129,33 @@ export function createGame(
     lastPlayerIndex: null,
     forcedOpening: openingTile,
     openingMaxPips,
+    lastPlay: null,
   }
 }
 
-/** Plus petit double en main : 1-1, 2-2… 6-6, puis 0-0 en dernier recours. */
+export type DealVerdict = { type: 'ok' } | { type: 'redeal' } | { type: 'instant-win'; winnerIndex: number }
+
+/** Règle des doubles à la donne : 4 ou 5 doubles dans une même main → on redistribue ; 6 ou 7 → victoire immédiate. */
+export function evaluateDeal(hands: Tile[][]): DealVerdict {
+  let best = -1
+  let bestIndex = -1
+  for (let i = 0; i < hands.length; i++) {
+    const count = hands[i]!.filter(isDouble).length
+    if (count > best) {
+      best = count
+      bestIndex = i
+    }
+  }
+  if (best >= 6) return { type: 'instant-win', winnerIndex: bestIndex }
+  if (best >= 4) return { type: 'redeal' }
+  return { type: 'ok' }
+}
+
+/** Plus petit double en main : 0-0, 1-1, 2-2… jusqu'au 6-6. */
 function findSmallestDouble(
   hands: Tile[][],
 ): { starterIndex: number; openingTile: Tile } | null {
-  for (const value of [1, 2, 3, 4, 5, 6, 0]) {
+  for (const value of [0, 1, 2, 3, 4, 5, 6]) {
     for (let i = 0; i < hands.length; i++) {
       const tile = hands[i]!.find((t) => t.hi === value && t.lo === value)
       if (tile) return { starterIndex: i, openingTile: tile }
@@ -200,6 +255,7 @@ export function applyMove(state: GameState, playerId: string, move: Move): GameS
 
   if (move.type === 'pass') {
     next.consecutivePasses += 1
+    next.lastPlay = null
     if (next.consecutivePasses >= next.players.length) {
       finishBlocked(next)
     } else {
@@ -211,6 +267,7 @@ export function applyMove(state: GameState, playerId: string, move: Move): GameS
   placeTile(next, playerIndex, move)
   next.consecutivePasses = 0
   next.lastPlayerIndex = playerIndex
+  next.lastPlay = { playerIndex, end: move.end }
 
   const hand = next.players[playerIndex]!.hand
   if (hand.length === 0) {
@@ -219,6 +276,34 @@ export function applyMove(state: GameState, playerId: string, move: Move): GameS
   } else {
     next.turn = (next.turn + 1) % next.players.length
   }
+  return next
+}
+
+/**
+ * Reprendre son dernier domino posé — possible UNIQUEMENT tant que le joueur
+ * suivant n'a pas encore agi (ni posé, ni passé). Le domino revient en main
+ * et le tour repasse à son auteur.
+ */
+export function undoLastMove(state: GameState, playerId: string): GameState {
+  if (state.status !== 'playing') {
+    throw new GameError('CANNOT_UNDO', 'La manche est terminée')
+  }
+  const playerIndex = state.players.findIndex((p) => p.id === playerId)
+  const lastPlay = state.lastPlay
+  if (
+    playerIndex < 0 ||
+    !lastPlay ||
+    lastPlay.playerIndex !== playerIndex ||
+    state.turn !== (playerIndex + 1) % state.players.length
+  ) {
+    throw new GameError('CANNOT_UNDO', 'Trop tard pour reprendre : le joueur suivant a déjà agi')
+  }
+
+  const next = deepClone(state)
+  const placed = lastPlay.end === 'left' ? next.line.shift()! : next.line.pop()!
+  next.players[playerIndex]!.hand.push(placed.tile)
+  next.turn = playerIndex
+  next.lastPlay = null
   return next
 }
 

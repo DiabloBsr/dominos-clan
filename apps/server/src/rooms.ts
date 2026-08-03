@@ -7,6 +7,7 @@ import {
   applyMove,
   createGame,
   rotateWinnerStays,
+  undoLastMove,
 } from '@dominos-clan/engine'
 import type { GameRules, GameState, Move, Role, RoomStatus, RoomView } from '@dominos-clan/engine'
 
@@ -150,7 +151,18 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
   if (openingMaxPips !== null && (!Number.isInteger(openingMaxPips) || openingMaxPips < 0 || openingMaxPips > 12)) {
     throw new RoomError('Plafond d’ouverture invalide (0 à 12 points)')
   }
-  room.rules = { targetScore, openThreshold, freePass: Boolean(r.freePass), openingMaxPips }
+  const instantWinScore =
+    r.instantWinScore === null || r.instantWinScore === undefined ? null : Number(r.instantWinScore)
+  if (instantWinScore !== null && (!Number.isInteger(instantWinScore) || instantWinScore < 1 || instantWinScore > 1000)) {
+    throw new RoomError('Seuil de victoire éclair invalide (1 à 1000 points)')
+  }
+  room.rules = {
+    targetScore,
+    openThreshold,
+    freePass: Boolean(r.freePass),
+    openingMaxPips,
+    instantWinScore,
+  }
   // Changer les règles relance une rencontre propre.
   room.scores = new Map()
   room.matchWinnerId = null
@@ -204,24 +216,51 @@ export function startGame(room: Room, memberId: string): void {
   room.roundIndex += 1
   room.status = 'playing'
   room.lastWinnerId = null
+  // Victoire immédiate aux doubles (6-7 dans une main) : la manche naît déjà finie.
+  if (room.game.status === 'finished') settleRoundEnd(room)
 }
 
 export function playMove(room: Room, memberId: string, move: Move): void {
   if (room.status !== 'playing' || !room.game) throw new RoomError('Aucune manche en cours')
   room.game = applyMove(room.game, memberId, move)
-  if (room.game.status !== 'finished') return
+  if (room.game.status === 'finished') settleRoundEnd(room)
+}
 
+export function undoMove(room: Room, memberId: string): void {
+  if (room.status !== 'playing' || !room.game) throw new RoomError('Aucune manche en cours')
+  room.game = undoLastMove(room.game, memberId)
+}
+
+/** Fin de manche : scores, victoire éclair, vainqueur de match, rotation. */
+function settleRoundEnd(room: Room): void {
   room.status = 'finished'
-  const result = room.game.result!
+  const result = room.game!.result!
   room.lastWinnerId = result.winnerId
 
   // Manche nulle (« X ») : personne ne marque, personne ne bouge — on rejoue.
   if (result.winnerId === null) return
 
   if (room.rules.targetScore !== null) {
+    const current = room.scores.get(result.winnerId) ?? 0
+
+    // Victoire éclair : personne n'a encore marqué et le premier gain
+    // atteint le seuil → match gagné immédiatement.
+    const nobodyScored = [...room.scores.values()].every((s) => s === 0)
+    if (
+      room.rules.instantWinScore !== null &&
+      nobodyScored &&
+      result.gain >= room.rules.instantWinScore
+    ) {
+      room.scores.set(result.winnerId, result.gain)
+      room.matchWinnerId = result.winnerId
+      const rotated = rotateWinnerStays(room.seats, room.queue, result.winnerId)
+      room.seats = rotated.seats
+      room.queue = rotated.queue
+      return
+    }
+
     // Match aux points : le gagnant encaisse la somme des mains adverses,
     // avec le seuil d'ouverture sur la toute première marque.
-    const current = room.scores.get(result.winnerId) ?? 0
     const counted = current === 0 && result.gain < room.rules.openThreshold ? 0 : result.gain
     const total = current + counted
     room.scores.set(result.winnerId, total)

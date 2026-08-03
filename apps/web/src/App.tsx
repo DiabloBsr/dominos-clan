@@ -42,6 +42,20 @@ export default function App() {
 
   const voice = useVoice(room?.code ?? null, selfId, playerIds, showNotice)
 
+  // Micro actif par défaut : on rejoint la voix dès l'entrée dans le salon
+  // (une seule tentative par salon ; l'utilisateur gère ensuite muet/parler).
+  const voiceAttempt = useRef<string | null>(null)
+  useEffect(() => {
+    if (!room) {
+      voiceAttempt.current = null
+      return
+    }
+    if (voice.state.status === 'off' && voiceAttempt.current !== room.code) {
+      voiceAttempt.current = room.code
+      voice.join()
+    }
+  }, [room, voice])
+
   useEffect(() => {
     const onRoomState = (view: RoomView) => setRoom(view)
     const onGameState = (view: GameView | null) => setGame(view)
@@ -107,6 +121,7 @@ export default function App() {
     onReact: (emoji: string) => socket.emit('reaction', { emoji }),
     onChat: (text: string) => simpleEmit('chat:send', { text }),
     onRules: (rules: GameRules) => simpleEmit('room:rules', { ...rules }),
+    onUndo: () => simpleEmit('game:undo'),
     onLeave: () => {
       voice.leave()
       simpleEmit('room:leave')

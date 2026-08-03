@@ -50,6 +50,11 @@ describe('fuzz : parties aléatoires seedées', () => {
       if (result.reason === 'domino') {
         expect(result.winnerId).not.toBeNull()
         expect(result.pips[result.winnerId!]).toBe(0)
+      } else if (result.reason === 'doubles') {
+        // Victoire immédiate à la donne : 6 ou 7 doubles dans la main du gagnant.
+        expect(result.winnerId).not.toBeNull()
+        const winner = state.players.find((p) => p.id === result.winnerId)!
+        expect(winner.hand.filter((t) => t.hi === t.lo).length).toBeGreaterThanOrEqual(6)
       } else if (result.winnerId === null) {
         // Manche nulle : forcément plusieurs mains à égalité au minimum, gain nul.
         expect(minHolders).toBeGreaterThanOrEqual(2)

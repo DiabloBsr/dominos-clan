@@ -49,9 +49,18 @@ async function connect(name: string): Promise<Client> {
 
 function assertNoLeak(client: Client, view: GameView): void {
   const isPlayer = view.you !== null
+  // Manche terminée : les mains sont révélées à tout le monde, c'est voulu.
+  if (view.status === 'finished') {
+    for (const p of view.players) {
+      if (!Array.isArray(p.hand)) {
+        throw new Error(`${client.name} devrait voir la main de ${p.id} (manche terminée)`)
+      }
+    }
+    return
+  }
   for (const p of view.players) {
     if (isPlayer && 'hand' in p) {
-      throw new Error(`FUITE : ${client.name} (joueur) a reçu la main de ${p.id}`)
+      throw new Error(`FUITE : ${client.name} (joueur) a reçu la main de ${p.id} en pleine manche`)
     }
     if (!isPlayer && !Array.isArray(p.hand)) {
       throw new Error(`${client.name} (spectateur) devrait voir la main de ${p.id}`)

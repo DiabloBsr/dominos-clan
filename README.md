@@ -46,7 +46,15 @@ Exemple : 6 potes dans le salon, 3 jouent un 1v1v1, les 3 autres regardent (et c
 - **Match aux points** : le gagnant de chaque manche encaisse la somme des mains adverses ; **premier à la cible** (défaut 80, réglable 10-1000) remporte le match. La table est figée pendant le match ; la rotation se fait au match suivant.
 - **Seuil de première marque** : la toute première marque d'un joueur ne compte que si elle atteint le seuil ; ensuite, même 1 point compte.
 - **Passe libre** : autorise de passer même avec un domino jouable.
-- **Ouverture tournante** : la 1re manche de la rencontre est ouverte par le détenteur du **plus petit double** (on cherche le 1-1, sinon le 2-2… jusqu'au 6-6, puis le 0-0 ; à défaut, ouverture classique), qui doit le poser. Ensuite l'ouverture **tourne de gauche à droite** autour de la table, et l'ouvreur doit poser un domino dont le **total de points ≤ N** (réglable 0-12, défaut 6) — s'il n'en a pas, il pose son domino le plus léger.
+- **Ouverture tournante** : la 1re manche de la rencontre est ouverte par le détenteur du **plus petit double** (on cherche le 0-0, sinon le 1-1… jusqu'au 6-6 ; à défaut, ouverture classique), qui doit le poser. Ensuite l'ouverture **tourne de gauche à droite** autour de la table (indépendamment du gagnant), et l'ouvreur doit poser un domino dont le **total de points ≤ N** (réglable 0-12, défaut 6) — s'il n'en a pas, il pose son domino le plus léger.
+- **Victoire éclair** (mode match) : si **personne n'a encore marqué** et que le premier gain de la rencontre atteint le seuil (défaut 40), le match est **gagné immédiatement**.
+
+### 🁡 Règles toujours actives
+
+- **Doubles à la donne** : une main qui reçoit **4 ou 5 doubles** → on redistribue ; **6 ou 7 doubles** → victoire immédiate de la manche, points comptés normalement.
+- **Reprise** : tu peux **reprendre ton domino posé** (bouton ↩) tant que le joueur suivant n'a ni posé ni passé.
+- **Fin de manche transparente** : dès que la manche se termine (domino, blocage ou doubles), **toutes les mains sont révélées à tout le monde** avec les points restants.
+- **Micro auto** : on entre dans le salon déjà connecté à la voix (si configurée) — on ne gère que muet/parler.
 - **Comptes** : pseudo simple, pas d'auth en V1.
 - **Réactions** : 8 emotes fixes (😂 🔥 👏 😮 😭 😈 🤝 💀), throttle anti-spam 400 ms.
 - **Chat texte** : panneau 💬 avec badge de non-lus, 300 caractères max, throttle 500 ms.

@@ -23,6 +23,7 @@ export function Game({
   room,
   selfId,
   onMove,
+  onUndo,
   voiceIds,
   speaking,
 }: {
@@ -30,6 +31,7 @@ export function Game({
   room: RoomView
   selfId: string
   onMove: (move: Move) => void
+  onUndo: () => void
   voiceIds: string[]
   speaking: string[]
 }) {
@@ -157,7 +159,7 @@ export function Game({
                 <DominoBack key={i} />
               ))}
             </span>
-            {isSpectator && showHands && p.hand && (
+            {p.hand && (showHands || game.status === 'finished') && (
               <span className="spy-hand">
                 {p.hand.map((t, i) => (
                   <DominoTile key={i} a={t.hi} b={t.lo} vertical size="sm" />
@@ -265,6 +267,15 @@ export function Game({
                 onClick={() => onMove({ type: 'pass' })}
               >
                 Je passe 😤
+              </button>
+            )}
+            {game.canUndo && (
+              <button
+                className="btn ghost sm"
+                onClick={onUndo}
+                title="Reprendre ton domino tant que le joueur suivant n’a pas agi"
+              >
+                ↩ Reprendre
               </button>
             )}
           </div>

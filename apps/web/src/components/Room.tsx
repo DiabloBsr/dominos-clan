@@ -24,6 +24,7 @@ export function Room({
   onReact,
   onChat,
   onRules,
+  onUndo,
   onLeave,
 }: {
   room: RoomView
@@ -39,6 +40,7 @@ export function Room({
   onReact: (emoji: string) => void
   onChat: (text: string) => void
   onRules: (rules: GameRules) => void
+  onUndo: () => void
   onLeave: () => void
 }) {
   const [copied, setCopied] = useState(false)
@@ -167,7 +169,11 @@ export function Room({
             disabled={!isHost}
             value={room.rules.targetScore === null ? 'seche' : 'match'}
             onChange={(e) =>
-              onRules({ ...room.rules, targetScore: e.target.value === 'match' ? 80 : null })
+              onRules({
+                ...room.rules,
+                targetScore: e.target.value === 'match' ? 80 : null,
+                instantWinScore: e.target.value === 'match' ? 40 : null,
+              })
             }
           >
             <option value="seche">Manche sèche</option>
@@ -192,6 +198,27 @@ export function Room({
                   }
                 />
                 pts
+              </label>
+              <label
+                className="rules-num"
+                title="Si PERSONNE n'a encore marqué et que le premier gain de la rencontre atteint ce nombre, le match est gagné immédiatement (0 = désactivé)"
+              >
+                éclair ≥
+                <input
+                  key={`e-${room.rules.instantWinScore ?? 'off'}`}
+                  type="number"
+                  min={0}
+                  max={1000}
+                  disabled={!isHost}
+                  defaultValue={room.rules.instantWinScore ?? 0}
+                  onBlur={(e) => {
+                    const v = Number(e.target.value) || 0
+                    onRules({
+                      ...room.rules,
+                      instantWinScore: v <= 0 ? null : Math.min(1000, v),
+                    })
+                  }}
+                />
               </label>
               <label className="rules-num" title="La première marque ne compte que si elle atteint ce seuil ; ensuite tout compte">
                 1re marque ≥
@@ -283,7 +310,11 @@ export function Room({
           ) : (
             <h2>
               👑 {pseudoOf(room, result.winnerId)}{' '}
-              {result.reason === 'domino' ? 'a fait domino !' : 'gagne — table bloquée'}
+              {result.reason === 'domino'
+                ? 'a fait domino !'
+                : result.reason === 'doubles'
+                  ? 'avait 6 doubles en main — victoire immédiate !'
+                  : 'gagne — table bloquée'}
               {room.rules.targetScore !== null ? ` (+${result.gain} pts)` : ''}
             </h2>
           )}
@@ -331,6 +362,7 @@ export function Room({
           room={room}
           selfId={selfId}
           onMove={onMove}
+          onUndo={onUndo}
           voiceIds={voice.state.inVoice}
           speaking={voice.state.speaking}
         />
