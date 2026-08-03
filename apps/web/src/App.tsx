@@ -46,9 +46,11 @@ export default function App() {
     null,
   )
   const [slamFx, setSlamFx] = useState<{ key: number; pseudo: string } | null>(null)
+  const [passFx, setPassFx] = useState<{ key: number; pseudo: string } | null>(null)
   const reactionKey = useRef(0)
   const chatKey = useRef(0)
   const slamKey = useRef(0)
+  const passKey = useRef(0)
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const showNotice = useCallback((message: string) => {
@@ -159,6 +161,11 @@ export default function App() {
       setSlamFx({ key, pseudo: s.pseudo })
       setTimeout(() => setSlamFx((prev) => (prev?.key === key ? null : prev)), 1000)
     }
+    const onPassed = (p: { pseudo: string }) => {
+      const key = ++passKey.current
+      setPassFx({ key, pseudo: p.pseudo })
+      setTimeout(() => setPassFx((prev) => (prev?.key === key ? null : prev)), 1100)
+    }
     const onAborted = () => showNotice('Un joueur a quitté : manche annulée')
     const onDisconnect = () => {
       setRoom(null)
@@ -176,6 +183,7 @@ export default function App() {
     socket.on('friend:knocked', onKnocked)
     socket.on('room:restarted', onRestarted)
     socket.on('game:slam', onSlam)
+    socket.on('game:passed', onPassed)
     socket.on('game:aborted', onAborted)
     socket.on('disconnect', onDisconnect)
     return () => {
@@ -188,6 +196,7 @@ export default function App() {
       socket.off('friend:knocked', onKnocked)
       socket.off('room:restarted', onRestarted)
       socket.off('game:slam', onSlam)
+      socket.off('game:passed', onPassed)
       socket.off('game:aborted', onAborted)
       socket.off('disconnect', onDisconnect)
     }
@@ -275,6 +284,7 @@ export default function App() {
     onChat: (text: string) => simpleEmit('chat:send', { text }),
     onRules: (rules: GameRules) => simpleEmit('room:rules', { ...rules }),
     onUndo: () => simpleEmit('game:undo'),
+    onRedeal: () => simpleEmit('game:redeal'),
     onLeave: leaveRoomLocal,
   }
 
@@ -326,6 +336,7 @@ export default function App() {
           friends={friends}
           friendStatuses={friendStatuses}
           slamFx={slamFx}
+          passFx={passFx}
           {...handlers}
         />
       ) : (

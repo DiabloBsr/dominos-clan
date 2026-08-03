@@ -171,6 +171,14 @@ async function main(): Promise<void> {
   await emitAck(alice.socket, 'game:start', {})
   await sleep(150)
 
+  // Donne annulée (4-5 doubles) : l'hôte redistribue jusqu'à une donne jouable.
+  let redealCount = 0
+  while (alice.game?.status === 'redeal' && redealCount++ < 10) {
+    console.log('donne annulée (doubles) → l’hôte redistribue 🔀')
+    await emitAck(alice.socket, 'game:redeal', {})
+    await sleep(150)
+  }
+
   const seatedBefore = alice.room!.seats.join(',')
   console.log(`manche lancée, à table : ${seatedBefore} — spectateur : ${diego.selfId}`)
 

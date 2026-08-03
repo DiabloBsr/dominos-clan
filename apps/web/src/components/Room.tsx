@@ -25,6 +25,7 @@ export function Room({
   friends,
   friendStatuses,
   slamFx,
+  passFx,
   onInvite,
   onSit,
   onPromote,
@@ -36,6 +37,7 @@ export function Room({
   onChat,
   onRules,
   onUndo,
+  onRedeal,
   onLeave,
 }: {
   room: RoomView
@@ -47,6 +49,7 @@ export function Room({
   friends: Friend[]
   friendStatuses: Record<string, FriendStatus>
   slamFx: { key: number; pseudo: string } | null
+  passFx: { key: number; pseudo: string } | null
   onInvite: (toUserId: string) => void
   onSit: () => void
   onPromote: (memberId: string) => void
@@ -58,6 +61,7 @@ export function Room({
   onChat: (text: string) => void
   onRules: (rules: GameRules) => void
   onUndo: () => void
+  onRedeal: () => void
   onLeave: () => void
 }) {
   const [copied, setCopied] = useState(false)
@@ -477,6 +481,11 @@ export function Room({
           💥 JOYAAAA&nbsp;!
         </div>
       )}
+      {passFx && (
+        <div className="slam-fx pass-fx" key={passFx.key}>
+          😭 JE PASSE&nbsp;!
+        </div>
+      )}
 
       {game && room.status !== 'lobby' ? (
         <Game
@@ -485,6 +494,7 @@ export function Room({
           selfId={selfId}
           onMove={onMove}
           onUndo={onUndo}
+          onRedeal={onRedeal}
           voiceIds={voice.state.inVoice}
           speaking={voice.state.speaking}
           shaking={slamFx !== null}

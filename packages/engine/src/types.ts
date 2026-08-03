@@ -45,8 +45,10 @@ export interface GameRules {
   instantWinScore: number | null
   /**
    * Mode match : nombre de joueurs remplacés par la file à chaque fin de
-   * manche (les plus petits scores, jamais le gagnant). Ex. à 3 joueurs :
-   * 1 = le plus petit score sort ; 2 = seul le gagnant reste.
+   * manche (les plus petits scores, jamais le gagnant). 0 (défaut) = la table
+   * reste fixe pendant tout le match ; l'échange avec la file se fait
+   * automatiquement à la victoire du match. Ex. à 3 joueurs : 1 = le plus
+   * petit score sort ; 2 = seul le gagnant reste.
    */
   swapCount: number
 }
@@ -57,7 +59,7 @@ export const DEFAULT_RULES: GameRules = {
   freePass: false,
   openingMaxPips: null,
   instantWinScore: null,
-  swapCount: 1,
+  swapCount: 0,
 }
 
 export interface RoundResult {
@@ -93,7 +95,8 @@ export interface GameState {
   /** Index du joueur dont c'est le tour. */
   turn: number
   consecutivePasses: number
-  status: 'playing' | 'finished'
+  /** 'redeal' = donne annulée (4-5 doubles) : partie en pause jusqu'à redistribution. */
+  status: 'playing' | 'finished' | 'redeal'
   result: RoundResult | null
   /** Index du dernier joueur ayant posé un domino (départage des blocages). */
   lastPlayerIndex: number | null
@@ -126,7 +129,7 @@ export interface GameView {
   line: PlacedTile[]
   ends: { left: number; right: number } | null
   currentPlayerId: string | null
-  status: 'playing' | 'finished'
+  status: 'playing' | 'finished' | 'redeal'
   result: RoundResult | null
   sleepingCount: number
   /** Présent uniquement pour un joueur : sa main et ses coups légaux. */

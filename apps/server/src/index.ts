@@ -18,6 +18,7 @@ import {
   leaveSeat,
   playMove,
   promoteToSeat,
+  redealNow,
   removeMember,
   restartRoom,
   roomView,
@@ -226,6 +227,19 @@ io.on('connection', (socket: Socket) => {
         const member = room.members.get(memberId)
         if (member) io.to(room.code).emit('game:slam', { memberId, pseudo: member.pseudo })
       }
+      // « JE PASSE 😭 » affiché chez tout le monde quand quelqu'un passe.
+      if (payload.move.type === 'pass') {
+        const member = room.members.get(memberId)
+        if (member) io.to(room.code).emit('game:passed', { memberId, pseudo: member.pseudo })
+      }
+      broadcast(room)
+    }),
+  )
+
+  socket.on('game:redeal', (_payload: unknown, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      redealNow(room, memberId)
       broadcast(room)
     }),
   )

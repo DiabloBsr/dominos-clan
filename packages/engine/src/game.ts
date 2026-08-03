@@ -54,47 +54,27 @@ export function createGame(
 
   const mergedRules = { ...DEFAULT_RULES, ...rules }
   const rng = mulberry32(seed)
-  let players: { id: string; hand: Tile[] }[] = []
-  let sleeping: Tile[] = []
-  let instantWinnerIndex: number | null = null
-  const redeals: RedealInfo[] = []
 
-  // Règle des doubles à la donne : 4-5 doubles → on redistribue (donne montrée
-  // à tout le monde) ; 6-7 → victoire immédiate.
-  for (let attempt = 0; attempt < 60; attempt++) {
-    const deck = shuffle(makeDeck(), rng)
-    players = playerIds.map((id, i) => ({
-      id,
-      hand: deck.slice(i * HAND_SIZE, (i + 1) * HAND_SIZE),
-    }))
-    sleeping = deck.slice(playerIds.length * HAND_SIZE)
-    const verdict = evaluateDeal(players.map((p) => p.hand))
-    if (verdict.type === 'instant-win') {
-      instantWinnerIndex = verdict.winnerIndex
-      break
-    }
-    if (verdict.type === 'redeal') {
-      const culprit = players.reduce((a, b) =>
-        a.hand.filter(isDouble).length >= b.hand.filter(isDouble).length ? a : b,
-      )
-      redeals.push({
-        culpritId: culprit.id,
-        doublesCount: culprit.hand.filter(isDouble).length,
-        hands: players.map((p) => ({ id: p.id, hand: deepClone(p.hand) })),
-      })
-      continue
-    }
-    break
-  }
+  // Une seule donne : la règle des doubles décide de la suite.
+  // 4-5 doubles → statut 'redeal' : la partie est EN PAUSE, tout le monde voit
+  // la donne fautive, et c'est le bouton « Redistribuer » (serveur) qui relance.
+  // 6-7 doubles → victoire immédiate de la manche.
+  const deck = shuffle(makeDeck(), rng)
+  const players = playerIds.map((id, i) => ({
+    id,
+    hand: deck.slice(i * HAND_SIZE, (i + 1) * HAND_SIZE),
+  }))
+  const sleeping = deck.slice(playerIds.length * HAND_SIZE)
+  const verdict = evaluateDeal(players.map((p) => p.hand))
 
-  if (instantWinnerIndex !== null) {
+  if (verdict.type === 'instant-win') {
     const state: GameState = {
       rules: mergedRules,
-      redeals,
+      redeals: [],
       players,
       line: [],
       sleeping,
-      turn: instantWinnerIndex,
+      turn: verdict.winnerIndex,
       consecutivePasses: 0,
       status: 'finished',
       result: null,
@@ -103,8 +83,33 @@ export function createGame(
       openingMaxPips: null,
       lastPlay: null,
     }
-    state.result = buildResult(state, players[instantWinnerIndex]!.id, 'doubles')
+    state.result = buildResult(state, players[verdict.winnerIndex]!.id, 'doubles')
     return state
+  }
+
+  if (verdict.type === 'redeal') {
+    const culprit = players[verdict.culpritIndex]!
+    return {
+      rules: mergedRules,
+      redeals: [
+        {
+          culpritId: culprit.id,
+          doublesCount: verdict.doublesCount,
+          hands: players.map((p) => ({ id: p.id, hand: deepClone(p.hand) })),
+        },
+      ],
+      players,
+      line: [],
+      sleeping,
+      turn: 0,
+      consecutivePasses: 0,
+      status: 'redeal',
+      result: null,
+      lastPlayerIndex: null,
+      forcedOpening: null,
+      openingMaxPips: null,
+      lastPlay: null,
+    }
   }
 
   const hands = players.map((p) => p.hand)
@@ -132,7 +137,7 @@ export function createGame(
 
   return {
     rules: mergedRules,
-    redeals,
+    redeals: [],
     players,
     line: [],
     sleeping,
@@ -147,7 +152,10 @@ export function createGame(
   }
 }
 
-export type DealVerdict = { type: 'ok' } | { type: 'redeal' } | { type: 'instant-win'; winnerIndex: number }
+export type DealVerdict =
+  | { type: 'ok' }
+  | { type: 'redeal'; culpritIndex: number; doublesCount: number }
+  | { type: 'instant-win'; winnerIndex: number }
 
 /** Règle des doubles à la donne : 4 ou 5 doubles dans une même main → on redistribue ; 6 ou 7 → victoire immédiate. */
 export function evaluateDeal(hands: Tile[][]): DealVerdict {
@@ -161,7 +169,7 @@ export function evaluateDeal(hands: Tile[][]): DealVerdict {
     }
   }
   if (best >= 6) return { type: 'instant-win', winnerIndex: bestIndex }
-  if (best >= 4) return { type: 'redeal' }
+  if (best >= 4) return { type: 'redeal', culpritIndex: bestIndex, doublesCount: best }
   return { type: 'ok' }
 }
 

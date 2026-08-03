@@ -77,12 +77,14 @@ async function main(): Promise<void> {
   // Carol passe en file : table à 2, une personne attend.
   await emitAck(carol.socket, 'seat:leave', {})
   // Match long (500) sans éclair : la manche ne conclut pas le match.
+  // swapCount: 1 explicite — le défaut (0) fige la table pendant le match.
   await emitAck(alice.socket, 'room:rules', {
     targetScore: 500,
     openThreshold: 0,
     freePass: false,
     openingMaxPips: null,
     instantWinScore: null,
+    swapCount: 1,
   })
   await sleep(120)
 
@@ -93,6 +95,13 @@ async function main(): Promise<void> {
   }
 
   await emitAck(alice.socket, 'game:start', {})
+  await sleep(150)
+  let redealCount = 0
+  while (alice.game?.status === 'redeal' && redealCount++ < 10) {
+    console.log('donne annulée (doubles) → l’hôte redistribue 🔀')
+    await emitAck(alice.socket, 'game:redeal', {})
+    await sleep(150)
+  }
   await playOneRound(clients)
   await sleep(200)
 

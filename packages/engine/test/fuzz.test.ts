@@ -31,6 +31,12 @@ describe('fuzz : parties aléatoires seedées', () => {
     for (let seed = 1; seed <= 150; seed++) {
       const pickRandom = mulberry32(seed * 7919)
       let state = createGame(ids, seed)
+      // Donne annulée (4-5 doubles) : on redistribue comme le ferait l'hôte.
+      let redealTries = 0
+      while (state.status === 'redeal' && redealTries < 100) {
+        state = createGame(ids, seed * 100000 + ++redealTries)
+      }
+      expect(state.status).not.toBe('redeal')
       let guard = 0
 
       while (state.status === 'playing') {

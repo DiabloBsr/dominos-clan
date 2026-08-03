@@ -43,7 +43,7 @@ Exemple : 6 potes dans le salon, 3 jouent un 1v1v1, les 3 autres regardent (et c
 ### ⚙️ Préréglages (choisis par l'hôte, avant la manche)
 
 - **Manche sèche** (défaut) : une manche, un gagnant, rotation immédiate.
-- **Match aux points** : le gagnant de chaque manche encaisse la somme des mains adverses ; **premier à la cible** (défaut 80, réglable 10-1000) remporte le match. On peut **rejoindre le salon en pleine partie** (on arrive en fin de file) ; entre deux manches, si la file attend, les **« remplacés/manche »** (réglable 0-3, défaut 1) plus petits scores cèdent leur place aux premiers de la file (jamais le gagnant de la manche — les évincés gardent leur score pour leur retour ; à 3 joueurs, 2 remplacés = seul le gagnant reste). La rotation complète se fait au match suivant.
+- **Match aux points** : le gagnant de chaque manche encaisse la somme des mains adverses ; **premier à la cible** (défaut 80, réglable 10-1000) remporte le match. On peut **rejoindre le salon en pleine partie** (on arrive en fin de file) ; par défaut la **table reste fixe pendant tout le match** et l'échange avec la file se fait **automatiquement à la victoire** (le vainqueur reste, la file monte). Option **« remplacés/manche »** (0-3, défaut 0) pour faire tourner en cours de match : les plus petits scores cèdent leur place à chaque fin de manche (jamais le gagnant ; à 3 joueurs, 2 remplacés = seul le gagnant reste).
 - **Seuil de première marque** : la toute première marque d'un joueur ne compte que si elle atteint le seuil ; ensuite, même 1 point compte.
 - **Passe libre** : autorise de passer même avec un domino jouable.
 - **Ouverture tournante** : la 1re manche de la rencontre est ouverte par le détenteur du **plus petit double** (on cherche le 0-0, sinon le 1-1… jusqu'au 6-6 ; à défaut, ouverture classique), qui doit le poser. Ensuite l'ouverture **tourne de gauche à droite** autour de la table (indépendamment du gagnant), et l'ouvreur doit poser un domino dont le **total de points ≤ N** (réglable 0-12, défaut 6) — s'il n'en a pas, il pose son domino le plus léger.
@@ -51,7 +51,7 @@ Exemple : 6 potes dans le salon, 3 jouent un 1v1v1, les 3 autres regardent (et c
 
 ### 🁡 Règles toujours actives
 
-- **Doubles à la donne** : une main qui reçoit **4 ou 5 doubles** → on redistribue, et tout le monde voit le panneau « *{pseudo} avait N doubles — donne annulée* » avec **toutes les mains de la donne annulée** ; **6 ou 7 doubles** → victoire immédiate de la manche, points comptés normalement.
+- **Doubles à la donne** : une main qui reçoit **4 ou 5 doubles** → la partie se met **en pause** : tout le monde voit « *{pseudo} avait N doubles — donne annulée* » avec **toutes les mains**, et c'est l'hôte qui clique **« 🔀 Redistribuer »** pour relancer la donne ; **6 ou 7 doubles** → victoire immédiate de la manche, points comptés normalement.
 - **Reprise** : tu peux **reprendre ton domino posé** (bouton ↩) tant que le joueur suivant n'a ni posé ni passé.
 - **Fin de manche transparente** : dès que la manche se termine (domino, blocage ou doubles), **toutes les mains sont révélées à tout le monde** avec les points restants.
 - **Micro auto** : on entre dans le salon déjà connecté à la voix (si configurée) — on ne gère que muet/parler.

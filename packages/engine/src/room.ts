@@ -15,7 +15,7 @@ export interface RoomMemberView {
   connected: boolean
 }
 
-export type RoomStatus = 'lobby' | 'playing' | 'finished'
+export type RoomStatus = 'lobby' | 'playing' | 'finished' | 'redeal'
 
 export interface RoomView {
   code: string

@@ -31,7 +31,7 @@ function craftState(partial: {
       freePass: false,
       openingMaxPips: null,
       instantWinScore: null,
-      swapCount: 1,
+      swapCount: 0,
       ...partial.rules,
     },
     players: Object.entries(partial.hands).map(([id, hand]) => ({ id, hand })),
@@ -47,6 +47,20 @@ function craftState(partial: {
     lastPlay: null,
     redeals: [],
   }
+}
+
+/** Comme le ferait l'hôte : re-tire tant que la donne tombe sur 4-5 doubles. */
+function createPlayable(
+  playerIds: string[],
+  seed: number,
+  rules: Parameters<typeof createGame>[2] = {},
+  opening?: Parameters<typeof createGame>[3],
+): GameState {
+  for (let s = seed; s < seed + 200; s++) {
+    const state = opening ? createGame(playerIds, s, rules, opening) : createGame(playerIds, s, rules)
+    if (state.status !== 'redeal') return state
+  }
+  throw new Error('impossible de trouver une donne jouable')
 }
 
 describe('createGame', () => {
@@ -65,7 +79,7 @@ describe('createGame', () => {
 
   it('donne la main au détenteur du plus gros double, qui doit l’ouvrir', () => {
     for (const seed of [1, 2, 3, 50, 999]) {
-      const state = createGame(['a', 'b', 'c', 'd'], seed)
+      const state = createPlayable(['a', 'b', 'c', 'd'], seed)
       const opening = state.forcedOpening!
       const starterHand = state.players[state.turn]!.hand
       expect(starterHand.some((t) => tileEquals(t, opening))).toBe(true)
@@ -85,7 +99,7 @@ describe('createGame', () => {
 
   it('ouverture « smallest-double » : le plus petit double en main (0-0 → 6-6) désigne l’ouvreur', () => {
     for (const seed of [1, 5, 42, 77, 2026]) {
-      const state = createGame(['a', 'b', 'c'], seed, {}, { policy: 'smallest-double' })
+      const state = createPlayable(['a', 'b', 'c'], seed, {}, { policy: 'smallest-double' })
       const opening = state.forcedOpening!
       const allTiles = state.players.flatMap((p) => p.hand)
       const doubles = allTiles.filter(isDouble)
@@ -103,7 +117,7 @@ describe('createGame', () => {
   })
 
   it('ouverture « rotate » : l’ouvreur est imposé et doit poser un domino ≤ N points', () => {
-    const state = createGame(['a', 'b'], 9, { openingMaxPips: 4 }, { policy: 'rotate', starterIndex: 1 })
+    const state = createPlayable(['a', 'b'], 9, { openingMaxPips: 4 }, { policy: 'rotate', starterIndex: 1 })
     expect(state.turn).toBe(1)
     expect(state.forcedOpening).toBeNull()
     const moves = legalMoves(state, 'b')
@@ -130,7 +144,7 @@ describe('createGame', () => {
   })
 
   it('impose le domino d’ouverture comme seul coup légal', () => {
-    const state = createGame(['a', 'b'], 7)
+    const state = createPlayable(['a', 'b'], 7)
     const starterId = state.players[state.turn]!.id
     const moves = legalMoves(state, starterId)
     expect(moves).toHaveLength(1)
@@ -293,7 +307,7 @@ describe('applyMove', () => {
 })
 
 describe('viewFor (anti-triche)', () => {
-  const state = createGame(['a', 'b', 'c'], 42)
+  const state = createPlayable(['a', 'b', 'c'], 42)
 
   it('un joueur ne reçoit JAMAIS les mains adverses — seulement les comptes', () => {
     const view = viewFor(state, 'a', 'player')
@@ -354,9 +368,17 @@ describe('evaluateDeal (règle des doubles à la donne)', () => {
     expect(evaluateDeal([[...doubles([0, 1, 2]), ...filler(4)], filler(7)])).toEqual({ type: 'ok' })
   })
 
-  it('4 ou 5 doubles dans une main : on redistribue', () => {
-    expect(evaluateDeal([[...doubles([0, 1, 2, 3]), ...filler(3)], filler(7)])).toEqual({ type: 'redeal' })
-    expect(evaluateDeal([filler(7), [...doubles([0, 1, 2, 3, 4]), ...filler(2)]])).toEqual({ type: 'redeal' })
+  it('4 ou 5 doubles dans une main : on redistribue (fautif identifié)', () => {
+    expect(evaluateDeal([[...doubles([0, 1, 2, 3]), ...filler(3)], filler(7)])).toEqual({
+      type: 'redeal',
+      culpritIndex: 0,
+      doublesCount: 4,
+    })
+    expect(evaluateDeal([filler(7), [...doubles([0, 1, 2, 3, 4]), ...filler(2)]])).toEqual({
+      type: 'redeal',
+      culpritIndex: 1,
+      doublesCount: 5,
+    })
   })
 
   it('6 ou 7 doubles dans une main : victoire immédiate', () => {
@@ -461,7 +483,7 @@ describe('révélation des mains en fin de manche', () => {
   })
 
   it('manche en cours : les mains adverses restent cachées', () => {
-    const view = viewFor(createGame(['a', 'b'], 3), 'a', 'player')
+    const view = viewFor(createPlayable(['a', 'b'], 3), 'a', 'player')
     for (const p of view.players) {
       expect(p).not.toHaveProperty('hand')
     }
@@ -470,7 +492,7 @@ describe('révélation des mains en fin de manche', () => {
 
 describe('partie complète déterministe', () => {
   it('une partie 1v1 seedée se joue jusqu’au bout sans coup illégal', () => {
-    let state = createGame(['a', 'b'], 2026)
+    let state = createPlayable(['a', 'b'], 2026)
     let guard = 0
     while (state.status === 'playing' && guard++ < 200) {
       const currentId = state.players[state.turn]!.id

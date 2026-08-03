@@ -29,6 +29,7 @@ export function Game({
   selfId,
   onMove,
   onUndo,
+  onRedeal,
   voiceIds,
   speaking,
   shaking,
@@ -38,6 +39,7 @@ export function Game({
   selfId: string
   onMove: (move: Move, slam?: boolean) => void
   onUndo: () => void
+  onRedeal: () => void
   voiceIds: string[]
   speaking: string[]
   shaking: boolean
@@ -168,9 +170,9 @@ export function Game({
 
   return (
     <section className="game">
-      {game.redeals.length > 0 && !hideRedeals && (
+      {(game.status === 'redeal' || (game.redeals.length > 0 && !hideRedeals)) && (
         <div className="redeal-banner">
-          <h3>🁡 Redistribution !</h3>
+          <h3>{game.status === 'redeal' ? '🁡 Donne annulée !' : '🁡 Redistribution !'}</h3>
           {game.redeals.map((redeal, i) => (
             <div key={i} className="redeal-item">
               <p>
@@ -191,9 +193,19 @@ export function Game({
               </div>
             </div>
           ))}
-          <button className="btn sm" onClick={() => setHideRedeals(true)}>
-            OK, on joue !
-          </button>
+          {game.status === 'redeal' ? (
+            room.members.find((m) => m.id === selfId)?.isHost ? (
+              <button className="btn" onClick={onRedeal}>
+                🔀 Redistribuer
+              </button>
+            ) : (
+              <p className="empty">En attente que l’hôte redistribue…</p>
+            )
+          ) : (
+            <button className="btn sm" onClick={() => setHideRedeals(true)}>
+              OK, on joue !
+            </button>
+          )}
         </div>
       )}
 
@@ -233,7 +245,11 @@ export function Game({
               className={`felt-hint ${activeTile ? 'drop-target' : ''}`}
               data-drop-end={activeTile ? 'right' : undefined}
             >
-              {myTurn ? 'À toi l’ouverture !' : 'La table attend l’ouverture…'}
+              {game.status === 'redeal'
+                ? 'Donne annulée — redistribution à venir 🔀'
+                : myTurn
+                  ? 'À toi l’ouverture !'
+                  : 'La table attend l’ouverture…'}
             </p>
           ) : (
             u > 0 && (
@@ -345,7 +361,9 @@ export function Game({
             )}
           </div>
           <p className={`turn-hint ${myTurn ? 'live' : ''}`}>
-            {game.status === 'finished'
+            {game.status === 'redeal'
+              ? 'Donne annulée — redistribution en attente 🔀'
+              : game.status === 'finished'
               ? 'Manche terminée'
               : myTurn
                 ? selected

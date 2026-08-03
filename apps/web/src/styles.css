@@ -623,6 +623,10 @@ body::before {
   white-space: nowrap;
 }
 
+.slam-fx.pass-fx {
+  color: #9fd4ff;
+}
+
 @keyframes slam-pop {
   0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
   18% { transform: translate(-50%, -50%) scale(1.25); opacity: 1; }

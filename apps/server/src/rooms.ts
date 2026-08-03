@@ -153,7 +153,9 @@ function matchInProgress(room: Room): boolean {
 
 export function setRules(room: Room, memberId: string, raw: unknown): void {
   if (memberId !== room.hostId) throw new RoomError('Seul l’hôte peut changer les règles')
-  if (room.status === 'playing') throw new RoomError('Manche en cours, attends la fin')
+  if (room.status === 'playing' || room.status === 'redeal') {
+    throw new RoomError('Manche en cours, attends la fin')
+  }
   const r = (raw ?? {}) as Partial<GameRules>
   const targetScore =
     r.targetScore === null || r.targetScore === undefined ? null : Number(r.targetScore)
@@ -174,7 +176,7 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
   if (instantWinScore !== null && (!Number.isInteger(instantWinScore) || instantWinScore < 1 || instantWinScore > 1000)) {
     throw new RoomError('Seuil de victoire éclair invalide (1 à 1000 points)')
   }
-  const swapCount = Number(r.swapCount ?? 1)
+  const swapCount = Number(r.swapCount ?? 0)
   if (!Number.isInteger(swapCount) || swapCount < 0 || swapCount > 3) {
     throw new RoomError('Nombre de remplacés par manche invalide (0 à 3)')
   }
@@ -194,7 +196,9 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
 }
 
 export function takeSeat(room: Room, memberId: string): void {
-  if (room.status === 'playing') throw new RoomError('Manche en cours, attends la fin')
+  if (room.status === 'playing' || room.status === 'redeal') {
+    throw new RoomError('Manche en cours, attends la fin')
+  }
   if (matchInProgress(room)) throw new RoomError('Match en cours — la table est figée jusqu’au vainqueur')
   if (room.seats.includes(memberId)) return
   if (room.seats.length >= MAX_SEATS) throw new RoomError('Tous les sièges sont pris (4 max)')
@@ -203,7 +207,9 @@ export function takeSeat(room: Room, memberId: string): void {
 }
 
 export function leaveSeat(room: Room, memberId: string): void {
-  if (room.status === 'playing') throw new RoomError('Manche en cours, attends la fin')
+  if (room.status === 'playing' || room.status === 'redeal') {
+    throw new RoomError('Manche en cours, attends la fin')
+  }
   if (matchInProgress(room)) throw new RoomError('Match en cours — la table est figée jusqu’au vainqueur')
   if (!room.seats.includes(memberId)) return
   room.seats = room.seats.filter((id) => id !== memberId)
@@ -216,7 +222,9 @@ export function leaveSeat(room: Room, memberId: string): void {
  */
 export function promoteToSeat(room: Room, hostId: string, rawMemberId: unknown): void {
   if (hostId !== room.hostId) throw new RoomError('Seul l’hôte peut ajouter un joueur à la table')
-  if (room.status === 'playing') throw new RoomError('Attends la fin de la manche')
+  if (room.status === 'playing' || room.status === 'redeal') {
+    throw new RoomError('Attends la fin de la manche')
+  }
   if (typeof rawMemberId !== 'string' || !room.members.has(rawMemberId)) {
     throw new RoomError('Membre introuvable')
   }
@@ -250,18 +258,11 @@ export function restartRoom(room: Room, hostId: string, rawPromoteId?: unknown):
   }
 }
 
-export function startGame(room: Room, memberId: string): void {
-  if (memberId !== room.hostId) throw new RoomError('Seul l’hôte peut lancer la manche')
-  if (room.status === 'playing') throw new RoomError('Une manche est déjà en cours')
-  if (room.seats.length < MIN_SEATS) throw new RoomError('Il faut au moins 2 joueurs assis')
-  // Le match précédent est terminé : on repart de zéro avec la table actuelle.
-  if (room.matchWinnerId !== null) {
-    room.scores = new Map()
-    room.matchWinnerId = null
-    room.roundIndex = 0
-    room.lastStarterSeatIndex = null
-  }
-
+/**
+ * Distribue une nouvelle donne pour la table actuelle. Si la donne tombe sur
+ * 4-5 doubles, la partie passe en pause 'redeal' (l'hôte devra redistribuer).
+ */
+function dealNewGame(room: Room): void {
   // Ouverture tournante : 1re manche désignée par le plus petit double,
   // puis l'ouverture tourne de gauche à droite avec plafond de points.
   const opening =
@@ -275,12 +276,44 @@ export function startGame(room: Room, memberId: string): void {
           } as const)
 
   room.game = createGame(room.seats, randomInt(2 ** 31), room.rules, opening)
+  room.lastWinnerId = null
+  if (room.game.status === 'redeal') {
+    room.status = 'redeal'
+    return
+  }
   room.lastStarterSeatIndex = room.game.turn
   room.roundIndex += 1
   room.status = 'playing'
-  room.lastWinnerId = null
   // Victoire immédiate aux doubles (6-7 dans une main) : la manche naît déjà finie.
   if (room.game.status === 'finished') settleRoundEnd(room)
+}
+
+export function startGame(room: Room, memberId: string): void {
+  if (memberId !== room.hostId) throw new RoomError('Seul l’hôte peut lancer la manche')
+  if (room.status === 'playing' || room.status === 'redeal') {
+    throw new RoomError('Une manche est déjà en cours')
+  }
+  if (room.seats.length < MIN_SEATS) throw new RoomError('Il faut au moins 2 joueurs assis')
+  // Le match précédent est terminé : on repart de zéro avec la table actuelle.
+  if (room.matchWinnerId !== null) {
+    room.scores = new Map()
+    room.matchWinnerId = null
+    room.roundIndex = 0
+    room.lastStarterSeatIndex = null
+  }
+  dealNewGame(room)
+}
+
+/** L'hôte redistribue après une donne annulée (4-5 doubles). */
+export function redealNow(room: Room, memberId: string): void {
+  if (memberId !== room.hostId) throw new RoomError('Seul l’hôte peut redistribuer')
+  if (room.status !== 'redeal' || !room.game) {
+    throw new RoomError('Aucune redistribution en attente')
+  }
+  const priorRedeals = room.game.redeals
+  dealNewGame(room)
+  // L'historique des donnes annulées reste visible pour toute la manche.
+  room.game!.redeals = [...priorRedeals, ...room.game!.redeals]
 }
 
 export function playMove(room: Room, memberId: string, move: Move): void {
@@ -369,7 +402,10 @@ export function removeMember(room: Room, memberId: string): { empty: boolean; ab
   if (!room.members.has(memberId)) return { empty: room.members.size === 0, aborted: false }
 
   let aborted = false
-  if (room.status === 'playing' && gameRole(room, memberId) === 'player') {
+  if (
+    (room.status === 'playing' || room.status === 'redeal') &&
+    gameRole(room, memberId) === 'player'
+  ) {
     room.game = null
     room.status = 'lobby'
     room.lastWinnerId = null
