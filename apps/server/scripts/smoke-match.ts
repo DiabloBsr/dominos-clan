@@ -1,11 +1,10 @@
 /**
  * Smoke-test du MODE MATCH contre un serveur déjà démarré.
  *
- * Scénario : 3 membres — 2 à table, 1 en file. Règles : match en 500 pts
- * (personne ne l'atteint en une manche), pas d'éclair. On joue une manche
- * jusqu'au bout et on vérifie la bascule de file : le plus petit score
- * (jamais le gagnant) cède sa place au premier de la file, part en fin de
- * file, et garde son score.
+ * Scénario : 3 membres — 2 à table, 1 en file. Règles : victoire éclair à 1
+ * point → la première manche gagnée remporte le match. On vérifie que la
+ * table reste fixe pendant le match et que l'échange avec la file se fait
+ * À LA VICTOIRE : le vainqueur reste, la file monte, le perdant part en file.
  */
 import { io, type Socket } from 'socket.io-client'
 import type { GameView, RoomView } from '@dominos-clan/engine'
@@ -76,15 +75,14 @@ async function main(): Promise<void> {
 
   // Carol passe en file : table à 2, une personne attend.
   await emitAck(carol.socket, 'seat:leave', {})
-  // Match long (500) sans éclair : la manche ne conclut pas le match.
-  // swapCount: 1 explicite — le défaut (0) fige la table pendant le match.
+  // Victoire éclair à 1 pt : toute manche gagnée (non nulle) remporte le match.
   await emitAck(alice.socket, 'room:rules', {
     targetScore: 500,
     openThreshold: 0,
     freePass: false,
     openingMaxPips: null,
-    instantWinScore: null,
-    swapCount: 1,
+    instantWinScore: 1,
+    maxSeats: 3,
   })
   await sleep(120)
 
@@ -120,8 +118,9 @@ async function main(): Promise<void> {
     const loser = seatsBefore.find((id) => id !== winner)!
     // Le gagnant reste, Carol prend le siège du plus petit score (le perdant),
     // le perdant part en fin de file.
+    if (room.matchWinnerId !== winner) throw new Error('le match aurait dû être remporté (éclair à 1 pt)')
     if (!room.seats.includes(winner)) throw new Error('le gagnant a été évincé !')
-    if (!room.seats.includes(carol.selfId)) throw new Error('Carol aurait dû entrer en jeu')
+    if (!room.seats.includes(carol.selfId)) throw new Error('Carol aurait dû entrer à la victoire')
     if (room.queue.join(',') !== loser) {
       throw new Error(`le perdant ${loser} devrait être seul en file (file=${room.queue.join(',')})`)
     }
@@ -146,7 +145,7 @@ async function main(): Promise<void> {
       )
     }
     console.log(
-      `SMOKE MATCH OK ✔ gagnant ${winner} (+${result.gain} pts, score ${winnerScore}), Carol à table, perdant en file, ajout à la table ✔, remise à zéro ✔`,
+      `SMOKE MATCH OK ✔ match remporté par ${winner} (+${result.gain} pts) → échange à la victoire : Carol à table, perdant en file ✔, ajout à la table ✔, remise à zéro ✔`,
     )
   }
   clients.forEach((c) => c.socket.close())

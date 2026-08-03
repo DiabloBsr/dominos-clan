@@ -31,7 +31,7 @@ function craftState(partial: {
       freePass: false,
       openingMaxPips: null,
       instantWinScore: null,
-      swapCount: 0,
+      maxSeats: 3,
       ...partial.rules,
     },
     players: Object.entries(partial.hands).map(([id, hand]) => ({ id, hand })),

@@ -297,11 +297,11 @@ body::before {
 
 .members-strip {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.4rem;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.45rem;
 }
 
+/* Libellé à largeur fixe + chips uniformes : les noms restent alignés, fini le zigzag. */
 .member-group {
   display: flex;
   align-items: center;
@@ -315,15 +315,45 @@ body::before {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted);
+  flex: 0 0 5.2rem;
 }
 
 .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 2rem;
+  line-height: 1;
   background: rgba(247, 242, 231, 0.08);
   border: 1px solid rgba(247, 242, 231, 0.1);
   border-radius: 999px;
-  padding: 0.25rem 0.7rem;
+  padding: 0 0.7rem;
   font-size: 0.85rem;
   font-weight: 700;
+  white-space: nowrap;
+}
+
+.chip-n {
+  color: var(--muted);
+  font-size: 0.72rem;
+  min-width: 0.7rem;
+  text-align: right;
+}
+
+.chip-avatar {
+  width: 1.15rem;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.chip-name {
+  max-width: 8.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip-ic {
+  font-size: 0.85rem;
 }
 
 .chip.you {

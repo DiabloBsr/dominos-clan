@@ -238,6 +238,10 @@ export default function App() {
 
   const acceptInvite = () => {
     if (!invite) return
+    if (!profile.pseudo.trim()) {
+      showNotice('Choisis d’abord ton pseudo pour rejoindre 😉')
+      return
+    }
     const code = invite.code
     setInvite(null)
     if (room) leaveRoomLocal()

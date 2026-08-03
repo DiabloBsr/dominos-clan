@@ -210,10 +210,12 @@ export function Room({
                 room.members.find((m) => m.id === id)?.connected === false ? 'off' : ''
               } ${voice.state.speaking.includes(id) ? 'speaking' : ''}`}
             >
-              {i + 1}. {avatarOf(room, id)} {pseudoOf(room, id)}
-              {voice.state.inVoice.includes(id) ? ' 🎙' : ''}
-              {room.members.find((m) => m.id === id)?.isHost ? ' ⭐' : ''}
-              {room.lastWinnerId === id ? ' 👑' : ''}
+              <span className="chip-n">{i + 1}</span>
+              <span className="chip-avatar">{avatarOf(room, id)}</span>
+              <span className="chip-name">{pseudoOf(room, id)}</span>
+              {voice.state.inVoice.includes(id) && <span className="chip-ic">🎙</span>}
+              {room.members.find((m) => m.id === id)?.isHost && <span className="chip-ic">⭐</span>}
+              {room.lastWinnerId === id && <span className="chip-ic">👑</span>}
             </span>
           ))}
           {room.seats.length === 0 && <span className="empty">personne…</span>}
@@ -227,9 +229,11 @@ export function Room({
                 voice.state.speaking.includes(id) ? 'speaking' : ''
               }`}
             >
-              {i + 1}. {avatarOf(room, id)} {pseudoOf(room, id)}
-              {voice.state.inVoice.includes(id) ? ' 🎙' : ''}
-              {isHost && room.status !== 'playing' && room.seats.length < 4 && (
+              <span className="chip-n">{i + 1}</span>
+              <span className="chip-avatar">{avatarOf(room, id)}</span>
+              <span className="chip-name">{pseudoOf(room, id)}</span>
+              {voice.state.inVoice.includes(id) && <span className="chip-ic">🎙</span>}
+              {isHost && room.status !== 'playing' && room.seats.length < room.rules.maxSeats && (
                 <button
                   className="chip-add"
                   title="Ajouter ce joueur à la table (manche suivante)"
@@ -238,7 +242,7 @@ export function Room({
                   ＋
                 </button>
               )}
-              {isHost && room.status === 'playing' && room.seats.length < 4 && (
+              {isHost && room.status === 'playing' && room.seats.length < room.rules.maxSeats && (
                 <button
                   className="chip-add"
                   title="L’ajouter à la table et tout recommencer à zéro (manche et scores perdus)"
@@ -264,6 +268,17 @@ export function Room({
       {room.status !== 'playing' && (
         <div className="rules-bar">
           <span className="group-label">⚙️ Règles</span>
+          <select
+            className="voice-audience"
+            disabled={!isHost}
+            value={String(room.rules.maxSeats)}
+            title="Nombre de joueurs à table"
+            onChange={(e) => onRules({ ...room.rules, maxSeats: Number(e.target.value) })}
+          >
+            <option value="2">Table à 2</option>
+            <option value="3">Table à 3</option>
+            <option value="4">Table à 4</option>
+          </select>
           <select
             className="voice-audience"
             disabled={!isHost}
@@ -318,26 +333,6 @@ export function Room({
                       instantWinScore: v <= 0 ? null : Math.min(1000, v),
                     })
                   }}
-                />
-              </label>
-              <label
-                className="rules-num"
-                title="Combien de joueurs sortent à chaque fin de manche si la file attend — toujours les plus petits scores, jamais le gagnant. À 3 joueurs : 2 = seul le gagnant reste."
-              >
-                remplacés/manche
-                <input
-                  key={`w-${room.rules.swapCount}`}
-                  type="number"
-                  min={0}
-                  max={3}
-                  disabled={!isHost}
-                  defaultValue={room.rules.swapCount}
-                  onBlur={(e) =>
-                    onRules({
-                      ...room.rules,
-                      swapCount: Math.max(0, Math.min(3, Number(e.target.value) || 0)),
-                    })
-                  }
                 />
               </label>
               <label className="rules-num" title="La première marque ne compte que si elle atteint ce seuil ; ensuite tout compte">
@@ -461,7 +456,7 @@ export function Room({
               : room.matchWinnerId
                 ? 'La table tourne pour le prochain match : le champion reste, la file monte.'
                 : room.rules.targetScore !== null
-                  ? 'Le match continue — si la file attend, les plus petits scores cèdent leur place.'
+                  ? 'Le match continue — même table jusqu’à la victoire (la file entrera au prochain match).'
                   : 'La table a tourné : le gagnant reste, la file monte.'}
           </p>
           {isHost && (

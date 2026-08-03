@@ -7,7 +7,6 @@ import {
   applyMove,
   createGame,
   rotateWinnerStays,
-  swapLowestScores,
   undoLastMove,
 } from '@dominos-clan/engine'
 import type { GameRules, GameState, Move, Role, RoomStatus, RoomView } from '@dominos-clan/engine'
@@ -134,7 +133,7 @@ export function joinRoom(
   }
   room.members.set(member.id, member)
   // Une partie en cours (ou un salon déjà plein en sièges) → on arrive spectateur.
-  if (room.status === 'lobby' && room.seats.length < MAX_SEATS) {
+  if (room.status === 'lobby' && room.seats.length < room.rules.maxSeats) {
     room.seats.push(member.id)
   } else {
     room.queue.push(member.id)
@@ -176,9 +175,9 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
   if (instantWinScore !== null && (!Number.isInteger(instantWinScore) || instantWinScore < 1 || instantWinScore > 1000)) {
     throw new RoomError('Seuil de victoire éclair invalide (1 à 1000 points)')
   }
-  const swapCount = Number(r.swapCount ?? 0)
-  if (!Number.isInteger(swapCount) || swapCount < 0 || swapCount > 3) {
-    throw new RoomError('Nombre de remplacés par manche invalide (0 à 3)')
+  const maxSeats = Number(r.maxSeats ?? 3)
+  if (!Number.isInteger(maxSeats) || maxSeats < 2 || maxSeats > MAX_SEATS) {
+    throw new RoomError('Taille de table invalide (2 à 4 joueurs)')
   }
   room.rules = {
     targetScore,
@@ -186,7 +185,11 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
     freePass: Boolean(r.freePass),
     openingMaxPips,
     instantWinScore,
-    swapCount,
+    maxSeats,
+  }
+  // Table réduite : les sièges en trop repartent en tête de file.
+  while (room.seats.length > maxSeats) {
+    room.queue.unshift(room.seats.pop()!)
   }
   // Changer les règles relance une rencontre propre.
   room.scores = new Map()
@@ -201,7 +204,9 @@ export function takeSeat(room: Room, memberId: string): void {
   }
   if (matchInProgress(room)) throw new RoomError('Match en cours — la table est figée jusqu’au vainqueur')
   if (room.seats.includes(memberId)) return
-  if (room.seats.length >= MAX_SEATS) throw new RoomError('Tous les sièges sont pris (4 max)')
+  if (room.seats.length >= room.rules.maxSeats) {
+    throw new RoomError(`Tous les sièges sont pris (table à ${room.rules.maxSeats})`)
+  }
   room.queue = room.queue.filter((id) => id !== memberId)
   room.seats.push(memberId)
 }
@@ -229,7 +234,9 @@ export function promoteToSeat(room: Room, hostId: string, rawMemberId: unknown):
     throw new RoomError('Membre introuvable')
   }
   if (!room.queue.includes(rawMemberId)) throw new RoomError('Ce membre n’est pas dans la file')
-  if (room.seats.length >= MAX_SEATS) throw new RoomError('La table est pleine (4 max)')
+  if (room.seats.length >= room.rules.maxSeats) {
+    throw new RoomError(`La table est pleine (table à ${room.rules.maxSeats})`)
+  }
   room.queue = room.queue.filter((id) => id !== rawMemberId)
   room.seats.push(rawMemberId)
 }
@@ -251,7 +258,7 @@ export function restartRoom(room: Room, hostId: string, rawPromoteId?: unknown):
   if (
     typeof rawPromoteId === 'string' &&
     room.queue.includes(rawPromoteId) &&
-    room.seats.length < MAX_SEATS
+    room.seats.length < room.rules.maxSeats
   ) {
     room.queue = room.queue.filter((id) => id !== rawPromoteId)
     room.seats.push(rawPromoteId)
@@ -369,17 +376,8 @@ function settleRoundEnd(room: Room): void {
       return
     }
 
-    // Le match continue. Si la file attend : les `swapCount` plus petits
-    // scores cèdent leur place (jamais le gagnant) et gardent leurs points.
-    const swapped = swapLowestScores(
-      room.seats,
-      room.queue,
-      Object.fromEntries(room.scores),
-      result.winnerId,
-      room.rules.swapCount,
-    )
-    room.seats = swapped.seats
-    room.queue = swapped.queue
+    // Le match continue : la table reste FIXE jusqu'à la victoire —
+    // l'échange avec la file ne se fait qu'au vainqueur du match.
     return
   }
 

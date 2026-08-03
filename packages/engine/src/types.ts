@@ -43,14 +43,8 @@ export interface GameRules {
    * immédiatement. null = désactivé.
    */
   instantWinScore: number | null
-  /**
-   * Mode match : nombre de joueurs remplacés par la file à chaque fin de
-   * manche (les plus petits scores, jamais le gagnant). 0 (défaut) = la table
-   * reste fixe pendant tout le match ; l'échange avec la file se fait
-   * automatiquement à la victoire du match. Ex. à 3 joueurs : 1 = le plus
-   * petit score sort ; 2 = seul le gagnant reste.
-   */
-  swapCount: number
+  /** Nombre de joueurs à table (2 à 4). Défaut : 3 — on joue toujours à 3. */
+  maxSeats: number
 }
 
 export const DEFAULT_RULES: GameRules = {
@@ -59,7 +53,7 @@ export const DEFAULT_RULES: GameRules = {
   freePass: false,
   openingMaxPips: null,
   instantWinScore: null,
-  swapCount: 0,
+  maxSeats: 3,
 }
 
 export interface RoundResult {
