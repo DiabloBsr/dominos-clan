@@ -250,6 +250,7 @@ export default function App() {
         showNotice(res.ok ? 'Invitation envoyée ✔' : res.error),
       ),
     onSit: () => simpleEmit('seat:take'),
+    onPromote: (memberId: string) => simpleEmit('seat:promote', { memberId }),
     onStand: () => simpleEmit('seat:leave'),
     onStart: () => simpleEmit('game:start'),
     onMove: (move: Move, slam?: boolean) => simpleEmit('game:move', { move, slam: slam === true }),

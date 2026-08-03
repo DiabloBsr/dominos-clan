@@ -210,6 +210,22 @@ export function leaveSeat(room: Room, memberId: string): void {
   room.queue.push(memberId)
 }
 
+/**
+ * L'hôte ajoute un joueur de la file à la table (entre deux manches),
+ * même en plein match — la table peut ainsi passer de 2-3 à 4 joueurs.
+ */
+export function promoteToSeat(room: Room, hostId: string, rawMemberId: unknown): void {
+  if (hostId !== room.hostId) throw new RoomError('Seul l’hôte peut ajouter un joueur à la table')
+  if (room.status === 'playing') throw new RoomError('Attends la fin de la manche')
+  if (typeof rawMemberId !== 'string' || !room.members.has(rawMemberId)) {
+    throw new RoomError('Membre introuvable')
+  }
+  if (!room.queue.includes(rawMemberId)) throw new RoomError('Ce membre n’est pas dans la file')
+  if (room.seats.length >= MAX_SEATS) throw new RoomError('La table est pleine (4 max)')
+  room.queue = room.queue.filter((id) => id !== rawMemberId)
+  room.seats.push(rawMemberId)
+}
+
 export function startGame(room: Room, memberId: string): void {
   if (memberId !== room.hostId) throw new RoomError('Seul l’hôte peut lancer la manche')
   if (room.status === 'playing') throw new RoomError('Une manche est déjà en cours')

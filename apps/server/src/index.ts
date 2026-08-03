@@ -17,6 +17,7 @@ import {
   joinRoom,
   leaveSeat,
   playMove,
+  promoteToSeat,
   removeMember,
   roomView,
   sanitizeChatText,
@@ -169,6 +170,14 @@ io.on('connection', (socket: Socket) => {
     handle(ack, () => {
       const { room, memberId } = withRoom(state)
       leaveSeat(room, memberId)
+      broadcast(room)
+    }),
+  )
+
+  socket.on('seat:promote', (payload: { memberId?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      promoteToSeat(room, memberId, payload?.memberId)
       broadcast(room)
     }),
   )

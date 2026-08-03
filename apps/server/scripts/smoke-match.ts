@@ -120,8 +120,16 @@ async function main(): Promise<void> {
     if (winnerScore !== result.gain) {
       throw new Error(`score du gagnant attendu ${result.gain}, reçu ${winnerScore}`)
     }
+    // L'hôte ajoute le perdant (en file) à la table en plein match → table à 3.
+    await emitAck(alice.socket, 'seat:promote', { memberId: loser })
+    await sleep(120)
+    if (alice.room!.seats.length !== 3 || alice.room!.queue.length !== 0) {
+      throw new Error(
+        `seat:promote cassé : sièges=${alice.room!.seats.join(',')} file=${alice.room!.queue.join(',')}`,
+      )
+    }
     console.log(
-      `SMOKE MATCH OK ✔ gagnant ${winner} (+${result.gain} pts, score ${winnerScore}), Carol à table, perdant en file`,
+      `SMOKE MATCH OK ✔ gagnant ${winner} (+${result.gain} pts, score ${winnerScore}), Carol à table, perdant en file, puis ajouté à la table (3 joueurs) ✔`,
     )
   }
   clients.forEach((c) => c.socket.close())

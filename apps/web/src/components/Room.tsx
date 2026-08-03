@@ -27,6 +27,7 @@ export function Room({
   slamFx,
   onInvite,
   onSit,
+  onPromote,
   onStand,
   onStart,
   onMove,
@@ -47,6 +48,7 @@ export function Room({
   slamFx: { key: number; pseudo: string } | null
   onInvite: (toUserId: string) => void
   onSit: () => void
+  onPromote: (memberId: string) => void
   onStand: () => void
   onStart: () => void
   onMove: (move: Move, slam?: boolean) => void
@@ -204,6 +206,15 @@ export function Room({
             >
               {i + 1}. {avatarOf(room, id)} {pseudoOf(room, id)}
               {voice.state.inVoice.includes(id) ? ' 🎙' : ''}
+              {isHost && room.status !== 'playing' && room.seats.length < 4 && (
+                <button
+                  className="chip-add"
+                  title="Ajouter ce joueur à la table (manche suivante)"
+                  onClick={() => onPromote(id)}
+                >
+                  ＋
+                </button>
+              )}
             </span>
           ))}
           {room.queue.length === 0 && <span className="empty">vide</span>}
