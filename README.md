@@ -43,7 +43,7 @@ Exemple : 6 potes dans le salon, 3 jouent un 1v1v1, les 3 autres regardent (et c
 ### ⚙️ Préréglages (choisis par l'hôte, avant la manche)
 
 - **Manche sèche** (défaut) : une manche, un gagnant, rotation immédiate.
-- **Match aux points** : le gagnant de chaque manche encaisse la somme des mains adverses ; **premier à la cible** (défaut 80, réglable 10-1000) remporte le match. La table est figée pendant le match ; la rotation se fait au match suivant.
+- **Match aux points** : le gagnant de chaque manche encaisse la somme des mains adverses ; **premier à la cible** (défaut 80, réglable 10-1000) remporte le match. On peut **rejoindre le salon en pleine partie** (on arrive en fin de file) ; entre deux manches, si la file attend, **le plus petit score cède sa place** au premier de la file (jamais le gagnant de la manche — l'évincé garde son score pour son retour). La rotation complète se fait au match suivant.
 - **Seuil de première marque** : la toute première marque d'un joueur ne compte que si elle atteint le seuil ; ensuite, même 1 point compte.
 - **Passe libre** : autorise de passer même avec un domino jouable.
 - **Ouverture tournante** : la 1re manche de la rencontre est ouverte par le détenteur du **plus petit double** (on cherche le 0-0, sinon le 1-1… jusqu'au 6-6 ; à défaut, ouverture classique), qui doit le poser. Ensuite l'ouverture **tourne de gauche à droite** autour de la table (indépendamment du gagnant), et l'ouvreur doit poser un domino dont le **total de points ≤ N** (réglable 0-12, défaut 6) — s'il n'en a pas, il pose son domino le plus léger.

@@ -287,8 +287,22 @@ function settleRoundEnd(room: Room): void {
       const rotated = rotateWinnerStays(room.seats, room.queue, result.winnerId)
       room.seats = rotated.seats
       room.queue = rotated.queue
+      return
     }
-    // Sinon : même table, le match continue.
+
+    // Le match continue. Si la file attend : le plus petit score cède sa
+    // place au premier de la file (jamais le gagnant de la manche) ; il
+    // part en fin de file et garde son score pour son retour.
+    if (room.queue.length > 0) {
+      const candidates = room.seats.filter((id) => id !== result.winnerId)
+      let evicted = candidates[0]!
+      for (const id of candidates) {
+        if ((room.scores.get(id) ?? 0) < (room.scores.get(evicted) ?? 0)) evicted = id
+      }
+      const incoming = room.queue.shift()!
+      room.seats = room.seats.map((id) => (id === evicted ? incoming : id))
+      room.queue.push(evicted)
+    }
     return
   }
 

@@ -7,6 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "smoke": "tsx scripts/smoke.ts",
+    "smoke:match": "tsx scripts/smoke-match.ts",
     "check:livekit": "tsx scripts/check-livekit.ts",
     "probe:voice": "tsx scripts/probe-voice.ts",
     "typecheck": "tsc --noEmit"

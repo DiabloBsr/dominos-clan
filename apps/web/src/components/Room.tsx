@@ -388,7 +388,7 @@ export function Room({
               : room.matchWinnerId
                 ? 'La table tourne pour le prochain match : le champion reste, la file monte.'
                 : room.rules.targetScore !== null
-                  ? 'Le match continue — même table.'
+                  ? 'Le match continue — si la file attend, le plus petit score cède sa place.'
                   : 'La table a tourné : le gagnant reste, la file monte.'}
           </p>
           {isHost && (

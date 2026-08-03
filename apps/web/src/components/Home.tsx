@@ -78,7 +78,7 @@ export function Home({
             className="input"
             value={profile.pseudo}
             maxLength={20}
-            placeholder="ex. Samy le Boss"
+            placeholder="ex. Diablo, Bokolo, Del's"
             onChange={(e) => onProfile({ ...profile, pseudo: e.target.value })}
           />
         </label>
