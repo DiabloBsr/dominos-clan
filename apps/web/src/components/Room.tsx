@@ -474,7 +474,7 @@ export function Room({
 
       {slamFx && (
         <div className="slam-fx" key={slamFx.key}>
-          💥 <b>{slamFx.pseudo}</b> JOYAAA&nbsp;!
+          💥 JOYAAAA&nbsp;!
         </div>
       )}
 
