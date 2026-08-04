@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { GameRules } from '@dominos-clan/engine'
 import { DominoTile } from './DominoTile'
+import { ConfirmBox, type ConfirmRequest } from './ConfirmBox'
 import {
   AVATARS,
   STATUS_LABELS,
@@ -57,6 +58,7 @@ export function Home({
   const [copied, setCopied] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [gamePanel, setGamePanel] = useState<GameRules['gameType'] | null>(null)
+  const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null)
 
   const ready = profile.pseudo.trim().length > 0
 
@@ -253,15 +255,13 @@ export function Home({
                     <button
                       className="icon-btn tiny"
                       title="Retirer cet ami"
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `Retirer ${friendLabel(f)} de tes amis ? Il faudra ré-échanger vos codes pour le retrouver.`,
-                          )
-                        ) {
-                          onRemoveFriend(f.id)
-                        }
-                      }}
+                      onClick={() =>
+                        setConfirmReq({
+                          message: `Retirer ${friendLabel(f)} de tes amis ? Il faudra ré-échanger vos codes pour le retrouver.`,
+                          yesLabel: 'Retirer',
+                          onYes: () => onRemoveFriend(f.id),
+                        })
+                      }
                     >
                       ✕
                     </button>
@@ -300,6 +300,8 @@ export function Home({
           <DominoTile a={3} b={5} vertical />
         </span>
       </div>
+
+      <ConfirmBox req={confirmReq} onClose={() => setConfirmReq(null)} />
     </main>
   )
 }

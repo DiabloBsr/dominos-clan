@@ -125,6 +125,27 @@ async function main(): Promise<void> {
   }
   console.log('✅ swap : joueur assis échangé avec un joueur de la file')
 
+  // 5) Mise en spectateur : le chef renvoie un assis en file, plancher 2 sièges.
+  await emitAck(b, 'room:rules', { gameType: 'dominos', maxSeats: 3, targetScore: null })
+  await emitAck(b, 'seat:promote', { memberId: chefId })
+  await sleep(200)
+  vb = roomB as RoomView
+  if (vb.seats.length !== 3) fail(`demote : il faut 3 assis pour le test (seats=${vb.seats})`)
+  await emitAck(b, 'room:demote', { memberId: remplaId })
+  await sleep(200)
+  vb = roomB as RoomView
+  if (vb.seats.includes(remplaId) || !vb.queue.includes(remplaId)) {
+    fail(`demote : Rempla devrait être spectateur (seats=${vb.seats}, queue=${vb.queue})`)
+  }
+  try {
+    await emitAck(b, 'room:demote', { memberId: chefId })
+    await emitAck(b, 'room:demote', { memberId: poteId })
+    fail('demote : la table est passée sous 2 joueurs')
+  } catch {
+    /* attendu : on garde au moins 2 sièges */
+  }
+  console.log('✅ demote : assis renvoyé en spectateur, plancher de 2 sièges respecté')
+
   let kicked = false
   a.on('room:kicked', () => (kicked = true))
   try {

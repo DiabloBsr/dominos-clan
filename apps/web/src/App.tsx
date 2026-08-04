@@ -559,6 +559,7 @@ export default function App() {
     onTransferHost: (toId: string) => simpleEmit('room:transfer-host', { toId }),
     onKick: (memberId: string) => simpleEmit('room:kick', { memberId }),
     onSwap: (seatId: string, withId: string) => simpleEmit('room:swap', { seatId, withId }),
+    onDemote: (memberId: string) => simpleEmit('room:demote', { memberId }),
     onCloudSignIn: () => {
       signInWithGoogle().catch(() => showNotice('Connexion Google impossible — réessaie'))
     },

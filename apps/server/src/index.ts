@@ -18,6 +18,7 @@ import {
   chessMoveRoom,
   chessResignRoom,
   createRoom,
+  demoteToQueue,
   gameRole,
   getRoom,
   joinRoom,
@@ -320,6 +321,14 @@ io.on('connection', (socket: Socket) => {
     handle(ack, () => {
       const { room, memberId } = withRoom(state)
       swapSeat(room, memberId, payload?.seatId, payload?.withId)
+      broadcast(room)
+    }),
+  )
+
+  socket.on('room:demote', (payload: { memberId?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      demoteToQueue(room, memberId, payload?.memberId)
       broadcast(room)
     }),
   )

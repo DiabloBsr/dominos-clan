@@ -329,6 +329,25 @@ export function swapSeat(room: Room, hostId: string, rawSeatId: unknown, rawQueu
   room.queue = room.queue.map((id) => (id === rawQueueId ? (rawSeatId as string) : id))
 }
 
+/**
+ * Le chef renvoie un joueur assis en spectateur (fin de file), sans
+ * remplaçant — entre deux manches, et jamais en dessous de 2 sièges.
+ */
+export function demoteToQueue(room: Room, hostId: string, rawMemberId: unknown): void {
+  if (hostId !== room.hostId) throw new RoomError('Seul le chef peut mettre en spectateur')
+  if (room.status === 'playing' || room.status === 'redeal') {
+    throw new RoomError('Attends la fin de la manche')
+  }
+  if (typeof rawMemberId !== 'string' || !room.seats.includes(rawMemberId)) {
+    throw new RoomError('Ce membre n’est pas à table')
+  }
+  if (room.seats.length <= MIN_SEATS) {
+    throw new RoomError(`Il faut garder au moins ${MIN_SEATS} joueurs à table`)
+  }
+  room.seats = room.seats.filter((id) => id !== rawMemberId)
+  room.queue.push(rawMemberId)
+}
+
 /** L'hôte passe la couronne à un autre membre du salon (assis ou en file). */
 export function transferHost(room: Room, memberId: string, rawTargetId: unknown): void {
   if (memberId !== room.hostId) throw new RoomError('Seul le chef peut passer son rôle')

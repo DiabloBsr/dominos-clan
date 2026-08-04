@@ -2699,6 +2699,42 @@ section.game {
   gap: 0.5rem;
 }
 
+/* ─── Confirmation maison (remplace les window.confirm natifs) ──────── */
+
+.confirm-veil {
+  z-index: 95;
+}
+
+.confirm-box {
+  z-index: 96;
+  width: min(88vw, 22rem);
+  text-align: center;
+}
+
+.confirm-msg {
+  margin: 0.2rem 0 0.4rem;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.confirm-box .lobby-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.btn.danger {
+  background: linear-gradient(180deg, #e2574c, #b23a31);
+  border-color: rgba(0, 0, 0, 0.25);
+  color: #fff;
+}
+
+.btn.danger:hover {
+  filter: brightness(1.08);
+}
+
 /* ─── Sauvegarde en ligne (Google) ──────────────────────────────────── */
 
 .cloud-box {

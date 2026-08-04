@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChessView, GameRules, GameView, LudoState, Move, RoomView } from '@dominos-clan/engine'
 import { LudoBoard } from './LudoBoard'
+import { ConfirmBox, type ConfirmRequest } from './ConfirmBox'
 import type { ChatMessage, FloatingReaction } from '../App'
 import type { VoiceAudience, VoiceControls } from '../useVoice'
 import {
@@ -299,6 +300,7 @@ export function Room({
   onTransferHost,
   onKick,
   onSwap,
+  onDemote,
   onUndo,
   onRedeal,
   onChessMove,
@@ -334,6 +336,7 @@ export function Room({
   onTransferHost: (toId: string) => void
   onKick: (memberId: string) => void
   onSwap: (seatId: string, withId: string) => void
+  onDemote: (memberId: string) => void
   onUndo: () => void
   onRedeal: () => void
   onChessMove: (from: string, to: string, promotion?: string) => void
@@ -352,6 +355,10 @@ export function Room({
   const [draftRules, setDraftRules] = useState<GameRules>(room.rules)
   const [soundsOpen, setSoundsOpen] = useState(false)
   const [memberMenu, setMemberMenu] = useState<string | null>(null)
+  // Confirmation maison (popup centrée de l'app, plus de window.confirm natif).
+  const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null)
+  const ask = (message: string, yesLabel: string, onYes: () => void) =>
+    setConfirmReq({ message, yesLabel, onYes })
   // Bannière de résultat réduite : on mémorise l'objet résultat écarté —
   // une nouvelle manche produit un nouvel objet, la bannière revient seule.
   const [dismissedResult, setDismissedResult] = useState<unknown>(null)
@@ -490,30 +497,26 @@ export function Room({
           <button
             className="icon-btn"
             title="Tout remettre à zéro (manche et scores perdus)"
-            onClick={() => {
-              if (
-                window.confirm(
-                  'Tout remettre à zéro ? La manche en cours et tous les scores du match seront perdus.',
-                )
-              ) {
-                onRestart()
-              }
-            }}
+            onClick={() =>
+              ask(
+                'Tout remettre à zéro ? La manche en cours et tous les scores du match seront perdus.',
+                '🔄 Tout remettre à zéro',
+                () => onRestart(),
+              )
+            }
           >
             🔄
           </button>
         )}
         <button
           className="btn ghost sm leave-btn"
-          onClick={() => {
-            if (
-              window.confirm(
-                'Quitter le salon ? Tu perds ta place à table et le match en cours pour toi.',
-              )
-            ) {
-              onLeave()
-            }
-          }}
+          onClick={() =>
+            ask(
+              'Quitter le salon ? Tu perds ta place à table et le match en cours pour toi.',
+              '🚪 Quitter',
+              () => onLeave(),
+            )
+          }
         >
           🚪<span className="leave-label"> Quitter</span>
         </button>
@@ -574,15 +577,13 @@ export function Room({
                 <button
                   className="chip-add"
                   title="L’ajouter à la table et tout recommencer à zéro (manche et scores perdus)"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Ajouter ${pseudoOf(room, id)} à la table et tout recommencer ? La manche en cours et tous les scores seront perdus.`,
-                      )
-                    ) {
-                      onRestart(id)
-                    }
-                  }}
+                  onClick={() =>
+                    ask(
+                      `Ajouter ${pseudoOf(room, id)} à la table et tout recommencer ? La manche en cours et tous les scores seront perdus.`,
+                      '＋🔄 Ajouter et recommencer',
+                      () => onRestart(id),
+                    )
+                  }
                 >
                   ＋🔄
                 </button>
@@ -688,36 +689,62 @@ export function Room({
                         🔁 Échanger avec un joueur de la file
                       </button>
                     )}
+                    {targetSeated && !playing && room.seats.length > 2 && (
+                      <button
+                        className="btn ghost"
+                        onClick={() => {
+                          onDemote(target.id)
+                          close()
+                        }}
+                      >
+                        👀 Le mettre en spectateur
+                      </button>
+                    )}
+                    {!targetSeated &&
+                      !playing &&
+                      room.seats.length < room.rules.maxSeats && (
+                        <button
+                          className="btn ghost"
+                          onClick={() => {
+                            onPromote(target.id)
+                            close()
+                          }}
+                        >
+                          🎯 L’asseoir à table
+                        </button>
+                      )}
                     {targetSeated && playing && (
-                      <p className="hint">L’échange se fait entre deux manches.</p>
+                      <p className="hint">Échange et spectateur se font entre deux manches.</p>
                     )}
                     <button
                       className="btn ghost"
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `Passer le rôle de chef à ${target.pseudo} ? Tu ne pourras plus régler le salon.`,
-                          )
-                        ) {
-                          onTransferHost(target.id)
-                          close()
-                        }
-                      }}
+                      onClick={() =>
+                        ask(
+                          `Passer le rôle de chef à ${target.pseudo} ? Tu ne pourras plus régler le salon.`,
+                          '⭐ Le nommer chef',
+                          () => {
+                            onTransferHost(target.id)
+                            close()
+                          },
+                        )
+                      }
                     >
                       ⭐ Le nommer chef
                     </button>
                     <button
                       className="btn ghost danger"
-                      onClick={() => {
-                        const warning =
+                      onClick={() =>
+                        ask(
                           targetSeated && playing
                             ? `Enlever ${target.pseudo} du salon ? La manche en cours sera annulée.`
-                            : `Enlever ${target.pseudo} du salon ? Il devra re-rejoindre avec le code.`
-                        if (window.confirm(warning)) {
-                          onKick(target.id)
-                          close()
-                        }
-                      }}
+                            : `Enlever ${target.pseudo} du salon ? Il devra re-rejoindre avec le code.`,
+                          '🚪 Enlever',
+                          () => {
+                            onKick(target.id)
+                            close()
+                          },
+                        )
+                      }
                     >
                       🚪 Enlever du salon
                     </button>
@@ -967,6 +994,8 @@ export function Room({
           </form>
         </div>
       )}
+
+      <ConfirmBox req={confirmReq} onClose={() => setConfirmReq(null)} />
     </div>
   )
 }

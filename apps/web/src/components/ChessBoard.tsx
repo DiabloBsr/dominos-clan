@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Chess, type Square } from 'chess.js'
 import type { ChessColor, ChessView, RoomView } from '@dominos-clan/engine'
 import { ChessPiece, type PieceType } from './ChessPieces'
+import { ConfirmBox, type ConfirmRequest } from './ConfirmBox'
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 const INITIAL_COUNTS: Record<PieceType, number> = { p: 8, n: 2, b: 2, r: 2, q: 1, k: 1 }
@@ -52,6 +53,7 @@ export function ChessBoard({
   const flipped = myColor === 'b'
   const myTurn = myColor !== null && view.turn === myColor && view.status === 'playing'
   const [selected, setSelected] = useState<Square | null>(null)
+  const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null)
 
   useEffect(() => setSelected(null), [view.fen])
 
@@ -227,9 +229,13 @@ export function ChessBoard({
           </p>
           <button
             className="btn ghost sm"
-            onClick={() => {
-              if (window.confirm('Abandonner la partie ? Ton adversaire gagnera.')) onResign()
-            }}
+            onClick={() =>
+              setConfirmReq({
+                message: 'Abandonner la partie ? Ton adversaire gagnera.',
+                yesLabel: '🏳 Abandonner',
+                onYes: onResign,
+              })
+            }
           >
             🏳 Abandonner
           </button>
@@ -239,6 +245,8 @@ export function ChessBoard({
       {view.status === 'playing' && !myColor && (
         <p className="turn-hint">👀 Spectateur — trait aux {view.turn === 'w' ? 'blancs' : 'noirs'}</p>
       )}
+
+      <ConfirmBox req={confirmReq} onClose={() => setConfirmReq(null)} />
     </section>
   )
 }
