@@ -20,6 +20,7 @@ import {
 } from './chess'
 import {
   createLudo,
+  ludoLegalPawns,
   ludoPlay,
   ludoRoll,
   ludoTarget,
@@ -481,6 +482,13 @@ export function ludoRollRoom(room: Room, memberId: string): { player: number; va
   const player = room.ludoGame.players.findIndex((p) => p.id === memberId)
   const value = randomInt(1, 7)
   ludoRoll(room.ludoGame, memberId, value)
+  // UN SEUL pion jouable → il avance tout seul, sans sélection (la sélection
+  // n'apparaît qu'à partir de 2 pions possibles).
+  const g = room.ludoGame
+  if (g.status === 'playing' && g.dice !== null && g.pendingBonus === null) {
+    const legal = ludoLegalPawns(g, player)
+    if (legal.length === 1) ludoPlay(g, memberId, legal[0]!, serverRand)
+  }
   settleLudoEnd(room)
   // La valeur tirée part en événement dédié : quand rien n'est jouable, le
   // moteur consomme le dé et passe le tour DANS le même broadcast — sans

@@ -48,6 +48,15 @@ const START_ARROWS = [0, 90, 180, 270]
  *  coin haut-gauche rouge, haut-droit vert, bas-droit jaune, bas-gauche bleu. */
 export const LUDO_COLORS = ['#e02b2b', '#28a24c', '#f5c518', '#1f7fe0']
 
+/** Cris de chambrage à la capture — tiré au hasard, plein écran. */
+const CAPTURE_TAUNTS = [
+  '😂 AO ZAO EEEE !',
+  '🤣 MIPIAKY !',
+  '😆 REKO AHAHAHA !',
+  '💀 AO ZAO EEEE HAHAHA !',
+  '😈 MIPIAKY IZANY !',
+]
+
 /** Logo + libellé de chaque type de bonus — discernable d'un coup d'œil. */
 const BONUS_ICONS: Record<string, { icon: string; label: string }> = {
   reroll: { icon: '🎲', label: 'Deuxième lancer' },
@@ -268,6 +277,21 @@ export function LudoBoard({
         if (prev && prev.zone === 'track' && pawn.zone === 'base') capturedKeys.push(`${pi}-${pwi}`)
       }),
     )
+    if (capturedKeys.length > 0) {
+      captureKey.current += 1
+      setCaptureFx({
+        key: captureKey.current,
+        text: CAPTURE_TAUNTS[Math.floor(Math.random() * CAPTURE_TAUNTS.length)]!,
+      })
+      const key = captureKey.current
+      setTimeout(() => setCaptureFx((prev) => (prev?.key === key ? null : prev)), 1900)
+    }
+
+    // Les pas s'AJOUTENT à la file en cours (jamais d'écrasement) : si une
+    // animation tourne encore quand l'état suivant arrive, le pion enchaîne
+    // sans téléportation ni pas perdus.
+    const append = (key: string, path: Array<[number, number]>) =>
+      queues.current.set(key, [...(queues.current.get(key) ?? []), ...path])
 
     const next = new Map<string, LudoPawnPos>()
     state.players.forEach((player, pi) =>
@@ -293,18 +317,22 @@ export function LudoBoard({
           }
           path.push(gridOf(player.slot, pwi, pawnAtRel(player.slot, 0)))
           path.push(gridOf(player.slot, pwi, pawn))
-          queues.current.set(key, path)
+          append(key, path)
         } else if (fromRel !== null && toRel !== null && toRel > fromRel && toRel - fromRel <= 12) {
           const path: Array<[number, number]> = []
           for (let r = fromRel + 1; r <= toRel; r++) path.push(gridOf(player.slot, pwi, pawnAtRel(player.slot, r)))
-          queues.current.set(key, path)
+          append(key, path)
         } else {
-          queues.current.set(key, [gridOf(player.slot, pwi, pawn)])
+          append(key, [gridOf(player.slot, pwi, pawn)])
         }
       }),
     )
     prevPawns.current = next
   }, [state])
+
+  // Cri de chambrage plein écran à chaque capture (aléatoire).
+  const [captureFx, setCaptureFx] = useState<{ key: number; text: string } | null>(null)
+  const captureKey = useRef(0)
 
   // Machine à sous du Saut bonus : déclenchée par lastBonus (seq).
   const [slotFx, setSlotFx] = useState<{ value: number; seq: number } | null>(null)
@@ -478,6 +506,12 @@ export function LudoBoard({
       </div>
 
       {slotFx && <SlotFx key={slotFx.seq} value={slotFx.value} />}
+
+      {captureFx && (
+        <div className="slam-fx capture-fx" key={captureFx.key}>
+          {captureFx.text}
+        </div>
+      )}
 
       <div className="ludo-hud">
         {state.status === 'playing' && (

@@ -2877,6 +2877,14 @@ section.game {
   pointer-events: none;
 }
 
+/* Cri de chambrage à la capture : même pop plein écran que JOYAAA, en rouge. */
+.slam-fx.capture-fx {
+  color: #ff6b5e;
+  text-shadow:
+    0 4px 0 rgba(0, 0, 0, 0.55),
+    0 0 60px rgba(226, 87, 76, 0.55);
+}
+
 /* ─── Machine à sous du Saut bonus 🚀 ────────────────────────────────── */
 
 .ludo-slot {
