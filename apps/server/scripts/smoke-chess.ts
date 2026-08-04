@@ -67,8 +67,10 @@ async function main(): Promise<void> {
   await sleep(150)
   const view = alice.chess
   if (!view || view.status !== 'playing') throw new Error('partie échecs non lancée')
-  if (view.whiteMs !== 600_000 || view.blackMs !== 600_000) {
-    throw new Error(`pendules attendues à 600000 ms, reçu ${view.whiteMs}/${view.blackMs}`)
+  // La pendule du trait s'écoule en temps réel dès le lancement : on tolère
+  // la poignée de millisecondes entre game:start et ce snapshot.
+  if (Math.abs(view.whiteMs - 600_000) > 100 || Math.abs(view.blackMs - 600_000) > 100) {
+    throw new Error(`pendules attendues à ~600000 ms, reçu ${view.whiteMs}/${view.blackMs}`)
   }
   const white = byId(view.whiteId)
   const black = byId(view.blackId)

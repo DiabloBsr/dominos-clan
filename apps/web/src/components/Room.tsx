@@ -9,12 +9,248 @@ import { Game } from './Game'
 
 const REACTIONS = ['😂', '🔥', '👏', '😮', '😭', '😈', '🤝', '💀']
 
+/** Soundboard : sons de chambrage joués chez TOUT le salon. */
+const SOUNDS: Array<{ kind: string; emoji: string; label: string }> = [
+  { kind: 'pet', emoji: '💨', label: 'Prout' },
+  { kind: 'rire', emoji: '😂', label: 'Rire' },
+  { kind: 'colere', emoji: '😡', label: 'Grrr' },
+  { kind: 'bravo', emoji: '👏', label: 'Bravo' },
+  { kind: 'tromblon', emoji: '📯', label: 'Womp womp' },
+  { kind: 'bisou', emoji: '😘', label: 'Bisou' },
+]
+
 function pseudoOf(room: RoomView, id: string): string {
   return room.members.find((m) => m.id === id)?.pseudo ?? '???'
 }
 
 function avatarOf(room: RoomView, id: string): string {
   return room.members.find((m) => m.id === id)?.avatar ?? ''
+}
+
+/**
+ * Contrôles de règles du salon — utilisés en direct dans la barre du lobby
+ * (onChange = envoi serveur) et en brouillon dans la modale « refaire les
+ * réglages » (onChange = état local, appliqué d'un bloc).
+ */
+function RulesEditor({
+  rules,
+  editable,
+  onChange,
+}: {
+  rules: GameRules
+  editable: boolean
+  onChange: (r: GameRules) => void
+}) {
+  return (
+    <>
+      <span className="game-badge" title="Jeu du salon (choisi à la création)">
+        {rules.gameType === 'chess' ? '♟️ Échecs' : rules.gameType === 'ludo' ? '🎲 Ludo' : '🁫 Dominos'}
+      </span>
+      {rules.gameType === 'chess' && (
+        <>
+          <label className="rules-num" title="Minutes à la pendule pour chaque joueur">
+            pendule
+            <input
+              key={`cm-${rules.chessMinutes}`}
+              type="number"
+              min={1}
+              max={60}
+              disabled={!editable}
+              defaultValue={rules.chessMinutes}
+              onBlur={(e) =>
+                onChange({
+                  ...rules,
+                  chessMinutes: Math.max(1, Math.min(60, Number(e.target.value) || 10)),
+                })
+              }
+            />
+            min
+          </label>
+          <label className="rules-num" title="Secondes ajoutées à la pendule après chaque coup">
+            +
+            <input
+              key={`ci-${rules.chessIncrement}`}
+              type="number"
+              min={0}
+              max={30}
+              disabled={!editable}
+              defaultValue={rules.chessIncrement}
+              onBlur={(e) =>
+                onChange({
+                  ...rules,
+                  chessIncrement: Math.max(0, Math.min(30, Number(e.target.value) || 0)),
+                })
+              }
+            />
+            s/coup
+          </label>
+        </>
+      )}
+      {rules.gameType !== 'chess' && (
+        <select
+          className="voice-audience"
+          disabled={!editable}
+          value={String(rules.maxSeats)}
+          title="Nombre de joueurs à table"
+          onChange={(e) => onChange({ ...rules, maxSeats: Number(e.target.value) })}
+        >
+          <option value="2">Table à 2</option>
+          <option value="3">Table à 3</option>
+          <option value="4">Table à 4</option>
+        </select>
+      )}
+      {rules.gameType === 'ludo' && (
+        <>
+          <select
+            className="voice-audience"
+            disabled={!editable}
+            value={String(rules.ludoSixes)}
+            title="Nombre de 6 successifs autorisés avant que le tour saute"
+            onChange={(e) => onChange({ ...rules, ludoSixes: Number(e.target.value) })}
+          >
+            <option value="2">2 six max</option>
+            <option value="3">3 six max</option>
+            <option value="4">4 six max</option>
+          </select>
+          <label className="rules-check" title="Partie avec cases bonus 🎁 (sinon simple)">
+            <input
+              type="checkbox"
+              disabled={!editable}
+              checked={rules.ludoBonus}
+              onChange={(e) => onChange({ ...rules, ludoBonus: e.target.checked })}
+            />
+            Bonus 🎁
+          </label>
+        </>
+      )}
+      {rules.gameType === 'dominos' && (
+        <>
+          <select
+            className="voice-audience"
+            disabled={!editable}
+            value={rules.targetScore === null ? 'seche' : 'match'}
+            onChange={(e) =>
+              onChange({
+                ...rules,
+                targetScore: e.target.value === 'match' ? 80 : null,
+                instantWinScore: e.target.value === 'match' ? 40 : null,
+              })
+            }
+          >
+            <option value="seche">Manche sèche</option>
+            <option value="match">Match aux points</option>
+          </select>
+          {rules.targetScore !== null && (
+            <>
+              <label className="rules-num">
+                cible
+                <input
+                  key={`t-${rules.targetScore}`}
+                  type="number"
+                  min={10}
+                  max={1000}
+                  disabled={!editable}
+                  defaultValue={rules.targetScore}
+                  onBlur={(e) =>
+                    onChange({
+                      ...rules,
+                      targetScore: Math.max(10, Math.min(1000, Number(e.target.value) || 80)),
+                    })
+                  }
+                />
+                pts
+              </label>
+              <label
+                className="rules-num"
+                title="Si PERSONNE n'a encore marqué et que le premier gain de la rencontre atteint ce nombre, le match est gagné immédiatement (0 = désactivé)"
+              >
+                éclair ≥
+                <input
+                  key={`e-${rules.instantWinScore ?? 'off'}`}
+                  type="number"
+                  min={0}
+                  max={1000}
+                  disabled={!editable}
+                  defaultValue={rules.instantWinScore ?? 0}
+                  onBlur={(e) => {
+                    const v = Number(e.target.value) || 0
+                    onChange({
+                      ...rules,
+                      instantWinScore: v <= 0 ? null : Math.min(1000, v),
+                    })
+                  }}
+                />
+              </label>
+              <label
+                className="rules-num"
+                title="La première marque ne compte que si elle atteint ce seuil ; ensuite tout compte"
+              >
+                1re marque ≥
+                <input
+                  key={`s-${rules.openThreshold}`}
+                  type="number"
+                  min={0}
+                  max={200}
+                  disabled={!editable}
+                  defaultValue={rules.openThreshold}
+                  onBlur={(e) =>
+                    onChange({
+                      ...rules,
+                      openThreshold: Math.max(0, Math.min(200, Number(e.target.value) || 0)),
+                    })
+                  }
+                />
+              </label>
+            </>
+          )}
+          <select
+            className="voice-audience"
+            disabled={!editable}
+            value={rules.openingMaxPips === null ? 'classic' : 'rotate'}
+            title="Classique : le plus gros double ouvre chaque manche. Tournante : 1re manche au plus petit double (1-1 → 6-6), puis l'ouverture tourne autour de la table avec un plafond de points."
+            onChange={(e) =>
+              onChange({ ...rules, openingMaxPips: e.target.value === 'rotate' ? 6 : null })
+            }
+          >
+            <option value="classic">Ouverture classique</option>
+            <option value="rotate">Ouverture tournante</option>
+          </select>
+          {rules.openingMaxPips !== null && (
+            <label
+              className="rules-num"
+              title="Dès la 2e manche, l'ouvreur doit poser un domino dont le total de points est ≤ ce nombre (à défaut, son plus léger)"
+            >
+              ouvrir ≤
+              <input
+                key={`o-${rules.openingMaxPips}`}
+                type="number"
+                min={0}
+                max={12}
+                disabled={!editable}
+                defaultValue={rules.openingMaxPips}
+                onBlur={(e) =>
+                  onChange({
+                    ...rules,
+                    openingMaxPips: Math.max(0, Math.min(12, Number(e.target.value) || 6)),
+                  })
+                }
+              />
+              pts
+            </label>
+          )}
+          <label className="rules-check" title="Autoriser de passer même avec un domino jouable">
+            <input
+              type="checkbox"
+              disabled={!editable}
+              checked={rules.freePass}
+              onChange={(e) => onChange({ ...rules, freePass: e.target.checked })}
+            />
+            Passe libre
+          </label>
+        </>
+      )}
+    </>
+  )
 }
 
 export function Room({
@@ -38,8 +274,11 @@ export function Room({
   onStart,
   onMove,
   onReact,
+  onSound,
   onChat,
   onRules,
+  onReconfigure,
+  onTransferHost,
   onUndo,
   onRedeal,
   onChessMove,
@@ -69,8 +308,11 @@ export function Room({
   onStart: () => void
   onMove: (move: Move, slam?: boolean) => void
   onReact: (emoji: string) => void
+  onSound: (kind: string) => void
   onChat: (text: string) => void
   onRules: (rules: GameRules) => void
+  onReconfigure: (rules: GameRules) => void
+  onTransferHost: (toId: string) => void
   onUndo: () => void
   onRedeal: () => void
   onChessMove: (from: string, to: string, promotion?: string) => void
@@ -85,7 +327,15 @@ export function Room({
   const [chatOpen, setChatOpen] = useState(false)
   const [chatText, setChatText] = useState('')
   const [chatSeen, setChatSeen] = useState(0)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [draftRules, setDraftRules] = useState<GameRules>(room.rules)
+  const [soundsOpen, setSoundsOpen] = useState(false)
   const msgsRef = useRef<HTMLDivElement | null>(null)
+
+  const openSettings = () => {
+    setDraftRules({ ...room.rules })
+    setSettingsOpen(true)
+  }
 
   useEffect(() => {
     if (chatOpen) {
@@ -197,6 +447,15 @@ export function Room({
         {isHost && (
           <button
             className="icon-btn"
+            title="Refaire les réglages (la partie et les scores repartent de zéro)"
+            onClick={openSettings}
+          >
+            ⚙️
+          </button>
+        )}
+        {isHost && (
+          <button
+            className="icon-btn"
             title="Tout remettre à zéro (manche et scores perdus)"
             onClick={() => {
               if (
@@ -232,6 +491,23 @@ export function Room({
               {voice.state.inVoice.includes(id) && <span className="chip-ic">🎙</span>}
               {room.members.find((m) => m.id === id)?.isHost && <span className="chip-ic">⭐</span>}
               {room.lastWinnerId === id && <span className="chip-ic">👑</span>}
+              {isHost && id !== selfId && (
+                <button
+                  className="chip-add"
+                  title={`Passer le rôle de chef à ${pseudoOf(room, id)}`}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Passer le rôle de chef à ${pseudoOf(room, id)} ? Tu ne pourras plus régler le salon.`,
+                      )
+                    ) {
+                      onTransferHost(id)
+                    }
+                  }}
+                >
+                  ⭐
+                </button>
+              )}
             </span>
           ))}
           {room.seats.length === 0 && <span className="empty">personne…</span>}
@@ -275,6 +551,23 @@ export function Room({
                   ＋🔄
                 </button>
               )}
+              {isHost && id !== selfId && (
+                <button
+                  className="chip-add"
+                  title={`Passer le rôle de chef à ${pseudoOf(room, id)}`}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Passer le rôle de chef à ${pseudoOf(room, id)} ? Tu ne pourras plus régler le salon.`,
+                      )
+                    ) {
+                      onTransferHost(id)
+                    }
+                  }}
+                >
+                  ⭐
+                </button>
+              )}
             </span>
           ))}
           {room.queue.length === 0 && <span className="empty">vide</span>}
@@ -284,215 +577,44 @@ export function Room({
       {room.status !== 'playing' && (
         <div className="rules-bar">
           <span className="group-label">⚙️ Règles</span>
-          <span className="game-badge" title="Jeu du salon (choisi à la création)">
-            {room.rules.gameType === 'chess'
-              ? '♟️ Échecs'
-              : room.rules.gameType === 'ludo'
-                ? '🎲 Ludo'
-                : '🁫 Dominos'}
-          </span>
-          {room.rules.gameType === 'chess' && (
-            <>
-              <label className="rules-num" title="Minutes à la pendule pour chaque joueur">
-                pendule
-                <input
-                  key={`cm-${room.rules.chessMinutes}`}
-                  type="number"
-                  min={1}
-                  max={60}
-                  disabled={!isHost}
-                  defaultValue={room.rules.chessMinutes}
-                  onBlur={(e) =>
-                    onRules({
-                      ...room.rules,
-                      chessMinutes: Math.max(1, Math.min(60, Number(e.target.value) || 10)),
-                    })
-                  }
-                />
-                min
-              </label>
-              <label className="rules-num" title="Secondes ajoutées à la pendule après chaque coup">
-                +
-                <input
-                  key={`ci-${room.rules.chessIncrement}`}
-                  type="number"
-                  min={0}
-                  max={30}
-                  disabled={!isHost}
-                  defaultValue={room.rules.chessIncrement}
-                  onBlur={(e) =>
-                    onRules({
-                      ...room.rules,
-                      chessIncrement: Math.max(0, Math.min(30, Number(e.target.value) || 0)),
-                    })
-                  }
-                />
-                s/coup
-              </label>
-            </>
-          )}
-          {room.rules.gameType !== 'chess' && (
-            <select
-              className="voice-audience"
-              disabled={!isHost}
-              value={String(room.rules.maxSeats)}
-              title="Nombre de joueurs à table"
-              onChange={(e) => onRules({ ...room.rules, maxSeats: Number(e.target.value) })}
-            >
-              <option value="2">Table à 2</option>
-              <option value="3">Table à 3</option>
-              <option value="4">Table à 4</option>
-            </select>
-          )}
-          {room.rules.gameType === 'ludo' && (
-            <>
-              <select
-                className="voice-audience"
-                disabled={!isHost}
-                value={String(room.rules.ludoSixes)}
-                title="Nombre de 6 successifs autorisés avant que le tour saute"
-                onChange={(e) => onRules({ ...room.rules, ludoSixes: Number(e.target.value) })}
-              >
-                <option value="2">2 six max</option>
-                <option value="3">3 six max</option>
-                <option value="4">4 six max</option>
-              </select>
-              <label className="rules-check" title="Partie avec cases bonus 🎁 (sinon simple)">
-                <input
-                  type="checkbox"
-                  disabled={!isHost}
-                  checked={room.rules.ludoBonus}
-                  onChange={(e) => onRules({ ...room.rules, ludoBonus: e.target.checked })}
-                />
-                Bonus 🎁
-              </label>
-            </>
-          )}
-          {room.rules.gameType === 'dominos' && (
-          <>
-          <select
-            className="voice-audience"
-            disabled={!isHost}
-            value={room.rules.targetScore === null ? 'seche' : 'match'}
-            onChange={(e) =>
-              onRules({
-                ...room.rules,
-                targetScore: e.target.value === 'match' ? 80 : null,
-                instantWinScore: e.target.value === 'match' ? 40 : null,
-              })
-            }
-          >
-            <option value="seche">Manche sèche</option>
-            <option value="match">Match aux points</option>
-          </select>
-          {room.rules.targetScore !== null && (
-            <>
-              <label className="rules-num">
-                cible
-                <input
-                  key={`t-${room.rules.targetScore}`}
-                  type="number"
-                  min={10}
-                  max={1000}
-                  disabled={!isHost}
-                  defaultValue={room.rules.targetScore}
-                  onBlur={(e) =>
-                    onRules({
-                      ...room.rules,
-                      targetScore: Math.max(10, Math.min(1000, Number(e.target.value) || 80)),
-                    })
-                  }
-                />
-                pts
-              </label>
-              <label
-                className="rules-num"
-                title="Si PERSONNE n'a encore marqué et que le premier gain de la rencontre atteint ce nombre, le match est gagné immédiatement (0 = désactivé)"
-              >
-                éclair ≥
-                <input
-                  key={`e-${room.rules.instantWinScore ?? 'off'}`}
-                  type="number"
-                  min={0}
-                  max={1000}
-                  disabled={!isHost}
-                  defaultValue={room.rules.instantWinScore ?? 0}
-                  onBlur={(e) => {
-                    const v = Number(e.target.value) || 0
-                    onRules({
-                      ...room.rules,
-                      instantWinScore: v <= 0 ? null : Math.min(1000, v),
-                    })
-                  }}
-                />
-              </label>
-              <label className="rules-num" title="La première marque ne compte que si elle atteint ce seuil ; ensuite tout compte">
-                1re marque ≥
-                <input
-                  key={`s-${room.rules.openThreshold}`}
-                  type="number"
-                  min={0}
-                  max={200}
-                  disabled={!isHost}
-                  defaultValue={room.rules.openThreshold}
-                  onBlur={(e) =>
-                    onRules({
-                      ...room.rules,
-                      openThreshold: Math.max(0, Math.min(200, Number(e.target.value) || 0)),
-                    })
-                  }
-                />
-              </label>
-            </>
-          )}
-          <select
-            className="voice-audience"
-            disabled={!isHost}
-            value={room.rules.openingMaxPips === null ? 'classic' : 'rotate'}
-            title="Classique : le plus gros double ouvre chaque manche. Tournante : 1re manche au plus petit double (1-1 → 6-6), puis l'ouverture tourne autour de la table avec un plafond de points."
-            onChange={(e) =>
-              onRules({ ...room.rules, openingMaxPips: e.target.value === 'rotate' ? 6 : null })
-            }
-          >
-            <option value="classic">Ouverture classique</option>
-            <option value="rotate">Ouverture tournante</option>
-          </select>
-          {room.rules.openingMaxPips !== null && (
-            <label
-              className="rules-num"
-              title="Dès la 2e manche, l'ouvreur doit poser un domino dont le total de points est ≤ ce nombre (à défaut, son plus léger)"
-            >
-              ouvrir ≤
-              <input
-                key={`o-${room.rules.openingMaxPips}`}
-                type="number"
-                min={0}
-                max={12}
-                disabled={!isHost}
-                defaultValue={room.rules.openingMaxPips}
-                onBlur={(e) =>
-                  onRules({
-                    ...room.rules,
-                    openingMaxPips: Math.max(0, Math.min(12, Number(e.target.value) || 6)),
-                  })
-                }
-              />
-              pts
-            </label>
-          )}
-          <label className="rules-check" title="Autoriser de passer même avec un domino jouable">
-            <input
-              type="checkbox"
-              disabled={!isHost}
-              checked={room.rules.freePass}
-              onChange={(e) => onRules({ ...room.rules, freePass: e.target.checked })}
-            />
-            Passe libre
-          </label>
-          </>
-          )}
+          <RulesEditor rules={room.rules} editable={isHost} onChange={onRules} />
           {!isHost && <span className="empty">réglé par l’hôte ⭐</span>}
         </div>
+      )}
+
+      {settingsOpen && (
+        <>
+          <div className="panel-veil" onClick={() => setSettingsOpen(false)} />
+          <div className="game-modal card settings-modal">
+            <div className="panel-head">
+              <h2 className="card-title">⚙️ Refaire les réglages</h2>
+              <button className="icon-btn tiny" onClick={() => setSettingsOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <p className="hint warn">
+              Appliquer efface la partie en cours et tous les scores — tout le monde repart de
+              zéro.
+            </p>
+            <div className="rules-bar in-modal">
+              <RulesEditor rules={draftRules} editable onChange={setDraftRules} />
+            </div>
+            <div className="lobby-actions">
+              <button className="btn ghost" onClick={() => setSettingsOpen(false)}>
+                Annuler
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  setSettingsOpen(false)
+                  onReconfigure(draftRules)
+                }}
+              >
+                Appliquer — on repart de zéro
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {room.rules.targetScore !== null && room.rules.gameType === 'dominos' && (
@@ -644,11 +766,29 @@ export function Room({
       )}
 
       <footer className="reactions-bar">
-        {REACTIONS.map((emoji) => (
-          <button key={emoji} className="react-btn" onClick={() => onReact(emoji)}>
-            {emoji}
-          </button>
-        ))}
+        {soundsOpen
+          ? SOUNDS.map((s) => (
+              <button
+                key={s.kind}
+                className="react-btn sound"
+                title={s.label}
+                onClick={() => onSound(s.kind)}
+              >
+                {s.emoji}
+              </button>
+            ))
+          : REACTIONS.map((emoji) => (
+              <button key={emoji} className="react-btn" onClick={() => onReact(emoji)}>
+                {emoji}
+              </button>
+            ))}
+        <button
+          className={`react-btn toggle ${soundsOpen ? 'on' : ''}`}
+          title={soundsOpen ? 'Revenir aux emojis' : 'Sons de chambrage (tout le salon entend)'}
+          onClick={() => setSoundsOpen((v) => !v)}
+        >
+          {soundsOpen ? '🙂' : '🔊'}
+        </button>
       </footer>
 
       <div className="float-reactions" aria-live="polite">

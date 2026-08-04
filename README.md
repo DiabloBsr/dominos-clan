@@ -153,3 +153,7 @@ PRO (9 $/mois) — seuls les Spaces statiques restent gratuits, insuffisant pour
 ## ❓ Reste à trancher
 
 1. Rien de bloquant — les règles V1 ci-dessus sont des défauts raisonnables, dis-moi ce que tu veux changer.
+
+## Crédits
+
+- Pièces d'échecs : set « Cburnett » (Colin M.L. Burnett), SVG sous licence CC BY-SA 3.0 — via Wikimedia Commons (apps/web/public/pieces/).

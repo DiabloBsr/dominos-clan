@@ -67,6 +67,8 @@ export interface Room {
   lastReactionAt: Map<string, number>
   /** Timestamp du dernier message chat par membre (anti-spam). */
   lastChatAt: Map<string, number>
+  /** Timestamp du dernier son de soundboard par membre (anti-spam). */
+  lastSoundAt: Map<string, number>
 }
 
 export class RoomError extends Error {}
@@ -138,6 +140,7 @@ export function createRoom(
     voiceAdvancedAt: 0,
     lastReactionAt: new Map(),
     lastChatAt: new Map(),
+    lastSoundAt: new Map(),
   }
   rooms.set(room.code, room)
   return { room, member }
@@ -289,6 +292,16 @@ export function promoteToSeat(room: Room, hostId: string, rawMemberId: unknown):
   }
   room.queue = room.queue.filter((id) => id !== rawMemberId)
   room.seats.push(rawMemberId)
+}
+
+/** L'hôte passe la couronne à un autre membre du salon (assis ou en file). */
+export function transferHost(room: Room, memberId: string, rawTargetId: unknown): void {
+  if (memberId !== room.hostId) throw new RoomError('Seul le chef peut passer son rôle')
+  if (typeof rawTargetId !== 'string' || !room.members.has(rawTargetId)) {
+    throw new RoomError('Membre introuvable')
+  }
+  if (rawTargetId === memberId) throw new RoomError('Tu es déjà le chef')
+  room.hostId = rawTargetId
 }
 
 /**
@@ -651,6 +664,20 @@ export function canReact(room: Room, memberId: string, emoji: string): boolean {
   const now = Date.now()
   if (now - last < REACTION_THROTTLE_MS) return false
   room.lastReactionAt.set(memberId, now)
+  return true
+}
+
+/** Soundboard : sons de chambrage joués chez tout le salon. */
+export const BOARD_SOUNDS = ['pet', 'rire', 'colere', 'bravo', 'tromblon', 'bisou'] as const
+export type BoardSound = (typeof BOARD_SOUNDS)[number]
+const SOUND_THROTTLE_MS = 1500
+
+export function canPlaySound(room: Room, memberId: string, kind: string): kind is BoardSound {
+  if (!BOARD_SOUNDS.includes(kind as BoardSound)) return false
+  const last = room.lastSoundAt.get(memberId) ?? 0
+  const now = Date.now()
+  if (now - last < SOUND_THROTTLE_MS) return false
+  room.lastSoundAt.set(memberId, now)
   return true
 }
 

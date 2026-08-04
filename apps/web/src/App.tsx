@@ -14,7 +14,14 @@ import {
   type FriendStatus,
   type Profile,
 } from './profile'
-import { playSlam } from './sounds'
+import {
+  playBoardSound,
+  playInvite,
+  playMessage,
+  playPass,
+  playSlam,
+  playVictory,
+} from './sounds'
 import { Home } from './components/Home'
 import { Room } from './components/Room'
 
@@ -57,12 +64,53 @@ export default function App() {
   const slamKey = useRef(0)
   const passKey = useRef(0)
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Réfs pour les handlers socket (montés une fois) : qui je suis + statut
+  // précédent de chaque jeu, pour ne jouer la fanfare qu'à la transition.
+  const selfIdRef = useRef<string | null>(null)
+  const prevDominoStatus = useRef<string | null>(null)
+  const prevChessStatus = useRef<string | null>(null)
+  const prevLudoStatus = useRef<string | null>(null)
+
+  useEffect(() => {
+    selfIdRef.current = selfId
+  }, [selfId])
 
   const showNotice = useCallback((message: string) => {
     setNotice(message)
     if (noticeTimer.current) clearTimeout(noticeTimer.current)
     noticeTimer.current = setTimeout(() => setNotice(null), 4000)
   }, [])
+
+  // Écran « réveil du serveur » : l'hébergement gratuit s'endort sans trafic
+  // (cold start jusqu'à ~1 min). On masque l'attente derrière un chargement
+  // propre, affiché seulement après 600 ms pour éviter le flash quand le
+  // serveur est déjà chaud.
+  const [connected, setConnected] = useState(socket.connected)
+  const [waking, setWaking] = useState(false)
+  const [wakeSeconds, setWakeSeconds] = useState(0)
+  useEffect(() => {
+    const onConnect = () => setConnected(true)
+    const onDisconnect = () => setConnected(false)
+    socket.on('connect', onConnect)
+    socket.on('disconnect', onDisconnect)
+    return () => {
+      socket.off('connect', onConnect)
+      socket.off('disconnect', onDisconnect)
+    }
+  }, [])
+  useEffect(() => {
+    if (connected) {
+      setWaking(false)
+      setWakeSeconds(0)
+      return
+    }
+    const show = setTimeout(() => setWaking(true), 600)
+    const tick = setInterval(() => setWakeSeconds((s) => s + 1), 1000)
+    return () => {
+      clearTimeout(show)
+      clearInterval(tick)
+    }
+  }, [connected])
 
   // « Joueurs » au sens voix/rôles : ceux de la partie en cours, sinon les assis.
   const playerIds =
@@ -150,9 +198,30 @@ export default function App() {
 
   useEffect(() => {
     const onRoomState = (view: RoomView) => setRoom(view)
-    const onGameState = (view: GameView | null) => setGame(view)
-    const onChessState = (view: ChessView | null) => setChess(view)
-    const onLudoState = (view: LudoState | null) => setLudo(view)
+    const onGameState = (view: GameView | null) => {
+      const status = view?.status ?? null
+      if (status === 'finished' && prevDominoStatus.current !== 'finished' && view?.result?.winnerId) {
+        playVictory()
+      }
+      prevDominoStatus.current = status
+      setGame(view)
+    }
+    const onChessState = (view: ChessView | null) => {
+      const status = view?.status ?? null
+      if (status === 'finished' && prevChessStatus.current !== 'finished' && view?.result?.winnerId) {
+        playVictory()
+      }
+      prevChessStatus.current = status
+      setChess(view)
+    }
+    const onLudoState = (view: LudoState | null) => {
+      const status = view?.status ?? null
+      if (status === 'finished' && prevLudoStatus.current !== 'finished' && view?.winnerId) {
+        playVictory()
+      }
+      prevLudoStatus.current = status
+      setLudo(view)
+    }
     const onReaction = (r: { memberId: string; pseudo: string; emoji: string }) => {
       const key = ++reactionKey.current
       setReactions((prev) => [...prev.slice(-11), { key, ...r }])
@@ -161,6 +230,7 @@ export default function App() {
     const onChatMessage = (m: { memberId: string; pseudo: string; text: string }) => {
       const key = ++chatKey.current
       setChatMessages((prev) => [...prev.slice(-149), { key, ...m }])
+      if (m.memberId !== selfIdRef.current) playMessage()
     }
     const onPresence = (u: { userId: string; pseudo: string; avatar: string; status: FriendStatus }) => {
       setFriendStatuses((prev) => ({ ...prev, [u.userId]: u.status }))
@@ -176,12 +246,30 @@ export default function App() {
         })
       }
     }
-    const onInvited = (inv: { fromPseudo: string; fromAvatar: string; code: string }) =>
+    const onInvited = (inv: { fromPseudo: string; fromAvatar: string; code: string }) => {
+      playInvite()
       setInvite(inv)
-    const onKnocked = (k: { fromUserId: string; fromPseudo: string; fromAvatar: string }) =>
+    }
+    const onKnocked = (k: { fromUserId: string; fromPseudo: string; fromAvatar: string }) => {
+      playInvite()
       setKnock(k)
-    const onRestarted = (r: { byPseudo: string }) =>
-      showNotice(`🔄 ${r.byPseudo} a tout remis à zéro — nouvelle partie !`)
+    }
+    const onRestarted = (r: { byPseudo: string; reconfigured?: boolean }) =>
+      showNotice(
+        r.reconfigured
+          ? `⚙️ ${r.byPseudo} a refait les réglages — on repart de zéro !`
+          : `🔄 ${r.byPseudo} a tout remis à zéro — nouvelle partie !`,
+      )
+    const onHostChanged = (h: { pseudo: string }) => showNotice(`⭐ ${h.pseudo} est le nouveau chef !`)
+    const onSoundPlayed = (s: { memberId: string; pseudo: string; kind: string }) => {
+      playBoardSound(s.kind)
+      const emoji =
+        { pet: '💨', rire: '😂', colere: '😡', bravo: '👏', tromblon: '📯', bisou: '😘' }[s.kind] ??
+        '🔊'
+      const key = ++reactionKey.current
+      setReactions((prev) => [...prev.slice(-11), { key, memberId: s.memberId, pseudo: s.pseudo, emoji }])
+      setTimeout(() => setReactions((prev) => prev.filter((fr) => fr.key !== key)), 2600)
+    }
     const onSlam = (s: { pseudo: string }) => {
       playSlam()
       const key = ++slamKey.current
@@ -189,6 +277,7 @@ export default function App() {
       setTimeout(() => setSlamFx((prev) => (prev?.key === key ? null : prev)), 1000)
     }
     const onPassed = (p: { pseudo: string }) => {
+      playPass()
       const key = ++passKey.current
       setPassFx({ key, pseudo: p.pseudo })
       setTimeout(() => setPassFx((prev) => (prev?.key === key ? null : prev)), 1100)
@@ -211,6 +300,8 @@ export default function App() {
     socket.on('friend:invited', onInvited)
     socket.on('friend:knocked', onKnocked)
     socket.on('room:restarted', onRestarted)
+    socket.on('room:host-changed', onHostChanged)
+    socket.on('sound:played', onSoundPlayed)
     socket.on('game:slam', onSlam)
     socket.on('game:passed', onPassed)
     socket.on('game:aborted', onAborted)
@@ -226,6 +317,8 @@ export default function App() {
       socket.off('friend:invited', onInvited)
       socket.off('friend:knocked', onKnocked)
       socket.off('room:restarted', onRestarted)
+      socket.off('room:host-changed', onHostChanged)
+      socket.off('sound:played', onSoundPlayed)
       socket.off('game:slam', onSlam)
       socket.off('game:passed', onPassed)
       socket.off('game:aborted', onAborted)
@@ -356,8 +449,11 @@ export default function App() {
     onStart: () => simpleEmit('game:start'),
     onMove: (move: Move, slam?: boolean) => simpleEmit('game:move', { move, slam: slam === true }),
     onReact: (emoji: string) => socket.emit('reaction', { emoji }),
+    onSound: (kind: string) => socket.emit('sound:send', { kind }),
     onChat: (text: string) => simpleEmit('chat:send', { text }),
     onRules: (rules: GameRules) => simpleEmit('room:rules', { ...rules }),
+    onReconfigure: (rules: GameRules) => simpleEmit('room:reconfigure', { ...rules }),
+    onTransferHost: (toId: string) => simpleEmit('room:transfer-host', { toId }),
     onUndo: () => simpleEmit('game:undo'),
     onRedeal: () => simpleEmit('game:redeal'),
     onChessMove: (from: string, to: string, promotion?: string) =>
@@ -369,8 +465,36 @@ export default function App() {
     onLeave: leaveRoomLocal,
   }
 
+  const wakeMessage =
+    room !== null
+      ? 'Reconnexion au salon…'
+      : wakeSeconds < 4
+        ? 'Connexion…'
+        : wakeSeconds < 12
+          ? 'On réveille le serveur… ☕'
+          : wakeSeconds < 35
+            ? 'Le serveur s’endort quand personne ne joue — il se réveille, ~30 s la première fois.'
+            : 'Presque prêt, promis 🙏'
+
   return (
     <div className="app">
+      {waking && !connected && (
+        <div className="wake-veil" role="status">
+          <h1 className="wordmark small">
+            Domino’s <span>Clan</span>
+          </h1>
+          <div className="wake-tile" aria-hidden="true">
+            <span className="wake-dot" />
+            <span className="wake-dot" />
+            <span className="wake-dot" />
+          </div>
+          <p className="wake-msg">{wakeMessage}</p>
+          <div className="wake-bar">
+            <span />
+          </div>
+          {wakeSeconds >= 4 && <p className="wake-elapsed">{wakeSeconds} s</p>}
+        </div>
+      )}
       {notice && <div className="toast">{notice}</div>}
       {invite && (
         <div className="invite-toast">

@@ -11,6 +11,7 @@ import { armChessFlag, chessViewOf } from './chess'
 import {
   RoomError,
   canChat,
+  canPlaySound,
   canReact,
   chessFlagRoom,
   chessMoveRoom,
@@ -35,6 +36,7 @@ import {
   setRules,
   startGame,
   takeSeat,
+  transferHost,
   undoMove,
   type Room,
 } from './rooms'
@@ -266,6 +268,32 @@ io.on('connection', (socket: Socket) => {
     }),
   )
 
+  // Le chef refait les réglages SANS quitter : partie en cours annulée,
+  // scores effacés, nouvelles règles appliquées — on repart de zéro.
+  socket.on('room:reconfigure', (payload: unknown, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      restartRoom(room, memberId)
+      setRules(room, memberId, payload)
+      const host = room.members.get(memberId)
+      io.to(room.code).emit('room:restarted', {
+        byPseudo: host?.pseudo ?? 'l’hôte',
+        reconfigured: true,
+      })
+      broadcast(room)
+    }),
+  )
+
+  socket.on('room:transfer-host', (payload: { toId?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      transferHost(room, memberId, payload?.toId)
+      const newHost = room.members.get(room.hostId)
+      io.to(room.code).emit('room:host-changed', { pseudo: newHost?.pseudo ?? 'quelqu’un' })
+      broadcast(room)
+    }),
+  )
+
   socket.on('game:start', (_payload: unknown, ack?: Ack) =>
     handle(ack, () => {
       const { room, memberId } = withRoom(state)
@@ -406,6 +434,20 @@ io.on('connection', (socket: Socket) => {
       const text = sanitizeChatText(payload?.text)
       if (!canChat(room, memberId)) return
       io.to(room.code).emit('chat:message', { memberId, pseudo: member.pseudo, text })
+    }),
+  )
+
+  socket.on('sound:send', (payload: { kind?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      const member = room.members.get(memberId)
+      if (!member || typeof payload?.kind !== 'string') throw new RoomError('Son invalide')
+      if (!canPlaySound(room, memberId, payload.kind)) return
+      io.to(room.code).emit('sound:played', {
+        memberId,
+        pseudo: member.pseudo,
+        kind: payload.kind,
+      })
     }),
   )
 

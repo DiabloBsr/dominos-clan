@@ -1618,11 +1618,14 @@ button.domino:disabled {
   justify-content: center;
 }
 
-/* Mobile : les noms remontent en haut, en rangée pleine largeur et lisible. */
+/* Mobile : TOUS les noms sur une seule ligne horizontale au-dessus du
+   plateau (les zones haut/gauche/droite/bas deviennent transparentes via
+   display: contents, leurs chips coulent dans la même rangée). */
 @media (max-width: 640px) {
   .table-arena {
     display: flex;
-    flex-direction: column;
+    flex-flow: row wrap;
+    justify-content: center;
     align-items: stretch;
     gap: 0.35rem;
   }
@@ -1631,27 +1634,34 @@ button.domino:disabled {
   .arena-left,
   .arena-right,
   .arena-bottom {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.4rem;
-  }
-
-  .arena-top:empty,
-  .arena-left:empty,
-  .arena-right:empty,
-  .arena-bottom:empty {
-    display: none;
+    display: contents;
   }
 
   .arena-left .seat-chip,
   .arena-right .seat-chip {
     max-width: none;
+  }
+
+  .seat-chip {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 12rem;
     font-size: 0.85rem;
+    padding: 0.35rem 0.5rem;
+    gap: 0.2rem;
+  }
+
+  .seat-name {
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   .arena-felt {
     width: 100%;
+    order: 10;
   }
 
   /* Le plateau prend le maximum de place : marges internes réduites. */
@@ -2418,6 +2428,138 @@ button.domino:disabled {
   from {
     transform: scale(0.4);
   }
+}
+
+/* ─── Modale « refaire les réglages » + soundboard ──────────────────── */
+
+.settings-modal {
+  max-height: 82vh;
+  overflow-y: auto;
+}
+
+.settings-modal .rules-bar.in-modal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.8rem 0;
+}
+
+.hint.warn {
+  color: var(--clay);
+  font-weight: 800;
+}
+
+.react-btn.sound {
+  background: rgba(255, 182, 72, 0.12);
+  border-color: rgba(255, 182, 72, 0.35);
+}
+
+.react-btn.toggle {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.react-btn.toggle.on {
+  border-color: var(--amber);
+  background: rgba(255, 182, 72, 0.2);
+  opacity: 1;
+}
+
+/* ─── Écran « réveil du serveur » (cold start hébergement gratuit) ──── */
+
+.wake-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+  padding: 2rem;
+  text-align: center;
+  background:
+    radial-gradient(900px 500px at 50% -10%, rgba(31, 92, 64, 0.4), transparent 70%),
+    var(--night);
+  animation: fade-up 0.35s ease;
+}
+
+.wake-tile {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.wake-dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: var(--bone);
+  box-shadow: 0 3px 0 var(--bone-shadow);
+  animation: wake-bounce 1.1s ease-in-out infinite;
+}
+
+.wake-dot:nth-child(2) {
+  animation-delay: 0.18s;
+  background: var(--amber);
+}
+
+.wake-dot:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes wake-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.7;
+  }
+  40% {
+    transform: translateY(-0.7rem);
+    opacity: 1;
+  }
+}
+
+.wake-msg {
+  margin: 0;
+  max-width: 26rem;
+  color: var(--ink);
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.wake-bar {
+  width: min(70vw, 16rem);
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(247, 242, 231, 0.12);
+  overflow: hidden;
+}
+
+.wake-bar span {
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--amber-deep), var(--amber));
+  animation: wake-slide 1.4s ease-in-out infinite;
+}
+
+@keyframes wake-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
+.wake-elapsed {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 
 /* Confort : moins d'animations si l'appareil le demande */
