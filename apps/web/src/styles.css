@@ -2875,6 +2875,89 @@ section.game {
   pointer-events: none;
 }
 
+/* ─── Machine à sous du Saut bonus 🚀 ────────────────────────────────── */
+
+.ludo-slot {
+  position: fixed;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  z-index: 80;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.9rem 1.2rem 1.1rem;
+  background: rgba(8, 20, 14, 0.94);
+  border: 2px solid var(--amber);
+  border-radius: 18px;
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.6),
+    0 0 40px rgba(255, 182, 72, 0.25);
+  animation: slot-pop 3.4s ease forwards;
+}
+
+@keyframes slot-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  8% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+  12% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.02);
+  }
+}
+
+.slot-title {
+  font-family: var(--font-display);
+  color: var(--amber);
+  font-size: 1.05rem;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.slot-reels {
+  --digit: 2.7rem;
+  display: flex;
+  gap: 0.45rem;
+}
+
+.slot-reel {
+  width: 2.5rem;
+  height: var(--digit);
+  overflow: hidden;
+  background: linear-gradient(180deg, #e9dfc8, #fcf8ef 30%, #fcf8ef 70%, #e9dfc8);
+  border: 2px solid rgba(43, 38, 32, 0.4);
+  border-radius: 10px;
+  box-shadow: inset 0 4px 10px rgba(0, 0, 0, 0.25);
+}
+
+.slot-strip {
+  display: flex;
+  flex-direction: column;
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.22, 0.9, 0.32, 1.15);
+}
+
+.slot-digit {
+  height: var(--digit);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  color: var(--pip);
+}
+
 /* ─── Dé 3D ivoire ───────────────────────────────────────────────────── */
 
 .die3d-scene {

@@ -35,6 +35,12 @@ export interface LudoPlayerState {
 
 export type LudoBonus = 'reroll' | 'boost' | 'prison' | 'shield' | 'swap' | 'star'
 
+/** Case bonus TYPÉE : son logo est visible sur le plateau ('mystery' = ❓ tiré au ramassage). */
+export interface LudoBonusCell {
+  cell: number
+  kind: LudoBonus | 'mystery'
+}
+
 export interface LudoRulesConfig {
   /** Nombre max de 6 successifs (2 à 4) avant que le tour saute. */
   maxSixes: number
@@ -43,8 +49,8 @@ export interface LudoRulesConfig {
 
 export interface LudoState {
   rules: LudoRulesConfig
-  /** Cases bonus 🎁 ÉPARPILLÉES : un bonus ramassé se replace ailleurs au hasard. */
-  bonusCells: number[]
+  /** Cases bonus ÉPARPILLÉES et typées : un bonus ramassé se replace ailleurs au hasard (type retiré). */
+  bonusCells: LudoBonusCell[]
   players: LudoPlayerState[]
   turn: number
   /** Dé lancé, en attente du choix de pion (null = il faut lancer). */
@@ -56,6 +62,11 @@ export interface LudoState {
   pendingBonus: { bonus: 'prison' | 'swap'; playerIndex: number; pawnIndex: number; rollAgain: boolean } | null
   /** Dernier événement lisible pour l'UI. */
   lastEvent: string | null
+  /**
+   * Dernier bonus RÉSOLU (mystère déjà tiré) — pour les effets visuels :
+   * la machine à sous du boost affiche `value`. `seq` change à chaque bonus.
+   */
+  lastBonus: { playerIndex: number; kind: LudoBonus; value: number | null; seq: number } | null
 }
 
 export class LudoError extends Error {}
@@ -76,9 +87,18 @@ export const LUDO_BONUS_COUNT = 8
 
 const BONUS_DECK: LudoBonus[] = ['reroll', 'boost', 'prison', 'shield', 'swap', 'star']
 
-/** Tire une case libre (ni sûre, ni déjà bonus) pour y placer un 🎁. */
-function drawBonusCell(taken: readonly number[], rand: () => number): number | null {
-  const forbidden = new Set([...ludoSafeCells(), ...taken])
+/** À la création : un bonus de chaque type + 2 ❓ mystère, éparpillés. */
+const INITIAL_KINDS: Array<LudoBonus | 'mystery'> = [...BONUS_DECK, 'mystery', 'mystery']
+
+/** Type d'une case replacée : 1 chance sur 7 d'être ❓, sinon un type du paquet. */
+function drawBonusKind(rand: () => number): LudoBonus | 'mystery' {
+  const pool: Array<LudoBonus | 'mystery'> = [...BONUS_DECK, 'mystery']
+  return pool[Math.floor(rand() * pool.length)]!
+}
+
+/** Tire une case libre (ni sûre, ni déjà bonus) pour y placer un bonus. */
+function drawBonusCell(taken: readonly LudoBonusCell[], rand: () => number): number | null {
+  const forbidden = new Set([...ludoSafeCells(), ...taken.map((b) => b.cell)])
   for (let attempt = 0; attempt < 300; attempt++) {
     const cell = Math.floor(rand() * LUDO_TRACK)
     if (!forbidden.has(cell)) return cell
@@ -98,12 +118,12 @@ export function createLudo(
   if (!Number.isInteger(maxSixes) || maxSixes < 2 || maxSixes > 4) {
     throw new LudoError('maxSixes doit être 2, 3 ou 4')
   }
-  const bonusCells: number[] = []
+  const bonusCells: LudoBonusCell[] = []
   if (rules.bonusMode) {
-    while (bonusCells.length < LUDO_BONUS_COUNT) {
+    for (const kind of INITIAL_KINDS) {
       const cell = drawBonusCell(bonusCells, rand)
       if (cell === null) break
-      bonusCells.push(cell)
+      bonusCells.push({ cell, kind })
     }
   }
   return {
@@ -122,6 +142,7 @@ export function createLudo(
     winnerId: null,
     pendingBonus: null,
     lastEvent: null,
+    lastBonus: null,
   }
 }
 
@@ -246,23 +267,36 @@ function drawBonus(
   pawnIndex: number,
   rollAgain: boolean,
   rand: () => number,
+  kind: LudoBonus | 'mystery',
 ): boolean {
-  const bonus = BONUS_DECK[Math.floor(rand() * BONUS_DECK.length)]!
+  // ❓ mystère : le type est tiré au ramassage ; les autres sont connus d'avance.
+  const bonus = kind === 'mystery' ? BONUS_DECK[Math.floor(rand() * BONUS_DECK.length)]! : kind
   const player = state.players[playerIndex]!
+  const announce = (value: number | null) => {
+    state.lastBonus = {
+      playerIndex,
+      kind: bonus,
+      value,
+      seq: (state.lastBonus?.seq ?? 0) + 1,
+    }
+  }
   const enemiesOnTrack = state.players.some(
     (p, i) => i !== playerIndex && p.pawns.some((pw) => pw.zone === 'track'),
   )
 
   switch (bonus) {
     case 'reroll':
+      announce(null)
       state.lastEvent = '🎁 🎲 Deuxième lancer !'
       return true // rejoue quoi qu'il arrive
     case 'shield':
       player.shield = true
+      announce(null)
       state.lastEvent = '🎁 🛡 Bouclier activé !'
       return rollAgain
     case 'boost': {
       const steps = 1 + Math.floor(rand() * 6)
+      announce(steps)
       const pawn = player.pawns[pawnIndex]!
       const dest = destinationOf(player.slot, pawn, steps)
       if (dest) {
@@ -270,10 +304,11 @@ function drawBonus(
         if (dest.zone === 'track') resolveCaptures(state, playerIndex, dest.cell)
         checkWin(state, playerIndex)
       }
-      state.lastEvent = `🎁 🍀 Boost +${steps} !`
+      state.lastEvent = `🎁 🚀 Saut +${steps} !`
       return rollAgain
     }
     case 'star': {
+      announce(null)
       const pawn = player.pawns[pawnIndex]!
       if (pawn.zone === 'track') {
         const rel = relOf(player.slot, pawn)!
@@ -291,6 +326,7 @@ function drawBonus(
     }
     case 'prison':
     case 'swap':
+      announce(null)
       if (!enemiesOnTrack) {
         state.lastEvent = '🎁 … mais aucune cible adverse !'
         return rollAgain
@@ -325,13 +361,16 @@ export function ludoPlay(
   if (state.status === 'finished') return
 
   let rollAgain = roll === 6
-  if (state.rules.bonusMode && dest.zone === 'track' && state.bonusCells.includes(dest.cell)) {
-    const landed = dest.cell
-    rollAgain = drawBonus(state, index, pawnIndex, rollAgain, rand)
-    // Le bonus ramassé se replace ailleurs, au hasard.
+  const landedBonus =
+    state.rules.bonusMode && dest.zone === 'track'
+      ? state.bonusCells.find((b) => b.cell === dest.cell)
+      : undefined
+  if (landedBonus) {
+    rollAgain = drawBonus(state, index, pawnIndex, rollAgain, rand, landedBonus.kind)
+    // Le bonus ramassé se replace ailleurs, au hasard — case ET type retirés.
     const next = drawBonusCell(state.bonusCells, rand)
-    state.bonusCells = state.bonusCells.filter((c) => c !== landed)
-    if (next !== null && next !== landed) state.bonusCells.push(next)
+    state.bonusCells = state.bonusCells.filter((b) => b.cell !== landedBonus.cell)
+    if (next !== null) state.bonusCells.push({ cell: next, kind: drawBonusKind(rand) })
     checkWin(state, index)
     if (state.winnerId !== null) return
   }

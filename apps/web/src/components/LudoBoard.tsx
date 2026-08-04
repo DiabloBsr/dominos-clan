@@ -47,6 +47,52 @@ const START_ARROWS = [0, 90, 180, 270]
 /** Couleurs du plateau CLASSIQUE (modèle de référence du user) :
  *  coin haut-gauche rouge, haut-droit vert, bas-droit jaune, bas-gauche bleu. */
 export const LUDO_COLORS = ['#e02b2b', '#28a24c', '#f5c518', '#1f7fe0']
+
+/** Logo + libellé de chaque type de bonus — discernable d'un coup d'œil. */
+const BONUS_ICONS: Record<string, { icon: string; label: string }> = {
+  reroll: { icon: '🎲', label: 'Deuxième lancer' },
+  boost: { icon: '🚀', label: 'Saut bonus (1 à 6)' },
+  prison: { icon: '🚔', label: 'Prison pour un pion adverse' },
+  shield: { icon: '🛡️', label: 'Bouclier (annule une capture)' },
+  swap: { icon: '🔁', label: 'Échange de positions' },
+  star: { icon: '🌟', label: 'Téléport vers la prochaine étoile' },
+  mystery: { icon: '❓', label: 'Bonus mystère' },
+}
+
+/** Machine à sous du Saut bonus : 3 rouleaux qui défilent 1-6 et s'arrêtent
+ *  en cascade sur le MÊME résultat — pur plaisir des yeux. */
+function SlotFx({ value }: { value: number }) {
+  const digits = [...[1, 2, 3, 4, 5, 6], ...[1, 2, 3, 4, 5, 6], ...[1, 2, 3, 4, 5, 6], value]
+  const [go, setGo] = useState(false)
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setGo(true))
+    return () => cancelAnimationFrame(raf)
+  }, [])
+  return (
+    <div className="ludo-slot" role="status" aria-label={`Saut bonus : ${value}`}>
+      <div className="slot-title">🚀 SAUT BONUS&nbsp;!</div>
+      <div className="slot-reels">
+        {[0, 1, 2].map((reel) => (
+          <div key={reel} className="slot-reel">
+            <div
+              className="slot-strip"
+              style={{
+                transitionDuration: `${1.05 + reel * 0.4}s`,
+                transform: go ? `translateY(calc(-${digits.length - 1} * var(--digit)))` : 'none',
+              }}
+            >
+              {digits.map((d, i) => (
+                <span key={i} className="slot-digit">
+                  {d}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 const CELL = 100 / 15
 
 function pseudoOf(room: RoomView, id: string): string {
@@ -201,6 +247,17 @@ export function LudoBoard({
   const [moving, setMoving] = useState<Set<string>>(new Set())
 
   useEffect(() => {
+    // 1er passage : compter les capturés de cette mise à jour (piste → base).
+    // UN seul capturé → il RECULE tout son parcours case par case ; plusieurs
+    // (2-4 pions sur la même case) → retour direct en prison, règle du user.
+    const capturedKeys: string[] = []
+    state.players.forEach((player, pi) =>
+      player.pawns.forEach((pawn, pwi) => {
+        const prev = prevPawns.current.get(`${pi}-${pwi}`)
+        if (prev && prev.zone === 'track' && pawn.zone === 'base') capturedKeys.push(`${pi}-${pwi}`)
+      }),
+    )
+
     const next = new Map<string, LudoPawnPos>()
     state.players.forEach((player, pi) =>
       player.pawns.forEach((pawn, pwi) => {
@@ -210,7 +267,23 @@ export function LudoBoard({
         if (!prev || JSON.stringify(prev) === JSON.stringify(pawn)) return
         const fromRel = relOfPawn(player.slot, prev)
         const toRel = relOfPawn(player.slot, pawn)
-        if (fromRel !== null && toRel !== null && toRel > fromRel && toRel - fromRel <= 12) {
+        if (
+          capturedKeys.length === 1 &&
+          capturedKeys[0] === key &&
+          prev.zone === 'track' &&
+          fromRel !== null
+        ) {
+          // Marche arrière : tout le chemin parcouru depuis la sortie,
+          // puis retour au box (pas de 2 cases au-delà de 14 pour le rythme).
+          const path: Array<[number, number]> = []
+          const stride = fromRel > 14 ? 2 : 1
+          for (let r = fromRel - stride; r > 0; r -= stride) {
+            path.push(gridOf(player.slot, pwi, pawnAtRel(player.slot, r)))
+          }
+          path.push(gridOf(player.slot, pwi, pawnAtRel(player.slot, 0)))
+          path.push(gridOf(player.slot, pwi, pawn))
+          queues.current.set(key, path)
+        } else if (fromRel !== null && toRel !== null && toRel > fromRel && toRel - fromRel <= 12) {
           const path: Array<[number, number]> = []
           for (let r = fromRel + 1; r <= toRel; r++) path.push(gridOf(player.slot, pwi, pawnAtRel(player.slot, r)))
           queues.current.set(key, path)
@@ -221,6 +294,20 @@ export function LudoBoard({
     )
     prevPawns.current = next
   }, [state])
+
+  // Machine à sous du Saut bonus : déclenchée par lastBonus (seq).
+  const [slotFx, setSlotFx] = useState<{ value: number; seq: number } | null>(null)
+  const slotSeq = useRef(0)
+  const slotTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    const lb = state.lastBonus
+    if (lb && lb.kind === 'boost' && lb.value !== null && lb.seq !== slotSeq.current) {
+      slotSeq.current = lb.seq
+      setSlotFx({ value: lb.value, seq: lb.seq })
+      if (slotTimer.current) clearTimeout(slotTimer.current)
+      slotTimer.current = setTimeout(() => setSlotFx(null), 3400)
+    }
+  }, [state.lastBonus])
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -275,9 +362,17 @@ export function LudoBoard({
                 </span>
               )}
               {startOwner < 0 && stars.includes(cell) && <span className="ludo-star">★</span>}
-              {state.rules.bonusMode && state.bonusCells.includes(cell) && !safes.includes(cell) && (
-                <span className="ludo-gift">🎁</span>
-              )}
+              {(() => {
+                if (!state.rules.bonusMode || safes.includes(cell)) return null
+                const bonus = state.bonusCells.find((b) => b.cell === cell)
+                if (!bonus) return null
+                const meta = BONUS_ICONS[bonus.kind] ?? BONUS_ICONS.mystery!
+                return (
+                  <span className="ludo-gift" title={meta.label}>
+                    {meta.icon}
+                  </span>
+                )
+              })()}
             </div>
           )
         })}
@@ -370,6 +465,8 @@ export function LudoBoard({
         })}
       </div>
       </div>
+
+      {slotFx && <SlotFx key={slotFx.seq} value={slotFx.value} />}
 
       <div className="ludo-hud">
         {state.status === 'playing' && (

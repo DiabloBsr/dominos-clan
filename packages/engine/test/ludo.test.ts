@@ -43,15 +43,18 @@ describe('createLudo', () => {
     expect(createLudo(['a', 'b', 'c', 'd']).players.map((p) => p.slot)).toEqual([0, 1, 2, 3])
   })
 
-  it('mode bonus : 8 cases éparpillées, jamais sur des cases sûres', () => {
+  it('mode bonus : 8 cases TYPÉES éparpillées (6 types + 2 ❓), jamais sur des cases sûres', () => {
     const state = createLudo(['a', 'b'], { bonusMode: true })
     expect(state.bonusCells).toHaveLength(8)
-    expect(new Set(state.bonusCells).size).toBe(8)
-    for (const cell of state.bonusCells) {
+    expect(new Set(state.bonusCells.map((b) => b.cell)).size).toBe(8)
+    for (const { cell } of state.bonusCells) {
       expect(ludoSafeCells()).not.toContain(cell)
       expect(cell).toBeGreaterThanOrEqual(0)
       expect(cell).toBeLessThan(52)
     }
+    // Un bonus de chaque type visible + 2 mystères.
+    const kinds = state.bonusCells.map((b) => b.kind).sort()
+    expect(kinds).toEqual(['boost', 'mystery', 'mystery', 'prison', 'reroll', 'shield', 'star', 'swap'])
     expect(createLudo(['a', 'b']).bonusCells).toEqual([])
   })
 })
@@ -170,7 +173,8 @@ describe('bonus 🎁', () => {
   const bonusCell = 4
 
   function landOnBonus(state: LudoState, rand: () => number) {
-    state.bonusCells = [bonusCell]
+    // Case ❓ mystère : le type est tiré par le PREMIER rand (comme l'ancien deck).
+    state.bonusCells = [{ cell: bonusCell, kind: 'mystery' }]
     craft(state, 0, 0, { zone: 'track', cell: bonusCell - 3 })
     ludoRoll(state, 'a', 3)
     ludoPlay(state, 'a', 0, rand)
@@ -189,18 +193,33 @@ describe('bonus 🎁', () => {
     expect(state.dice).toBeNull()
   })
 
-  it('un bonus ramassé se replace ailleurs, au hasard (jamais sur une case sûre)', () => {
+  it('un bonus ramassé se replace ailleurs, au hasard (jamais sur une case sûre), type retiré', () => {
     const state = createLudo(['a', 'b'], { bonusMode: true })
     landOnBonus(state, bonusRand(0, 0.5))
     expect(state.bonusCells).toHaveLength(1)
-    expect(state.bonusCells).not.toContain(bonusCell)
-    expect(ludoSafeCells()).not.toContain(state.bonusCells[0])
+    expect(state.bonusCells[0]!.cell).not.toBe(bonusCell)
+    expect(ludoSafeCells()).not.toContain(state.bonusCells[0]!.cell)
+    expect(['reroll', 'boost', 'prison', 'shield', 'swap', 'star', 'mystery']).toContain(
+      state.bonusCells[0]!.kind,
+    )
   })
 
-  it('🍀 boost avance le pion du tirage', () => {
+  it('🍀 boost avance le pion du tirage et publie lastBonus (machine à sous)', () => {
     const state = createLudo(['a', 'b'], { bonusMode: true })
     landOnBonus(state, bonusRand(1, 0.5)) // boost, puis rand 0.5 → +4
     expect(state.players[0]!.pawns[0]).toEqual({ zone: 'track', cell: bonusCell + 4 })
+    expect(state.lastBonus).toMatchObject({ playerIndex: 0, kind: 'boost', value: 4 })
+    expect(state.lastBonus!.seq).toBeGreaterThan(0)
+  })
+
+  it('une case typée (non mystère) applique SON bonus sans tirage de type', () => {
+    const state = createLudo(['a', 'b'], { bonusMode: true })
+    state.bonusCells = [{ cell: bonusCell, kind: 'shield' }]
+    craft(state, 0, 0, { zone: 'track', cell: bonusCell - 3 })
+    ludoRoll(state, 'a', 3)
+    ludoPlay(state, 'a', 0, noRand)
+    expect(state.players[0]!.shield).toBe(true)
+    expect(state.lastBonus).toMatchObject({ kind: 'shield', value: null })
   })
 
   it('🚔 prison : cible adverse choisie retourne en prison', () => {
