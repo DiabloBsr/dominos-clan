@@ -85,27 +85,32 @@ const DIE_PIPS: Record<number, number[]> = {
   6: [0, 2, 3, 5, 6, 8],
 }
 
+function DieFace({ value }: { value: number }) {
+  return (
+    <span className="die3d-face" data-face={value}>
+      {Array.from({ length: 9 }, (_, i) => (
+        <span key={i} className={`die-pip ${DIE_PIPS[value]!.includes(i) ? 'on' : ''}`} />
+      ))}
+    </span>
+  )
+}
+
+/** Dé 3D : cube ivoire qui culbute et rebondit, puis se pose en ressort. */
 function Die({ value, animKey }: { value: number; animKey: number }) {
-  const [face, setFace] = useState(value)
   const [rolling, setRolling] = useState(true)
   useEffect(() => {
     setRolling(true)
-    const spin = setInterval(() => setFace(1 + Math.floor(Math.random() * 6)), 85)
-    const settle = setTimeout(() => {
-      clearInterval(spin)
-      setFace(value)
-      setRolling(false)
-    }, 620)
-    return () => {
-      clearInterval(spin)
-      clearTimeout(settle)
-    }
+    const settle = setTimeout(() => setRolling(false), 850)
+    return () => clearTimeout(settle)
   }, [animKey, value])
   return (
-    <span className={`ludo-die ${rolling ? 'rolling' : 'settled'}`}>
-      {Array.from({ length: 9 }, (_, i) => (
-        <span key={i} className={`die-pip ${DIE_PIPS[face]!.includes(i) ? 'on' : ''}`} />
-      ))}
+    <span className={`die3d-scene ${rolling ? 'rolling' : 'settled'}`} aria-label={`Dé : ${value}`}>
+      <span className="die3d" data-value={value}>
+        {[1, 2, 3, 4, 5, 6].map((f) => (
+          <DieFace key={f} value={f} />
+        ))}
+      </span>
+      <span className="die3d-shadow" />
     </span>
   )
 }
@@ -138,9 +143,22 @@ export function LudoBoard({
   const targeting = state.pendingBonus !== null && state.pendingBonus.playerIndex === myIndex
   const legal = myTurn && state.dice !== null ? ludoLegalPawns(state, myIndex) : []
 
-  const [diceAnim, setDiceAnim] = useState(0)
+  // Le dé AFFICHÉ survit au dé serveur : quand rien n'est jouable, le serveur
+  // passe le tour et remet dice à null immédiatement — sans ça, la culbute
+  // n'aurait jamais le temps d'être vue ni le résultat d'être lu.
+  const [shownDie, setShownDie] = useState<{ value: number; key: number } | null>(null)
+  const dieHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
-    if (state.dice !== null) setDiceAnim((n) => n + 1)
+    if (state.dice !== null) {
+      if (dieHideTimer.current) {
+        clearTimeout(dieHideTimer.current)
+        dieHideTimer.current = null
+      }
+      const value = state.dice
+      setShownDie((prev) => ({ value, key: (prev?.key ?? 0) + 1 }))
+    } else {
+      dieHideTimer.current = setTimeout(() => setShownDie(null), 1600)
+    }
   }, [state.dice])
 
   const stars = ludoStarCells()
@@ -325,13 +343,19 @@ export function LudoBoard({
             }),
           )}
         </div>
+
+        {shownDie && state.status === 'playing' && (
+          <div className="ludo-die-spot">
+            <Die value={shownDie.value} animKey={shownDie.key} />
+          </div>
+        )}
       </div>
       </div>
 
       <div className="ludo-hud">
         {state.status === 'playing' && (
           <>
-            {state.dice !== null && <Die value={state.dice} animKey={diceAnim} />}
+
             {myTurn && state.dice === null && !targeting && (
               <button className="btn ludo-roll" onClick={onRoll}>
                 🎲 Lancer le dé
