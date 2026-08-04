@@ -359,7 +359,8 @@ io.on('connection', (socket: Socket) => {
   socket.on('ludo:roll', (_payload: unknown, ack?: Ack) =>
     handle(ack, () => {
       const { room, memberId } = withRoom(state)
-      ludoRollRoom(room, memberId)
+      const rolled = ludoRollRoom(room, memberId)
+      io.to(room.code).emit('ludo:rolled', rolled)
       broadcast(room)
     }),
   )

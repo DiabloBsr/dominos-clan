@@ -95,10 +95,12 @@ function DieFace({ value }: { value: number }) {
   )
 }
 
-/** Dé 3D : cube ivoire qui culbute et rebondit, puis se pose en ressort. */
+/** Dé 3D : cube ivoire qui culbute et rebondit, puis se pose en ressort.
+ *  animKey=0 = affichage statique (pas de culbute au montage). */
 function Die({ value, animKey }: { value: number; animKey: number }) {
-  const [rolling, setRolling] = useState(true)
+  const [rolling, setRolling] = useState(false)
   useEffect(() => {
+    if (animKey === 0) return
     setRolling(true)
     const settle = setTimeout(() => setRolling(false), 850)
     return () => clearTimeout(settle)
@@ -120,6 +122,7 @@ export function LudoBoard({
   room,
   selfId,
   isHost,
+  roll,
   onRoll,
   onPlay,
   onTarget,
@@ -131,6 +134,8 @@ export function LudoBoard({
   room: RoomView
   selfId: string
   isHost: boolean
+  /** Dernier tirage diffusé par le serveur (survit aux tirages consommés). */
+  roll: { player: number; value: number; key: number } | null
   onRoll: () => void
   onPlay: (pawn: number) => void
   onTarget: (player: number, pawn: number) => void
@@ -143,23 +148,24 @@ export function LudoBoard({
   const targeting = state.pendingBonus !== null && state.pendingBonus.playerIndex === myIndex
   const legal = myTurn && state.dice !== null ? ludoLegalPawns(state, myIndex) : []
 
-  // Le dé AFFICHÉ survit au dé serveur : quand rien n'est jouable, le serveur
-  // passe le tour et remet dice à null immédiatement — sans ça, la culbute
-  // n'aurait jamais le temps d'être vue ni le résultat d'être lu.
-  const [shownDie, setShownDie] = useState<{ value: number; key: number } | null>(null)
-  const dieHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Chaque case de dé garde LA DERNIÈRE face tirée de son joueur, en
+  // permanence. La valeur arrive par l'événement serveur ludo:rolled (le
+  // state seul ne suffit pas : un tirage sans coup jouable est consommé et
+  // le tour passé dans le même broadcast).
+  const [lastRolls, setLastRolls] = useState<Record<number, { value: number; key: number }>>({})
+  useEffect(() => {
+    if (!roll) return
+    setLastRolls((prev) => ({ ...prev, [roll.player]: { value: roll.value, key: roll.key } }))
+  }, [roll])
+  // Reprise en cours de partie : le dé déjà tiré s'affiche sans culbute.
   useEffect(() => {
     if (state.dice !== null) {
-      if (dieHideTimer.current) {
-        clearTimeout(dieHideTimer.current)
-        dieHideTimer.current = null
-      }
       const value = state.dice
-      setShownDie((prev) => ({ value, key: (prev?.key ?? 0) + 1 }))
-    } else {
-      dieHideTimer.current = setTimeout(() => setShownDie(null), 1600)
+      const player = state.turn
+      setLastRolls((prev) => (prev[player] ? prev : { ...prev, [player]: { value, key: 0 } }))
     }
-  }, [state.dice])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const stars = ludoStarCells()
   const starts = [0, 1, 2, 3].map(ludoStartCell)
@@ -245,27 +251,6 @@ export function LudoBoard({
 
   return (
     <section className="game ludo-game">
-      <div className="ludo-players">
-        {state.players.map((p, i) => (
-          <div
-            key={p.id}
-            className={`seat-chip ludo-chip ${state.turn === i && state.status === 'playing' ? 'turn' : ''} ${
-              speaking.includes(p.id) ? 'speaking' : ''
-            }`}
-            style={{ ['--pc' as string]: LUDO_COLORS[p.slot] }}
-          >
-            <span className="ludo-dot" />
-            <span className="seat-name">
-              {avatarOf(room, p.id)} {pseudoOf(room, p.id)}
-              {voiceIds.includes(p.id) ? ' 🎙' : ''}
-              {p.id === selfId ? ' (toi)' : ''}
-              {p.shield ? ' 🛡' : ''}
-            </span>
-            <span className="ludo-done">{p.pawns.filter((pw) => pw.zone === 'done').length}/4 🏁</span>
-          </div>
-        ))}
-      </div>
-
       <div className="ludo-frame">
       <div className="ludo-board">
         {BASE_ZONES.map(([r, c], slot) => (
@@ -344,22 +329,53 @@ export function LudoBoard({
           )}
         </div>
 
-        {shownDie && state.status === 'playing' && (
-          <div className="ludo-die-spot">
-            <Die value={shownDie.value} animKey={shownDie.key} />
-          </div>
-        )}
+        {/* Plaque nominative de chaque joueur, ancrée au coin de SA base,
+            + sa case de lancé de dé au coin intérieur (vers le centre). */}
+        {state.players.map((p, i) => {
+          const mine = p.id === selfId
+          const isTurn = state.turn === i && state.status === 'playing'
+          const canTapRoll = isTurn && mine && state.dice === null && !targeting
+          return (
+            <div key={`corner-${p.id}`}>
+              <div
+                className={`ludo-plate slot-${p.slot} ${isTurn ? 'turn' : ''} ${
+                  speaking.includes(p.id) ? 'speaking' : ''
+                }`}
+                style={{ ['--pc' as string]: LUDO_COLORS[p.slot] }}
+              >
+                <span className="ludo-dot" />
+                <span className="plate-name">
+                  {avatarOf(room, p.id)} {pseudoOf(room, p.id)}
+                  {voiceIds.includes(p.id) ? ' 🎙' : ''}
+                  {mine ? ' (toi)' : ''}
+                  {p.shield ? ' 🛡' : ''}
+                </span>
+                <span className="plate-done">
+                  {p.pawns.filter((pw) => pw.zone === 'done').length}/4 🏁
+                </span>
+              </div>
+              <button
+                className={`ludo-tray slot-${p.slot} ${isTurn ? 'active' : 'idle'} ${
+                  canTapRoll ? 'rollable' : ''
+                }`}
+                style={{ ['--pc' as string]: LUDO_COLORS[p.slot] }}
+                disabled={!canTapRoll}
+                title={canTapRoll ? 'Tape pour lancer le dé !' : undefined}
+                onClick={canTapRoll ? onRoll : undefined}
+              >
+                <Die value={lastRolls[i]?.value ?? 6} animKey={lastRolls[i]?.key ?? 0} />
+              </button>
+            </div>
+          )
+        })}
       </div>
       </div>
 
       <div className="ludo-hud">
         {state.status === 'playing' && (
           <>
-
             {myTurn && state.dice === null && !targeting && (
-              <button className="btn ludo-roll" onClick={onRoll}>
-                🎲 Lancer le dé
-              </button>
+              <span className="turn-hint live">🎲 À toi — tape ta case de dé !</span>
             )}
             {myTurn && state.dice !== null && !targeting && (
               <span className="turn-hint live">Choisis un pion à avancer !</span>

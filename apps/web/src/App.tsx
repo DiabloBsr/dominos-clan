@@ -68,6 +68,10 @@ export default function App() {
   )
   const [slamFx, setSlamFx] = useState<{ key: number; pseudo: string } | null>(null)
   const [passFx, setPassFx] = useState<{ key: number; pseudo: string } | null>(null)
+  const [ludoRollFx, setLudoRollFx] = useState<{ player: number; value: number; key: number } | null>(
+    null,
+  )
+  const ludoRollKey = useRef(0)
   const reactionKey = useRef(0)
   const chatKey = useRef(0)
   const slamKey = useRef(0)
@@ -381,6 +385,8 @@ export default function App() {
       setPassFx({ key, pseudo: p.pseudo })
       setTimeout(() => setPassFx((prev) => (prev?.key === key ? null : prev)), 1100)
     }
+    const onLudoRolled = (r: { player: number; value: number }) =>
+      setLudoRollFx({ ...r, key: ++ludoRollKey.current })
     const onAborted = () => showNotice('Un joueur a quitté : manche annulée')
     const onDisconnect = () => {
       setRoom(null)
@@ -405,6 +411,7 @@ export default function App() {
     socket.on('sound:played', onSoundPlayed)
     socket.on('game:slam', onSlam)
     socket.on('game:passed', onPassed)
+    socket.on('ludo:rolled', onLudoRolled)
     socket.on('game:aborted', onAborted)
     socket.on('disconnect', onDisconnect)
     return () => {
@@ -424,6 +431,7 @@ export default function App() {
       socket.off('sound:played', onSoundPlayed)
       socket.off('game:slam', onSlam)
       socket.off('game:passed', onPassed)
+      socket.off('ludo:rolled', onLudoRolled)
       socket.off('game:aborted', onAborted)
       socket.off('disconnect', onDisconnect)
     }
@@ -658,6 +666,7 @@ export default function App() {
           friendStatuses={friendStatuses}
           slamFx={slamFx}
           passFx={passFx}
+          ludoRollFx={ludoRollFx}
           {...handlers}
         />
       ) : (

@@ -476,10 +476,16 @@ function settleLudoEnd(room: Room): void {
 
 const serverRand = () => randomInt(1_000_000) / 1_000_000
 
-export function ludoRollRoom(room: Room, memberId: string): void {
+export function ludoRollRoom(room: Room, memberId: string): { player: number; value: number } {
   if (room.status !== 'playing' || !room.ludoGame) throw new RoomError('Aucune partie en cours')
-  ludoRoll(room.ludoGame, memberId, randomInt(1, 7))
+  const player = room.ludoGame.players.findIndex((p) => p.id === memberId)
+  const value = randomInt(1, 7)
+  ludoRoll(room.ludoGame, memberId, value)
   settleLudoEnd(room)
+  // La valeur tirée part en événement dédié : quand rien n'est jouable, le
+  // moteur consomme le dé et passe le tour DANS le même broadcast — sans
+  // l'événement, les clients ne verraient jamais la face tirée.
+  return { player, value }
 }
 
 export function ludoPlayRoom(room: Room, memberId: string, rawPawn: unknown): void {

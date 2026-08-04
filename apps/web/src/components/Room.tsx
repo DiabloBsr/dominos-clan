@@ -286,6 +286,7 @@ export function Room({
   friendStatuses,
   slamFx,
   passFx,
+  ludoRollFx,
   onInvite,
   onSit,
   onPromote,
@@ -322,6 +323,7 @@ export function Room({
   friendStatuses: Record<string, FriendStatus>
   slamFx: { key: number; pseudo: string } | null
   passFx: { key: number; pseudo: string } | null
+  ludoRollFx: { player: number; value: number; key: number } | null
   onInvite: (toUserId: string) => void
   onSit: () => void
   onPromote: (memberId: string) => void
@@ -854,6 +856,7 @@ export function Room({
           room={room}
           selfId={selfId}
           isHost={isHost}
+          roll={ludoRollFx}
           onRoll={onLudoRoll}
           onPlay={onLudoPlay}
           onTarget={onLudoTarget}
