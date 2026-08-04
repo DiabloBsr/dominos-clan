@@ -110,9 +110,40 @@ async function main(): Promise<void> {
   // …et le nouveau chef, si.
   await emitAck(b, 'room:rules', { gameType: 'dominos', maxSeats: 2, targetScore: null })
   console.log('✅ transfer-host : étoile transmise, droits basculés')
-  console.log(`\n🎉 PROBE ADMIN OK (chef=${chefId.slice(0, 6)}…, salon ${code})`)
+
+  // 4) Échange assis ↔ file, puis retrait d'un membre par le chef.
+  const c = await connect()
+  const joinedC = await emitAck(c, 'room:join', { code, pseudo: 'Rempla', avatar: '🦈', userId: 'u-rempla' })
+  const remplaId = joinedC.selfId as string
+  await sleep(200)
+  if (!roomB || !(roomB as RoomView).queue.includes(remplaId)) fail('swap : Rempla aurait dû arriver en file')
+  await emitAck(b, 'room:swap', { seatId: chefId, withId: remplaId })
+  await sleep(200)
+  let vb = roomB as RoomView
+  if (!vb.seats.includes(remplaId) || !vb.queue.includes(chefId)) {
+    fail(`swap : attendu Rempla à table et Chef en file (seats=${vb.seats}, queue=${vb.queue})`)
+  }
+  console.log('✅ swap : joueur assis échangé avec un joueur de la file')
+
+  let kicked = false
+  a.on('room:kicked', () => (kicked = true))
+  try {
+    await emitAck(a, 'room:kick', { memberId: remplaId })
+    fail('kick : un non-chef a pu retirer quelqu’un')
+  } catch {
+    /* attendu */
+  }
+  await emitAck(b, 'room:kick', { memberId: chefId })
+  await sleep(200)
+  vb = roomB as RoomView
+  if (!kicked) fail('kick : le retiré n’a pas reçu room:kicked')
+  if (vb.members.some((m) => m.id === chefId)) fail('kick : le membre retiré est toujours dans le salon')
+  console.log('✅ kick : membre retiré, notifié, salon nettoyé')
+
+  console.log(`\n🎉 PROBE ADMIN OK (salon ${code})`)
   a.close()
   b.close()
+  c.close()
   process.exit(0)
 }
 

@@ -3,7 +3,13 @@ import type { ChessView, GameRules, GameView, LudoState, Move, RoomView } from '
 import { LudoBoard } from './LudoBoard'
 import type { ChatMessage, FloatingReaction } from '../App'
 import type { VoiceAudience, VoiceControls } from '../useVoice'
-import { STATUS_LABELS, type Friend, type FriendStatus } from '../profile'
+import {
+  STATUS_LABELS,
+  friendAvatar,
+  friendLabel,
+  type Friend,
+  type FriendStatus,
+} from '../profile'
 import { ChessBoard } from './ChessBoard'
 import { Game } from './Game'
 
@@ -278,6 +284,8 @@ export function Room({
   onChat,
   onReconfigure,
   onTransferHost,
+  onKick,
+  onSwap,
   onUndo,
   onRedeal,
   onChessMove,
@@ -311,6 +319,8 @@ export function Room({
   onChat: (text: string) => void
   onReconfigure: (rules: GameRules) => void
   onTransferHost: (toId: string) => void
+  onKick: (memberId: string) => void
+  onSwap: (seatId: string, withId: string) => void
   onUndo: () => void
   onRedeal: () => void
   onChessMove: (from: string, to: string, promotion?: string) => void
@@ -328,11 +338,18 @@ export function Room({
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [draftRules, setDraftRules] = useState<GameRules>(room.rules)
   const [soundsOpen, setSoundsOpen] = useState(false)
+  const [memberMenu, setMemberMenu] = useState<string | null>(null)
+  const [swapMode, setSwapMode] = useState(false)
   const msgsRef = useRef<HTMLDivElement | null>(null)
 
   const openSettings = () => {
     setDraftRules({ ...room.rules })
     setSettingsOpen(true)
+  }
+
+  const openMemberMenu = (id: string) => {
+    setSwapMode(false)
+    setMemberMenu(id)
   }
 
   useEffect(() => {
@@ -385,7 +402,7 @@ export function Room({
                 return (
                   <div key={f.id} className="friend-row">
                     <span className="friend-name">
-                      {f.avatar} {f.pseudo || f.id}
+                      {friendAvatar(f)} {friendLabel(f)}
                     </span>
                     <span className={`friend-status ${status}`}>{STATUS_LABELS[status]}</span>
                     <button
@@ -505,18 +522,10 @@ export function Room({
               {isHost && id !== selfId && (
                 <button
                   className="chip-add"
-                  title={`Passer le rôle de chef à ${pseudoOf(room, id)}`}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Passer le rôle de chef à ${pseudoOf(room, id)} ? Tu ne pourras plus régler le salon.`,
-                      )
-                    ) {
-                      onTransferHost(id)
-                    }
-                  }}
+                  title="Gérer ce joueur (chef, échange, retrait)"
+                  onClick={() => openMemberMenu(id)}
                 >
-                  ⭐
+                  ⋯
                 </button>
               )}
             </span>
@@ -565,18 +574,10 @@ export function Room({
               {isHost && id !== selfId && (
                 <button
                   className="chip-add"
-                  title={`Passer le rôle de chef à ${pseudoOf(room, id)}`}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Passer le rôle de chef à ${pseudoOf(room, id)} ? Tu ne pourras plus régler le salon.`,
-                      )
-                    ) {
-                      onTransferHost(id)
-                    }
-                  }}
+                  title="Gérer ce joueur (chef, retrait)"
+                  onClick={() => openMemberMenu(id)}
                 >
-                  ⭐
+                  ⋯
                 </button>
               )}
             </span>
@@ -625,6 +626,91 @@ export function Room({
           </div>
         </>
       )}
+
+      {memberMenu &&
+        (() => {
+          const target = room.members.find((m) => m.id === memberMenu)
+          if (!target) return null
+          const targetSeated = room.seats.includes(target.id)
+          const close = () => setMemberMenu(null)
+          return (
+            <>
+              <div className="panel-veil" onClick={close} />
+              <div className="game-modal card member-menu">
+                <div className="panel-head">
+                  <h2 className="card-title">
+                    {target.avatar} {target.pseudo}
+                  </h2>
+                  <button className="icon-btn tiny" onClick={close}>
+                    ✕
+                  </button>
+                </div>
+                {swapMode ? (
+                  <>
+                    <p className="hint">🔁 Échanger {target.pseudo} avec :</p>
+                    {room.queue.length === 0 && <p className="empty">Personne en file…</p>}
+                    {room.queue.map((qid) => (
+                      <button
+                        key={qid}
+                        className="btn ghost"
+                        onClick={() => {
+                          onSwap(target.id, qid)
+                          close()
+                        }}
+                      >
+                        {avatarOf(room, qid)} {pseudoOf(room, qid)}
+                      </button>
+                    ))}
+                    <button className="btn ghost sm" onClick={() => setSwapMode(false)}>
+                      ← Retour
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {targetSeated && room.queue.length > 0 && !playing && (
+                      <button className="btn ghost" onClick={() => setSwapMode(true)}>
+                        🔁 Échanger avec un joueur de la file
+                      </button>
+                    )}
+                    {targetSeated && playing && (
+                      <p className="hint">L’échange se fait entre deux manches.</p>
+                    )}
+                    <button
+                      className="btn ghost"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Passer le rôle de chef à ${target.pseudo} ? Tu ne pourras plus régler le salon.`,
+                          )
+                        ) {
+                          onTransferHost(target.id)
+                          close()
+                        }
+                      }}
+                    >
+                      ⭐ Le nommer chef
+                    </button>
+                    <button
+                      className="btn ghost danger"
+                      onClick={() => {
+                        const warning =
+                          targetSeated && playing
+                            ? `Enlever ${target.pseudo} du salon ? La manche en cours sera annulée.`
+                            : `Enlever ${target.pseudo} du salon ? Il devra re-rejoindre avec le code.`
+                        if (window.confirm(warning)) {
+                          onKick(target.id)
+                          close()
+                        }
+                      }}
+                    >
+                      🚪 Enlever du salon
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          )
+        })()}
 
       {room.rules.targetScore !== null && room.rules.gameType === 'dominos' && (
         <div className="scoreboard">

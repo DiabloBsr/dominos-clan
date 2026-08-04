@@ -4,6 +4,8 @@ import { DominoTile } from './DominoTile'
 import {
   AVATARS,
   STATUS_LABELS,
+  friendAvatar,
+  friendLabel,
   type Friend,
   type FriendStatus,
   type Profile,
@@ -226,7 +228,7 @@ export function Home({
                 return (
                   <div key={f.id} className="friend-row">
                     <span className="friend-name">
-                      {f.avatar} {f.pseudo || f.id}
+                      {friendAvatar(f)} {friendLabel(f)}
                     </span>
                     <span className={`friend-status ${status}`}>{STATUS_LABELS[status]}</span>
                     {(status === 'room' || status === 'playing') && (
@@ -244,7 +246,7 @@ export function Home({
                       onClick={() => {
                         if (
                           window.confirm(
-                            `Retirer ${f.pseudo || f.id} de tes amis ? Il faudra ré-échanger vos codes pour le retrouver.`,
+                            `Retirer ${friendLabel(f)} de tes amis ? Il faudra ré-échanger vos codes pour le retrouver.`,
                           )
                         ) {
                           onRemoveFriend(f.id)

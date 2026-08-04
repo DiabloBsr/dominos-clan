@@ -294,6 +294,36 @@ export function promoteToSeat(room: Room, hostId: string, rawMemberId: unknown):
   room.seats.push(rawMemberId)
 }
 
+/** Valide un retrait de membre par le chef ; retourne l'id ciblé. */
+export function assertCanKick(room: Room, hostId: string, rawTargetId: unknown): string {
+  if (hostId !== room.hostId) throw new RoomError('Seul le chef peut enlever un joueur')
+  if (typeof rawTargetId !== 'string' || !room.members.has(rawTargetId)) {
+    throw new RoomError('Membre introuvable')
+  }
+  if (rawTargetId === hostId) throw new RoomError('Utilise « Quitter » pour sortir toi-même')
+  return rawTargetId
+}
+
+/**
+ * Le chef échange un joueur assis avec un joueur de la file (entre deux
+ * manches) — pratique quand quelqu'un s'absente ou pour faire tourner.
+ */
+export function swapSeat(room: Room, hostId: string, rawSeatId: unknown, rawQueueId: unknown): void {
+  if (hostId !== room.hostId) throw new RoomError('Seul le chef peut faire un échange')
+  if (room.status === 'playing' || room.status === 'redeal') {
+    throw new RoomError('Attends la fin de la manche')
+  }
+  if (typeof rawSeatId !== 'string' || !room.seats.includes(rawSeatId)) {
+    throw new RoomError('Ce joueur n’est pas à table')
+  }
+  if (typeof rawQueueId !== 'string' || !room.queue.includes(rawQueueId)) {
+    throw new RoomError('Ce joueur n’est pas dans la file')
+  }
+  // Échange de places : le sortant prend la position du montant dans la file.
+  room.seats = room.seats.map((id) => (id === rawSeatId ? (rawQueueId as string) : id))
+  room.queue = room.queue.map((id) => (id === rawQueueId ? (rawSeatId as string) : id))
+}
+
 /** L'hôte passe la couronne à un autre membre du salon (assis ou en file). */
 export function transferHost(room: Room, memberId: string, rawTargetId: unknown): void {
   if (memberId !== room.hostId) throw new RoomError('Seul le chef peut passer son rôle')

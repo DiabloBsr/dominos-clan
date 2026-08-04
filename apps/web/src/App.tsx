@@ -75,6 +75,9 @@ export default function App() {
     selfIdRef.current = selfId
   }, [selfId])
 
+  // Réf stable vers la coupure voix, pour les handlers socket montés une fois.
+  const voiceLeaveRef = useRef<() => void>(() => {})
+
   const showNotice = useCallback((message: string) => {
     setNotice(message)
     if (noticeTimer.current) clearTimeout(noticeTimer.current)
@@ -124,6 +127,10 @@ export default function App() {
 
   const voice = useVoice(room?.code ?? null, selfId, playerIds, showNotice)
 
+  useEffect(() => {
+    voiceLeaveRef.current = voice.leave
+  }, [voice])
+
   // Bouton « retour » piégé : dans un salon, revenir en arrière ne quitte
   // plus la page par accident — on reste, et « Quitter » reste le seul chemin.
   const inRoom = room !== null
@@ -158,8 +165,8 @@ export default function App() {
     const register = () => {
       socket.emit('presence:hello', {
         userId: profile.id,
-        pseudo: profile.pseudo || 'joueur',
-        avatar: profile.avatar,
+        pseudo: profile.pseudo.trim() || 'joueur',
+        avatar: (profile.avatar ?? '').trim() || '❔',
       })
       socket.emit(
         'presence:watch',
@@ -176,9 +183,11 @@ export default function App() {
               let changed = false
               const next = prev.map((fr) => {
                 const live = res.friends!.find((x) => x.userId === fr.id)
-                if (live?.pseudo && (fr.pseudo !== live.pseudo || fr.avatar !== live.avatar)) {
+                const pseudo = (live?.pseudo ?? '').trim()
+                const avatar = (live?.avatar ?? '').trim() || '❔'
+                if (pseudo && (fr.pseudo !== pseudo || fr.avatar !== avatar)) {
                   changed = true
-                  return { ...fr, pseudo: live.pseudo, avatar: live.avatar }
+                  return { ...fr, pseudo, avatar }
                 }
                 return fr
               })
@@ -234,13 +243,16 @@ export default function App() {
     }
     const onPresence = (u: { userId: string; pseudo: string; avatar: string; status: FriendStatus }) => {
       setFriendStatuses((prev) => ({ ...prev, [u.userId]: u.status }))
-      // Met à jour le pseudo/avatar caché de l'ami dès qu'on le voit en ligne.
-      if (u.pseudo) {
+      // Met à jour le pseudo/avatar caché de l'ami dès qu'on le voit en ligne
+      // (données nettoyées : jamais d'espace ni de blanc enregistré).
+      const pseudo = (u.pseudo ?? '').trim()
+      const avatar = (u.avatar ?? '').trim() || '❔'
+      if (pseudo) {
         setFriends((prev) => {
           const i = prev.findIndex((f) => f.id === u.userId)
-          if (i < 0 || (prev[i]!.pseudo === u.pseudo && prev[i]!.avatar === u.avatar)) return prev
+          if (i < 0 || (prev[i]!.pseudo === pseudo && prev[i]!.avatar === avatar)) return prev
           const next = [...prev]
-          next[i] = { ...next[i]!, pseudo: u.pseudo, avatar: u.avatar }
+          next[i] = { ...next[i]!, pseudo, avatar }
           saveFriends(next)
           return next
         })
@@ -261,6 +273,19 @@ export default function App() {
           : `🔄 ${r.byPseudo} a tout remis à zéro — nouvelle partie !`,
       )
     const onHostChanged = (h: { pseudo: string }) => showNotice(`⭐ ${h.pseudo} est le nouveau chef !`)
+    const onKicked = (k: { byPseudo: string }) => {
+      voiceLeaveRef.current()
+      clearSession()
+      setRoom(null)
+      setGame(null)
+      setChess(null)
+      setLudo(null)
+      setSelfId(null)
+      setChatMessages([])
+      showNotice(`🚪 ${k.byPseudo} t’a retiré du salon`)
+    }
+    const onMemberKicked = (m: { pseudo: string }) =>
+      showNotice(`🚪 ${m.pseudo} a été retiré du salon par le chef`)
     const onSoundPlayed = (s: { memberId: string; pseudo: string; kind: string }) => {
       playBoardSound(s.kind)
       const emoji =
@@ -301,6 +326,8 @@ export default function App() {
     socket.on('friend:knocked', onKnocked)
     socket.on('room:restarted', onRestarted)
     socket.on('room:host-changed', onHostChanged)
+    socket.on('room:kicked', onKicked)
+    socket.on('room:member-kicked', onMemberKicked)
     socket.on('sound:played', onSoundPlayed)
     socket.on('game:slam', onSlam)
     socket.on('game:passed', onPassed)
@@ -318,6 +345,8 @@ export default function App() {
       socket.off('friend:knocked', onKnocked)
       socket.off('room:restarted', onRestarted)
       socket.off('room:host-changed', onHostChanged)
+      socket.off('room:kicked', onKicked)
+      socket.off('room:member-kicked', onMemberKicked)
       socket.off('sound:played', onSoundPlayed)
       socket.off('game:slam', onSlam)
       socket.off('game:passed', onPassed)
@@ -454,6 +483,8 @@ export default function App() {
     onRules: (rules: GameRules) => simpleEmit('room:rules', { ...rules }),
     onReconfigure: (rules: GameRules) => simpleEmit('room:reconfigure', { ...rules }),
     onTransferHost: (toId: string) => simpleEmit('room:transfer-host', { toId }),
+    onKick: (memberId: string) => simpleEmit('room:kick', { memberId }),
+    onSwap: (seatId: string, withId: string) => simpleEmit('room:swap', { seatId, withId }),
     onUndo: () => simpleEmit('game:undo'),
     onRedeal: () => simpleEmit('game:redeal'),
     onChessMove: (from: string, to: string, promotion?: string) =>

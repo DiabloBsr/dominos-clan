@@ -43,12 +43,29 @@ function generateId(): string {
   return [...bytes].map((b) => ID_ALPHABET[b % ID_ALPHABET.length]).join('')
 }
 
+/** Nom affiché d'un ami : JAMAIS vide — pseudo nettoyé, sinon le code ami. */
+export function friendLabel(f: Pick<Friend, 'id' | 'pseudo'>): string {
+  return (f.pseudo ?? '').trim() || f.id
+}
+
+/** Avatar affiché : JAMAIS vide — fallback ❔ si donnée absente ou blanche. */
+export function friendAvatar(f: Pick<Friend, 'avatar'>): string {
+  return (f.avatar ?? '').trim() || '❔'
+}
+
 export function loadProfile(): Profile {
   try {
     const raw = localStorage.getItem(PROFILE_KEY)
     if (raw) {
       const p = JSON.parse(raw) as Profile
-      if (typeof p.id === 'string' && p.id.length >= 6) return p
+      if (typeof p.id === 'string' && p.id.length >= 6) {
+        // Vieux profils (avant les avatars) ou données blanches : on répare.
+        if (!(p.avatar ?? '').trim()) {
+          p.avatar = AVATARS[Math.floor(Math.random() * AVATARS.length)]!
+          localStorage.setItem(PROFILE_KEY, JSON.stringify(p))
+        }
+        return p
+      }
     }
   } catch {
     // stockage corrompu : on regénère
@@ -71,7 +88,17 @@ export function loadFriends(): Friend[] {
     const raw = localStorage.getItem(FRIENDS_KEY)
     if (raw) {
       const list = JSON.parse(raw) as Friend[]
-      if (Array.isArray(list)) return list.filter((f) => typeof f.id === 'string')
+      if (Array.isArray(list)) {
+        // Répare les entrées empoisonnées par d'anciennes versions
+        // (pseudo fait d'espaces, avatar vide → ligne invisible).
+        return list
+          .filter((f) => typeof f.id === 'string')
+          .map((f) => ({
+            id: f.id,
+            pseudo: (f.pseudo ?? '').trim(),
+            avatar: (f.avatar ?? '').trim() || '❔',
+          }))
+      }
     }
   } catch {
     // liste corrompue : on repart de zéro

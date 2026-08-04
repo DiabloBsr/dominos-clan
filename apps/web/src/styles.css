@@ -517,6 +517,9 @@ body::before {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  /* Une ligne = un ami, toujours : rien ne passe à la ligne. */
+  flex-wrap: nowrap;
+  min-height: 2rem;
 }
 
 .friend-name {
@@ -606,6 +609,9 @@ body::before {
   top: 2.9rem;
   right: 0;
   width: min(19rem, calc(100vw - 2rem));
+  max-height: 62vh;
+  max-height: 62dvh;
+  overflow-y: auto;
   background: rgba(8, 20, 14, 0.96);
   border: 1px solid rgba(247, 242, 231, 0.15);
   border-radius: 14px;
@@ -1373,9 +1379,11 @@ button.domino:disabled {
 
 .toast {
   position: fixed;
-  top: 1rem;
+  /* Sous le header du salon : ne chevauche plus jamais un bouton. */
+  top: 4.2rem;
   left: 50%;
   transform: translateX(-50%);
+  max-width: calc(100vw - 1.6rem);
   background: var(--clay);
   color: #fff;
   font-weight: 800;
@@ -1384,6 +1392,8 @@ button.domino:disabled {
   z-index: 100;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
   animation: fade-up 0.25s ease;
+  /* Informatif : les clics passent à travers, rien n'est bloqué dessous. */
+  pointer-events: none;
 }
 
 /* ─── Animations ─────────────────────────────────────────────────── */
@@ -2541,6 +2551,17 @@ button.domino:disabled {
 .hint.warn {
   color: var(--clay);
   font-weight: 800;
+}
+
+.member-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.btn.danger {
+  border-color: rgba(226, 87, 76, 0.6);
+  color: var(--clay);
 }
 
 .react-btn.sound {

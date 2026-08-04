@@ -10,6 +10,7 @@ import * as presence from './presence'
 import { armChessFlag, chessViewOf } from './chess'
 import {
   RoomError,
+  assertCanKick,
   canChat,
   canPlaySound,
   canReact,
@@ -35,6 +36,7 @@ import {
   sanitizeChatText,
   setRules,
   startGame,
+  swapSeat,
   takeSeat,
   transferHost,
   undoMove,
@@ -290,6 +292,34 @@ io.on('connection', (socket: Socket) => {
       transferHost(room, memberId, payload?.toId)
       const newHost = room.members.get(room.hostId)
       io.to(room.code).emit('room:host-changed', { pseudo: newHost?.pseudo ?? 'quelqu’un' })
+      broadcast(room)
+    }),
+  )
+
+  // Le chef retire un membre du salon (absent, AFK…). Si le retiré était
+  // en pleine manche, la manche est annulée comme pour un départ volontaire.
+  socket.on('room:kick', (payload: { memberId?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      const targetId = assertCanKick(room, memberId, payload?.memberId)
+      const target = room.members.get(targetId)!
+      const host = room.members.get(memberId)
+      const targetSocket = io.sockets.sockets.get(target.socketId)
+      cancelPendingRemoval(room.code, targetId)
+      const { aborted } = removeMember(room, targetId)
+      targetSocket?.emit('room:kicked', { byPseudo: host?.pseudo ?? 'le chef' })
+      targetSocket?.leave(room.code)
+      if (aborted) io.to(room.code).emit('game:aborted', { memberId: targetId })
+      io.to(room.code).emit('room:member-kicked', { pseudo: target.pseudo })
+      broadcast(room)
+      presence.backToLobby(io, target.socketId)
+    }),
+  )
+
+  socket.on('room:swap', (payload: { seatId?: unknown; withId?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      swapSeat(room, memberId, payload?.seatId, payload?.withId)
       broadcast(room)
     }),
   )
