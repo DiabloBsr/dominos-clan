@@ -100,6 +100,8 @@ export interface ChessView {
   turn: ChessColor
   serverNow: number
   status: 'playing' | 'finished'
+  /** false tant que chaque joueur n'a pas joué son premier coup : pendules gelées. */
+  clockRunning: boolean
   check: boolean
   lastMove: { from: string; to: string } | null
   result: { winnerId: string | null; reason: ChessEndReason } | null

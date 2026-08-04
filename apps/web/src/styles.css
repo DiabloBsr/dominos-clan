@@ -1933,13 +1933,19 @@ section.game {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 0.6rem;
+  /* Dans le salon verrouillé à l'écran (100dvh) : prend la hauteur restante. */
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .chess-board {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
-  width: min(94vw, 58vh, 30rem);
+  /* Borné par la hauteur RÉELLEMENT disponible (header + bandes + joueurs
+     + barre du bas ≈ 19rem) : le plateau n'est plus jamais coupé. */
+  width: min(94vw, calc(100dvh - 19rem), 30rem);
   aspect-ratio: 1;
   border-radius: 8px;
   overflow: hidden;
@@ -1979,6 +1985,87 @@ section.game {
   height: 30%;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.16);
+}
+
+/* Case de PRISE : anneau rouge autour de la pièce adverse (≠ point discret). */
+.sq.tgt.cap::after {
+  width: 86%;
+  height: 86%;
+  background: transparent;
+  border: 3.5px solid rgba(226, 87, 76, 0.85);
+  box-shadow: inset 0 0 12px rgba(226, 87, 76, 0.25);
+  animation: cap-pulse 1s ease-in-out infinite;
+}
+
+@keyframes cap-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.93);
+  }
+}
+
+/* ÉCHEC ET MAT : le plateau tremble et l'annonce explose à l'écran. */
+.chess-board.mate-shake {
+  animation: mate-shake 0.55s ease;
+}
+
+@keyframes mate-shake {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0);
+  }
+  20% {
+    transform: translate(-8px, 3px) rotate(-1deg);
+  }
+  40% {
+    transform: translate(7px, -4px) rotate(1.2deg);
+  }
+  60% {
+    transform: translate(-5px, 2px) rotate(-0.8deg);
+  }
+  80% {
+    transform: translate(4px, -2px) rotate(0.5deg);
+  }
+}
+
+.mate-fx {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 70;
+  pointer-events: none;
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 9vw, 4.5rem);
+  color: var(--amber);
+  text-shadow:
+    0 4px 0 rgba(0, 0, 0, 0.55),
+    0 0 60px rgba(255, 182, 72, 0.55);
+  animation: mate-pop 2s ease forwards;
+}
+
+@keyframes mate-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.2) rotate(-6deg);
+  }
+  22% {
+    opacity: 1;
+    transform: scale(1.18) rotate(2deg);
+  }
+  38% {
+    transform: scale(1) rotate(0);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.05);
+  }
 }
 
 .sq.chk {

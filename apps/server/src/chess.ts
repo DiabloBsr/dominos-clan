@@ -62,9 +62,17 @@ export function stopChess(g: ChessGameState): void {
   }
 }
 
+/**
+ * Les pendules ne tournent qu'une fois le premier coup de CHAQUE joueur joué
+ * (2 demi-coups) : pas de pression de temps sur les tout premiers coups.
+ */
+function clocksRunning(g: ChessGameState): boolean {
+  return g.chess.history().length >= 2
+}
+
 /** Temps restant (ms) de la pendule active, décompte en cours inclus. */
 function activeRemaining(g: ChessGameState): number {
-  const elapsed = Date.now() - g.turnStartedAt
+  const elapsed = clocksRunning(g) ? Date.now() - g.turnStartedAt : 0
   const base = g.chess.turn() === 'w' ? g.whiteMs : g.blackMs
   return base - elapsed
 }
@@ -82,6 +90,8 @@ export function chessCheckFlag(g: ChessGameState): boolean {
 export function armChessFlag(g: ChessGameState, onFlag: () => void): void {
   stopChess(g)
   if (g.status !== 'playing') return
+  // Pendules gelées tant que chacun n'a pas joué : aucun drapeau à armer.
+  if (!clocksRunning(g)) return
   g.flagTimer = setTimeout(onFlag, Math.max(0, activeRemaining(g)) + 60)
 }
 
@@ -101,7 +111,9 @@ export function chessMove(
   // Le drapeau a-t-il déjà chuté ?
   if (chessCheckFlag(g)) return
 
-  const elapsed = Date.now() - g.turnStartedAt
+  // Premier coup du joueur (pendules gelées) : ni décompte, ni incrément.
+  const running = clocksRunning(g)
+  const elapsed = running ? Date.now() - g.turnStartedAt : 0
   try {
     g.chess.move({
       from,
@@ -112,8 +124,8 @@ export function chessMove(
     throw new Error('Coup illégal')
   }
 
-  if (color === 'w') g.whiteMs = g.whiteMs - elapsed + g.incrementMs
-  else g.blackMs = g.blackMs - elapsed + g.incrementMs
+  if (color === 'w') g.whiteMs = g.whiteMs - elapsed + (running ? g.incrementMs : 0)
+  else g.blackMs = g.blackMs - elapsed + (running ? g.incrementMs : 0)
   g.lastMove = { from, to }
   g.turnStartedAt = Date.now()
 
@@ -134,7 +146,8 @@ export function chessResign(g: ChessGameState, memberId: string): void {
 }
 
 export function chessViewOf(g: ChessGameState): ChessView {
-  const elapsed = g.status === 'playing' ? Date.now() - g.turnStartedAt : 0
+  const running = g.status === 'playing' && clocksRunning(g)
+  const elapsed = running ? Date.now() - g.turnStartedAt : 0
   const turn = g.chess.turn()
   return {
     fen: g.chess.fen(),
@@ -145,6 +158,7 @@ export function chessViewOf(g: ChessGameState): ChessView {
     turn,
     serverNow: Date.now(),
     status: g.status,
+    clockRunning: running,
     check: g.chess.inCheck(),
     lastMove: g.lastMove,
     result: g.result,

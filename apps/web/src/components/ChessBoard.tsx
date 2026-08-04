@@ -73,7 +73,8 @@ export function ChessBoard({
 
   const msOf = (color: ChessColor): number => {
     const base = color === 'w' ? view.whiteMs : view.blackMs
-    if (view.status !== 'playing' || view.turn !== color) return base
+    // Pendules gelées tant que chaque joueur n'a pas joué son premier coup.
+    if (view.status !== 'playing' || !view.clockRunning || view.turn !== color) return base
     return Math.max(0, base - (Date.now() - receivedAt))
   }
 
@@ -169,11 +170,13 @@ export function ChessBoard({
       const fileIndex = flipped ? 7 - c : c
       const sq = `${FILES[fileIndex]}${8 - rankIndex}` as Square
       const piece = engine.board()[rankIndex]![fileIndex]
+      // Case de PRISE : cible occupée par l'adversaire → anneau rouge (≠ point).
+      const capture = targets.has(sq) && piece !== null
       cells.push(
         <button
           key={sq}
           className={`sq ${(r + c) % 2 === 0 ? 'light' : 'dark'} ${selected === sq ? 'sel' : ''} ${
-            targets.has(sq) ? 'tgt' : ''
+            targets.has(sq) ? (capture ? 'tgt cap' : 'tgt') : ''
           } ${view.lastMove && (view.lastMove.from === sq || view.lastMove.to === sq) ? 'last' : ''} ${
             checkedSquare === sq ? 'chk' : ''
           }`}
@@ -191,13 +194,17 @@ export function ChessBoard({
     }
   }
 
+  const mate = view.status === 'finished' && view.result?.reason === 'checkmate'
+
   return (
     <section className="game chess-game">
       {playerRow(topId, topColor)}
 
-      <div className="chess-board" role="grid" aria-label="Échiquier">
+      <div className={`chess-board ${mate ? 'mate-shake' : ''}`} role="grid" aria-label="Échiquier">
         {cells}
       </div>
+
+      {mate && <div className="mate-fx">♛ ÉCHEC ET MAT&nbsp;!</div>}
 
       {playerRow(bottomId, bottomColor)}
 
