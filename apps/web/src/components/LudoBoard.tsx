@@ -370,9 +370,15 @@ export function LudoBoard({
     if (capturedKeys.length > 0) {
       playCapture()
       captureKey.current += 1
+      // Le cri du CAPTUREUR s'il en a défini un, sinon un cri du clan.
+      const capturerId = state.players[roll?.player ?? state.turn]?.id
+      const custom = room.members.find((m) => m.id === capturerId)?.taunt?.trim()
+      const emoji = ['😂', '🤣', '😆', '💀', '😈', '🔥'][Math.floor(Math.random() * 6)]!
       setCaptureFx({
         key: captureKey.current,
-        text: CAPTURE_TAUNTS[Math.floor(Math.random() * CAPTURE_TAUNTS.length)]!,
+        text: custom
+          ? `${emoji} ${custom}`
+          : CAPTURE_TAUNTS[Math.floor(Math.random() * CAPTURE_TAUNTS.length)]!,
       })
       const key = captureKey.current
       setTimeout(() => setCaptureFx((prev) => (prev?.key === key ? null : prev)), 3100)
@@ -483,8 +489,12 @@ export function LudoBoard({
       // Les pions attendent la fin de la culbute du dé : le déplacement ne
       // démarre qu'APRÈS l'affichage de la face tirée.
       if (Date.now() < animHoldUntil.current) return
-      // Plus rien à animer et face affichée → le lancer suivant se débloque.
+      // Plus rien à animer et face affichée → le lancer suivant se débloque
+      // ET plus AUCUN pion ne doit garder sa classe d'animation (sinon le
+      // dernier arrivé sautille pour l'éternité).
       if (queues.current.size === 0) {
+        slidingKeys.current.clear()
+        setMoving((prev) => (prev.size ? new Set<string>() : prev))
         setRollHold((held) => (held ? false : held))
         return
       }

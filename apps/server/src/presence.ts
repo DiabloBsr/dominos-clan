@@ -41,9 +41,15 @@ function notify(io: Server, userId: string): void {
   }
 }
 
-export function sanitizeIdentity(raw: { userId?: unknown; pseudo?: unknown; avatar?: unknown }): {
+export function sanitizeIdentity(raw: {
+  userId?: unknown
+  pseudo?: unknown
+  avatar?: unknown
+  taunt?: unknown
+}): {
   userId: string | null
   avatar: string
+  taunt: string
 } {
   const userId =
     typeof raw.userId === 'string' && USER_ID_RE.test(raw.userId) ? raw.userId : null
@@ -51,7 +57,9 @@ export function sanitizeIdentity(raw: { userId?: unknown; pseudo?: unknown; avat
     typeof raw.avatar === 'string' && raw.avatar.length > 0 && raw.avatar.length <= 8
       ? raw.avatar
       : '🁫'
-  return { userId, avatar }
+  const taunt =
+    typeof raw.taunt === 'string' ? raw.taunt.replace(/[\r\n<>]/g, '').trim().slice(0, 24) : ''
+  return { userId, avatar, taunt }
 }
 
 export function hello(

@@ -10,6 +10,8 @@ export interface RoomMemberView {
   pseudo: string
   /** Avatar emoji du profil. */
   avatar: string
+  /** Cri de capture personnel (Ludo) — vide = cris par défaut. */
+  taunt: string
   role: Role
   isHost: boolean
   connected: boolean

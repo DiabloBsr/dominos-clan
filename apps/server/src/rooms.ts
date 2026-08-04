@@ -33,10 +33,18 @@ export interface Member {
   /** Identité de profil (présence/amis) ; null pour un client anonyme. */
   userId: string | null
   avatar: string
+  /** Cri de capture personnel (Ludo) — vide = cris par défaut. */
+  taunt: string
   socketId: string
   connected: boolean
   /** Jeton secret de reprise de session (rechargement de page). */
   resumeKey: string
+}
+
+/** Cri de capture : court, une ligne, sans chevrons. */
+export function sanitizeTaunt(raw: unknown): string {
+  if (typeof raw !== 'string') return ''
+  return raw.replace(/[\r\n<>]/g, '').trim().slice(0, 24)
 }
 
 export interface Room {
@@ -121,6 +129,7 @@ export function roomsSnapshot(): Array<{
 export interface Identity {
   userId: string | null
   avatar: string
+  taunt?: string
 }
 
 export function createRoom(
@@ -134,6 +143,7 @@ export function createRoom(
     pseudo,
     userId: identity.userId,
     avatar: identity.avatar,
+    taunt: sanitizeTaunt(identity.taunt),
     socketId,
     connected: true,
     resumeKey: randomBytes(12).toString('base64url'),
@@ -179,6 +189,7 @@ export function joinRoom(
     pseudo,
     userId: identity.userId,
     avatar: identity.avatar,
+    taunt: sanitizeTaunt(identity.taunt),
     socketId,
     connected: true,
     resumeKey: randomBytes(12).toString('base64url'),
@@ -734,6 +745,7 @@ export function roomView(room: Room): RoomView {
       id: m.id,
       pseudo: m.pseudo,
       avatar: m.avatar,
+      taunt: m.taunt,
       role: room.seats.includes(m.id) ? 'player' : 'spectator',
       isHost: m.id === room.hostId,
       connected: m.connected,

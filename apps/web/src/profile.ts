@@ -6,6 +6,8 @@ export interface Profile {
   id: string
   pseudo: string
   avatar: string
+  /** Cri de capture personnel (Ludo) — affiché quand TU captures ; vide = cris par défaut. */
+  taunt?: string
 }
 
 export interface Friend {

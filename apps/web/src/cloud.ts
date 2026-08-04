@@ -109,6 +109,7 @@ export async function pullCloudSave(uid: string): Promise<CloudSave | null> {
       id: data.profile.id,
       pseudo: (data.profile.pseudo ?? '').toString(),
       avatar: (data.profile.avatar ?? '').toString() || '😎',
+      taunt: (data.profile.taunt ?? '').toString().slice(0, 24),
     },
     friends: Array.isArray(data.friends)
       ? data.friends
