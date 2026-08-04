@@ -1524,6 +1524,31 @@ button.domino:disabled {
     max-height: 44dvh;
     overflow-y: auto;
   }
+
+  /* La barre d'emojis s'arrête AVANT la bulle 💬 : plus de chevauchement.
+     Si elle est trop large, elle défile dans sa propre bande. */
+  .reactions-bar {
+    left: 0.6rem;
+    right: 4.2rem;
+    transform: none;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .reactions-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .react-btn {
+    flex: none;
+  }
+
+  /* Les pastilles « untel a réagi » flottent AU-DESSUS des icônes du bas. */
+  .float-reactions {
+    bottom: 7.6rem;
+    max-width: 70vw;
+  }
 }
 
 /* ══════════════ Passe premium ══════════════
