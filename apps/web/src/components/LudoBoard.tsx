@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ludoLegalPawns, ludoSafeCells, ludoStarCells, ludoStartCell, type LudoState } from '@dominos-clan/engine'
 import type { RoomView } from '@dominos-clan/engine'
+import { playBonusPickup, playCapture, playDiceRoll, playGoal, playHop } from '../sounds'
 
 type LudoPawnPos = LudoState['players'][number]['pawns'][number]
 
@@ -216,6 +217,9 @@ export function LudoBoard({
   const freshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Retenue d'animation : les pions ne bougent qu'après la face affichée. */
   const animHoldUntil = useRef(0)
+  /** Le prochain lancer attend aussi l'apparition de la face. */
+  const [rollHold, setRollHold] = useState(false)
+  const rollHoldTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Le tirage déjà présent AU MONTAGE date d'une partie précédente : on
   // l'ignore, sinon un dé culbute tout seul au départ sans avoir cliqué.
   const staleRollKey = useRef(roll?.key ?? null)
@@ -223,6 +227,11 @@ export function LudoBoard({
     if (!roll || roll.key === staleRollKey.current) return
     setLastRolls((prev) => ({ ...prev, [roll.player]: { value: roll.value, key: roll.key } }))
     animHoldUntil.current = Date.now() + 1000
+    playDiceRoll()
+    // Le lancer SUIVANT n'est disponible qu'après l'apparition de la face.
+    setRollHold(true)
+    if (rollHoldTimer.current) clearTimeout(rollHoldTimer.current)
+    rollHoldTimer.current = setTimeout(() => setRollHold(false), 1000)
     setFreshRoll(roll.player)
     if (freshTimer.current) clearTimeout(freshTimer.current)
     freshTimer.current = setTimeout(() => setFreshRoll(null), 2100)
@@ -282,6 +291,7 @@ export function LudoBoard({
       }),
     )
     if (capturedKeys.length > 0) {
+      playCapture()
       captureKey.current += 1
       setCaptureFx({
         key: captureKey.current,
@@ -290,6 +300,15 @@ export function LudoBoard({
       const key = captureKey.current
       setTimeout(() => setCaptureFx((prev) => (prev?.key === key ? null : prev)), 1900)
     }
+    // 🏁 Un pion vient d'atteindre l'objectif : mini-fanfare.
+    let reachedGoal = false
+    state.players.forEach((player, pi) =>
+      player.pawns.forEach((pawn, pwi) => {
+        const prev = prevPawns.current.get(`${pi}-${pwi}`)
+        if (prev && prev.zone !== 'done' && pawn.zone === 'done') reachedGoal = true
+      }),
+    )
+    if (reachedGoal) playGoal()
 
     // Les pas s'AJOUTENT à la file en cours (jamais d'écrasement) : si une
     // animation tourne encore quand l'état suivant arrive, le pion enchaîne
@@ -344,8 +363,10 @@ export function LudoBoard({
   const slotTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     const lb = state.lastBonus
-    if (lb && lb.kind === 'boost' && lb.value !== null && lb.seq !== slotSeq.current) {
-      slotSeq.current = lb.seq
+    if (!lb || lb.seq === slotSeq.current) return
+    slotSeq.current = lb.seq
+    playBonusPickup()
+    if (lb.kind === 'boost' && lb.value !== null) {
       setSlotFx({ value: lb.value, seq: lb.seq })
       if (slotTimer.current) clearTimeout(slotTimer.current)
       slotTimer.current = setTimeout(() => setSlotFx(null), 3400)
@@ -367,7 +388,10 @@ export function LudoBoard({
       setMoving((prev) =>
         prev.size === nowMoving.size && [...prev].every((k) => nowMoving.has(k)) ? prev : nowMoving,
       )
-      if (Object.keys(updates).length > 0) setDisplay((prev) => ({ ...prev, ...updates }))
+      if (Object.keys(updates).length > 0) {
+        playHop()
+        setDisplay((prev) => ({ ...prev, ...updates }))
+      }
     }, 230)
     return () => clearInterval(timer)
   }, [])
@@ -475,7 +499,7 @@ export function LudoBoard({
         {state.players.map((p, i) => {
           const mine = p.id === selfId
           const isTurn = state.turn === i && state.status === 'playing'
-          const canTapRoll = isTurn && mine && state.dice === null && !targeting
+          const canTapRoll = isTurn && mine && state.dice === null && !targeting && !rollHold
           return (
             <div key={`corner-${p.id}`}>
               <div

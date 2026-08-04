@@ -187,6 +187,67 @@ export function playPass(): void {
   tone(ac, 'sawtooth', 240, 0.26, 0.45, 0.16, 165)
 }
 
+/* ─── Sons du Ludo ──────────────────────────────────────────────────── */
+
+/** Bruit blanc court démarré à `at` secondes (cliquetis, tics). */
+function noiseAt(ac: AudioContext, at: number, duration: number, gainValue: number, lowpassHz: number): void {
+  const t0 = ac.currentTime + at
+  const buffer = ac.createBuffer(1, Math.ceil(ac.sampleRate * duration), ac.sampleRate)
+  const data = buffer.getChannelData(0)
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length)
+  const source = ac.createBufferSource()
+  source.buffer = buffer
+  const filter = ac.createBiquadFilter()
+  filter.type = 'lowpass'
+  filter.frequency.value = lowpassHz
+  const gain = ac.createGain()
+  gain.gain.setValueAtTime(gainValue, t0)
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration)
+  source.connect(filter).connect(gain).connect(ac.destination)
+  source.start(t0)
+}
+
+/** 🎲 Lancer de dé : cliquetis du cornet puis clac de la pose (~0,9 s). */
+export function playDiceRoll(): void {
+  const ac = audio()
+  if (!ac) return
+  for (const at of [0, 0.1, 0.22, 0.36, 0.52]) noiseAt(ac, at, 0.035, 0.14, 3200)
+  noiseAt(ac, 0.82, 0.06, 0.3, 2600)
+  tone(ac, 'sine', 130, 0.82, 0.12, 0.25, 70)
+}
+
+/** Petit tic discret à chaque case sautée par un pion. */
+export function playHop(): void {
+  const ac = audio()
+  if (!ac) return
+  noiseAt(ac, 0, 0.028, 0.09, 2400)
+}
+
+/** 💥 Capture : sifflet qui plonge + choc — le pion prend le chemin du retour. */
+export function playCapture(): void {
+  const ac = audio()
+  if (!ac) return
+  tone(ac, 'sine', 900, 0, 0.38, 0.22, 190)
+  noiseAt(ac, 0.34, 0.07, 0.28, 2200)
+  tone(ac, 'sine', 120, 0.34, 0.16, 0.3, 60)
+}
+
+/** 🎁 Bonus ramassé : petit carillon montant. */
+export function playBonusPickup(): void {
+  const ac = audio()
+  if (!ac) return
+  tone(ac, 'sine', 660, 0, 0.12, 0.22)
+  tone(ac, 'sine', 990, 0.09, 0.18, 0.22)
+}
+
+/** 🏁 Pion arrivé à l'objectif : mini-fanfare (plus courte que la victoire). */
+export function playGoal(): void {
+  const ac = audio()
+  if (!ac) return
+  const notes = [523.25, 659.25, 783.99]
+  notes.forEach((f, i) => tone(ac, 'triangle', f, i * 0.09, 0.16, 0.26))
+}
+
 /* ─── Soundboard (chambrage audible par tout le salon) ──────────────── */
 
 export type BoardSound = 'pet' | 'rire' | 'colere' | 'bravo' | 'tromblon' | 'bisou'
