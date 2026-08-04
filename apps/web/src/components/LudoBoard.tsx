@@ -44,7 +44,9 @@ const BASE_ZONES: Array<[number, number]> = [
 /** Rotation de la flèche d'entrée de chaque coin (sens de la marche). */
 const START_ARROWS = [0, 90, 180, 270]
 
-export const LUDO_COLORS = ['#e2574c', '#4d9de0', '#f2a53c', '#54b87c']
+/** Couleurs du plateau CLASSIQUE (modèle de référence du user) :
+ *  coin haut-gauche rouge, haut-droit vert, bas-droit jaune, bas-gauche bleu. */
+export const LUDO_COLORS = ['#e02b2b', '#28a24c', '#f5c518', '#1f7fe0']
 const CELL = 100 / 15
 
 function pseudoOf(room: RoomView, id: string): string {
@@ -246,6 +248,7 @@ export function LudoBoard({
         ))}
       </div>
 
+      <div className="ludo-frame">
       <div className="ludo-board">
         {BASE_ZONES.map(([r, c], slot) => (
           <div key={slot} className="ludo-base" style={{ ...grid(r, c, 6, 6), ['--pc' as string]: LUDO_COLORS[slot] }}>
@@ -322,6 +325,7 @@ export function LudoBoard({
             }),
           )}
         </div>
+      </div>
       </div>
 
       <div className="ludo-hud">

@@ -54,6 +54,8 @@ export function ChessBoard({
   const myTurn = myColor !== null && view.turn === myColor && view.status === 'playing'
   const [selected, setSelected] = useState<Square | null>(null)
   const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null)
+  /** Promotion en attente du choix de pièce (dame/tour/fou/cavalier). */
+  const [promo, setPromo] = useState<{ from: Square; to: Square } | null>(null)
 
   useEffect(() => setSelected(null), [view.fen])
 
@@ -87,7 +89,13 @@ export function ChessBoard({
     if (!myTurn) return
     if (selected && targets.has(sq)) {
       const move = engine.moves({ square: selected, verbose: true }).find((m) => m.to === sq)
-      onMove(selected, sq, move?.promotion ? 'q' : undefined)
+      if (move?.promotion) {
+        // Promotion : le joueur CHOISIT sa pièce (pas dame automatique).
+        setPromo({ from: selected, to: sq })
+        setSelected(null)
+        return
+      }
+      onMove(selected, sq, undefined)
       setSelected(null)
       return
     }
@@ -205,6 +213,30 @@ export function ChessBoard({
       </div>
 
       {mate && <div className="mate-fx">♛ ÉCHEC ET MAT&nbsp;!</div>}
+
+      {promo && myColor && (
+        <>
+          <div className="panel-veil" onClick={() => setPromo(null)} />
+          <div className="game-modal card promo-box">
+            <p className="confirm-msg">Ton pion se transforme en :</p>
+            <div className="promo-choices">
+              {(['q', 'r', 'b', 'n'] as const).map((t) => (
+                <button
+                  key={t}
+                  className="promo-pick"
+                  title={{ q: 'Dame', r: 'Tour', b: 'Fou', n: 'Cavalier' }[t]}
+                  onClick={() => {
+                    onMove(promo.from, promo.to, t)
+                    setPromo(null)
+                  }}
+                >
+                  <ChessPiece type={t} color={myColor} />
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {playerRow(bottomId, bottomColor)}
 
