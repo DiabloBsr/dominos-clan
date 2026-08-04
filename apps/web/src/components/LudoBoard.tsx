@@ -199,9 +199,17 @@ export function LudoBoard({
   // state seul ne suffit pas : un tirage sans coup jouable est consommé et
   // le tour passé dans le même broadcast).
   const [lastRolls, setLastRolls] = useState<Record<number, { value: number; key: number }>>({})
+  // La case du lanceur reste VIVE le temps de la culbute + lecture du
+  // résultat (~2 s), même si le tour est déjà passé — elle ne devient
+  // grisâtre qu'APRÈS l'affichage du résultat.
+  const [freshRoll, setFreshRoll] = useState<number | null>(null)
+  const freshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     if (!roll) return
     setLastRolls((prev) => ({ ...prev, [roll.player]: { value: roll.value, key: roll.key } }))
+    setFreshRoll(roll.player)
+    if (freshTimer.current) clearTimeout(freshTimer.current)
+    freshTimer.current = setTimeout(() => setFreshRoll(null), 2100)
   }, [roll])
   // Reprise en cours de partie : le dé déjà tiré s'affiche sans culbute.
   useEffect(() => {
@@ -450,9 +458,9 @@ export function LudoBoard({
                 </span>
               </div>
               <button
-                className={`ludo-tray slot-${p.slot} ${isTurn ? 'active' : 'idle'} ${
-                  canTapRoll ? 'rollable' : ''
-                }`}
+                className={`ludo-tray slot-${p.slot} ${
+                  isTurn || freshRoll === i ? 'active' : 'idle'
+                } ${canTapRoll ? 'rollable' : ''}`}
                 style={{ ['--pc' as string]: LUDO_COLORS[p.slot] }}
                 disabled={!canTapRoll}
                 title={canTapRoll ? 'Tape pour lancer le dé !' : undefined}

@@ -2835,6 +2835,8 @@ section.game {
   background: rgba(255, 255, 255, 0.45);
   box-shadow: inset 0 0 0 2px var(--pc);
   cursor: default;
+  /* Extinction en douceur une fois le résultat lu. */
+  transition: opacity 0.45s ease, filter 0.45s ease;
 }
 
 .ludo-tray.idle {
