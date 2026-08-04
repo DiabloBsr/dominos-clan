@@ -22,6 +22,15 @@ import {
   playSlam,
   playVictory,
 } from './sounds'
+import {
+  cloudEnabled,
+  pullCloudSave,
+  pushCloudSave,
+  signInWithGoogle,
+  signOutCloud,
+  watchCloudAuth,
+  type CloudUser,
+} from './cloud'
 import { Home } from './components/Home'
 import { Room } from './components/Room'
 
@@ -83,6 +92,71 @@ export default function App() {
     if (noticeTimer.current) clearTimeout(noticeTimer.current)
     noticeTimer.current = setTimeout(() => setNotice(null), 4000)
   }, [])
+
+  // ─── Sauvegarde en ligne (Google) ────────────────────────────────────
+  // Se connecter restaure le profil complet (code ami, pseudo, avatar, amis)
+  // sur n'importe quel appareil ; ensuite chaque changement est repoussé.
+  const [cloudUser, setCloudUser] = useState<CloudUser | null>(null)
+  const profileRef = useRef(profile)
+  const friendsRef = useRef(friends)
+  useEffect(() => {
+    profileRef.current = profile
+    friendsRef.current = friends
+  }, [profile, friends])
+
+  useEffect(() => {
+    if (!cloudEnabled()) return
+    return watchCloudAuth((user) => {
+      setCloudUser(user)
+      if (!user) return
+      const linkedUid = localStorage.getItem('dc:cloud-uid')
+      if (linkedUid === user.uid) return // déjà lié : les pushes au fil de l'eau suffisent
+      void (async () => {
+        try {
+          const save = await pullCloudSave(user.uid)
+          if (save) {
+            const local = profileRef.current
+            const differentIdentity = save.profile.id !== local.id
+            if (
+              differentIdentity &&
+              local.pseudo.trim() &&
+              !window.confirm(
+                `Restaurer le profil « ${save.profile.pseudo || save.profile.id} » depuis ton compte Google ? Le profil de cet appareil sera remplacé.`,
+              )
+            ) {
+              await signOutCloud()
+              return
+            }
+            saveProfile(save.profile)
+            setProfile(save.profile)
+            saveFriends(save.friends)
+            setFriends(save.friends)
+            showNotice('☁️ Profil et amis restaurés depuis ton compte Google ✔')
+          } else {
+            await pushCloudSave(user.uid, {
+              profile: profileRef.current,
+              friends: friendsRef.current,
+            })
+            showNotice('☁️ Profil sauvegardé sur ton compte Google ✔')
+          }
+          localStorage.setItem('dc:cloud-uid', user.uid)
+        } catch {
+          showNotice('☁️ Synchronisation impossible pour le moment')
+        }
+      })()
+    })
+  }, [showNotice])
+
+  // Chaque changement de profil/amis est repoussé vers le cloud (débounce).
+  useEffect(() => {
+    if (!cloudUser || localStorage.getItem('dc:cloud-uid') !== cloudUser.uid) return
+    const timer = setTimeout(() => {
+      pushCloudSave(cloudUser.uid, { profile, friends }).catch(() => {
+        // hors ligne : la prochaine modification retentera
+      })
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [cloudUser, profile, friends])
 
   // Écran « réveil du serveur » : l'hébergement gratuit s'endort sans trafic
   // (cold start jusqu'à ~1 min). On masque l'attente derrière un chargement
@@ -485,6 +559,14 @@ export default function App() {
     onTransferHost: (toId: string) => simpleEmit('room:transfer-host', { toId }),
     onKick: (memberId: string) => simpleEmit('room:kick', { memberId }),
     onSwap: (seatId: string, withId: string) => simpleEmit('room:swap', { seatId, withId }),
+    onCloudSignIn: () => {
+      signInWithGoogle().catch(() => showNotice('Connexion Google impossible — réessaie'))
+    },
+    onCloudSignOut: () => {
+      localStorage.removeItem('dc:cloud-uid')
+      signOutCloud().catch(() => {})
+      showNotice('☁️ Déconnecté — le profil reste sur cet appareil')
+    },
     onUndo: () => simpleEmit('game:undo'),
     onRedeal: () => simpleEmit('game:redeal'),
     onChessMove: (from: string, to: string, promotion?: string) =>
@@ -582,6 +664,10 @@ export default function App() {
           profile={profile}
           friends={friends}
           statuses={friendStatuses}
+          cloudOn={cloudEnabled()}
+          cloudUser={cloudUser}
+          onCloudSignIn={handlers.onCloudSignIn}
+          onCloudSignOut={handlers.onCloudSignOut}
           onProfile={handlers.onProfile}
           onAddFriend={handlers.onAddFriend}
           onRemoveFriend={handlers.onRemoveFriend}

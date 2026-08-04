@@ -48,6 +48,10 @@ export function Home({
   profile,
   friends,
   statuses,
+  cloudOn,
+  cloudUser,
+  onCloudSignIn,
+  onCloudSignOut,
   onProfile,
   onAddFriend,
   onRemoveFriend,
@@ -58,6 +62,10 @@ export function Home({
   profile: Profile
   friends: Friend[]
   statuses: Record<string, FriendStatus>
+  cloudOn: boolean
+  cloudUser: { uid: string; name: string; email: string; photo: string | null } | null
+  onCloudSignIn: () => void
+  onCloudSignOut: () => void
   onProfile: (p: Profile) => void
   onAddFriend: (code: string) => void
   onRemoveFriend: (id: string) => void
@@ -215,6 +223,34 @@ export function Home({
               code ami : <b>{profile.id}</b> {copied ? '✔' : '⧉'}
             </button>
             <p className="hint">Partage ton code ami pour qu’on te retrouve.</p>
+
+            {cloudOn && (
+              <div className="cloud-box">
+                {cloudUser ? (
+                  <>
+                    <p className="cloud-status">
+                      ☁️ Sauvegardé sur <b>{cloudUser.email || cloudUser.name}</b>
+                    </p>
+                    <p className="hint">
+                      Connecte-toi avec ce compte sur un autre appareil pour tout retrouver.
+                    </p>
+                    <button className="btn ghost sm" onClick={onCloudSignOut}>
+                      Se déconnecter
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button className="btn google" onClick={onCloudSignIn}>
+                      <span className="g-badge">G</span> Continuer avec Google
+                    </button>
+                    <p className="hint">
+                      Sauvegarde ton profil et tes amis — retrouve tout même en changeant
+                      d’appareil.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="panel-friends">
               <h2 className="card-title">👥 Tes amis</h2>
