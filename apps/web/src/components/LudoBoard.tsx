@@ -283,7 +283,7 @@ export function LudoBoard({
           column.map(([r, c], step) => (
             <div
               key={`${slot}-${step}`}
-              className="ludo-cell home"
+              className="ludo-cell home-lane"
               style={{ ...grid(r, c), ['--pc' as string]: LUDO_COLORS[slot] }}
             />
           )),
