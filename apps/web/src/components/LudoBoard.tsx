@@ -204,8 +204,11 @@ export function LudoBoard({
   // grisâtre qu'APRÈS l'affichage du résultat.
   const [freshRoll, setFreshRoll] = useState<number | null>(null)
   const freshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Le tirage déjà présent AU MONTAGE date d'une partie précédente : on
+  // l'ignore, sinon un dé culbute tout seul au départ sans avoir cliqué.
+  const staleRollKey = useRef(roll?.key ?? null)
   useEffect(() => {
-    if (!roll) return
+    if (!roll || roll.key === staleRollKey.current) return
     setLastRolls((prev) => ({ ...prev, [roll.player]: { value: roll.value, key: roll.key } }))
     setFreshRoll(roll.player)
     if (freshTimer.current) clearTimeout(freshTimer.current)
