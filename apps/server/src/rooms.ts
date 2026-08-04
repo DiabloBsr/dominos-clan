@@ -272,7 +272,9 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
     chessMinutes,
     chessIncrement,
     ludoSixes,
-    ludoBonus: Boolean(r.ludoBonus),
+    // Bonus ACTIVÉ par défaut : une création partielle (depuis le hub) ne
+    // l'éteint plus — seul un décochage explicite le désactive.
+    ludoBonus: r.ludoBonus === undefined ? true : Boolean(r.ludoBonus),
   }
   // Table réduite : les sièges en trop repartent en tête de file.
   while (room.seats.length > maxSeats) {

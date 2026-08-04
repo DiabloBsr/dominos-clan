@@ -80,7 +80,7 @@ export const DEFAULT_RULES: GameRules = {
   chessMinutes: 10,
   chessIncrement: 0,
   ludoSixes: 3,
-  ludoBonus: false,
+  ludoBonus: true,
 }
 
 /* ─── Échecs ──────────────────────────────────────────────────────── */
