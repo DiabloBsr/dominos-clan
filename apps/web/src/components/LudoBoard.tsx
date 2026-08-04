@@ -214,12 +214,15 @@ export function LudoBoard({
   // grisâtre qu'APRÈS l'affichage du résultat.
   const [freshRoll, setFreshRoll] = useState<number | null>(null)
   const freshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Retenue d'animation : les pions ne bougent qu'après la face affichée. */
+  const animHoldUntil = useRef(0)
   // Le tirage déjà présent AU MONTAGE date d'une partie précédente : on
   // l'ignore, sinon un dé culbute tout seul au départ sans avoir cliqué.
   const staleRollKey = useRef(roll?.key ?? null)
   useEffect(() => {
     if (!roll || roll.key === staleRollKey.current) return
     setLastRolls((prev) => ({ ...prev, [roll.player]: { value: roll.value, key: roll.key } }))
+    animHoldUntil.current = Date.now() + 1000
     setFreshRoll(roll.player)
     if (freshTimer.current) clearTimeout(freshTimer.current)
     freshTimer.current = setTimeout(() => setFreshRoll(null), 2100)
@@ -351,6 +354,9 @@ export function LudoBoard({
 
   useEffect(() => {
     const timer = setInterval(() => {
+      // Les pions attendent la fin de la culbute du dé : le déplacement ne
+      // démarre qu'APRÈS l'affichage de la face tirée.
+      if (Date.now() < animHoldUntil.current) return
       const updates: Record<string, [number, number]> = {}
       for (const [key, queue] of [...queues.current.entries()]) {
         const step = queue.shift()

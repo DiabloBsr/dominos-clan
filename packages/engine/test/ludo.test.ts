@@ -113,6 +113,27 @@ describe('captures et cases sûres', () => {
     expect(state.players[1]!.pawns[0]).toEqual({ zone: 'base' })
   })
 
+  it('capturer fait REJOUER (le tour ne passe pas)', () => {
+    const state = createLudo(['a', 'b'])
+    craft(state, 0, 0, { zone: 'track', cell: 20 })
+    craft(state, 1, 0, { zone: 'track', cell: 23 })
+    ludoRoll(state, 'a', 3)
+    ludoPlay(state, 'a', 0, noRand)
+    expect(state.players[1]!.pawns[0]).toEqual({ zone: 'base' })
+    expect(state.turn).toBe(0)
+    expect(state.dice).toBeNull()
+  })
+
+  it('un pion à l’objectif fait REJOUER (le tour ne passe pas)', () => {
+    const state = createLudo(['a', 'b'])
+    craft(state, 0, 0, { zone: 'home', step: 2 })
+    ludoRoll(state, 'a', 3) // step 2 + 3 = 5 → done
+    ludoPlay(state, 'a', 0, noRand)
+    expect(state.players[0]!.pawns[0]).toEqual({ zone: 'done' })
+    expect(state.turn).toBe(0)
+    expect(state.dice).toBeNull()
+  })
+
   it('pas de capture sur une case sûre (étoile)', () => {
     const star = ludoStarCells()[1]! // 21
     const state = createLudo(['a', 'b'])
@@ -222,7 +243,7 @@ describe('bonus 🎁', () => {
     expect(state.lastBonus).toMatchObject({ kind: 'shield', value: null })
   })
 
-  it('🚔 prison : cible adverse choisie retourne en prison', () => {
+  it('🚔 prison : cible adverse en prison ET on garde la main (règle de la table)', () => {
     const state = createLudo(['a', 'b'], { bonusMode: true })
     craft(state, 1, 2, { zone: 'track', cell: 40 })
     landOnBonus(state, bonusRand(2))
@@ -230,7 +251,8 @@ describe('bonus 🎁', () => {
     ludoTarget(state, 'a', 1, 2)
     expect(state.players[1]!.pawns[2]).toEqual({ zone: 'base' })
     expect(state.pendingBonus).toBeNull()
-    expect(state.turn).toBe(1)
+    expect(state.turn).toBe(0)
+    expect(state.dice).toBeNull()
   })
 
   it('🛡 bouclier s’active', () => {

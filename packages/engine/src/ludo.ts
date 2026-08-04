@@ -230,9 +230,11 @@ export function ludoRoll(state: LudoState, playerId: string, roll: number): void
   }
 }
 
-/** Captures sur une case de piste (sauf case sûre ; le bouclier encaisse une fois). */
-function resolveCaptures(state: LudoState, moverIndex: number, cell: number): void {
-  if (ludoSafeCells().includes(cell)) return
+/** Captures sur une case de piste (sauf case sûre ; le bouclier encaisse une
+ *  fois). Retourne le nombre de pions renvoyés en prison. */
+function resolveCaptures(state: LudoState, moverIndex: number, cell: number): number {
+  if (ludoSafeCells().includes(cell)) return 0
+  let captured = 0
   for (let i = 0; i < state.players.length; i++) {
     if (i === moverIndex) continue
     const enemy = state.players[i]!
@@ -244,11 +246,13 @@ function resolveCaptures(state: LudoState, moverIndex: number, cell: number): vo
           state.lastEvent = '🛡 Bouclier ! La capture est annulée'
         } else {
           enemy.pawns[p] = { zone: 'base' }
+          captured += 1
           state.lastEvent = '💥 Capture — retour en prison !'
         }
       }
     }
   }
+  return captured
 }
 
 function checkWin(state: LudoState, playerIndex: number): void {
@@ -301,7 +305,9 @@ function drawBonus(
       const dest = destinationOf(player.slot, pawn, steps)
       if (dest) {
         player.pawns[pawnIndex] = dest
-        if (dest.zone === 'track') resolveCaptures(state, playerIndex, dest.cell)
+        // Capture ou objectif atteint pendant le saut → on garde la main.
+        if (dest.zone === 'track' && resolveCaptures(state, playerIndex, dest.cell) > 0) rollAgain = true
+        if (dest.zone === 'done') rollAgain = true
         checkWin(state, playerIndex)
       }
       state.lastEvent = `🎁 🚀 Saut +${steps} !`
@@ -316,7 +322,7 @@ function drawBonus(
           const cell = (pawn.cell + k) % LUDO_TRACK
           if (ludoStarCells().includes(cell)) {
             player.pawns[pawnIndex] = { zone: 'track', cell }
-            resolveCaptures(state, playerIndex, cell)
+            if (resolveCaptures(state, playerIndex, cell) > 0) rollAgain = true
             break
           }
         }
@@ -356,11 +362,13 @@ export function ludoPlay(
   player.pawns[pawnIndex] = dest
   state.lastEvent = null
 
-  if (dest.zone === 'track') resolveCaptures(state, index, dest.cell)
+  const captured = dest.zone === 'track' ? resolveCaptures(state, index, dest.cell) : 0
   checkWin(state, index)
   if (state.status === 'finished') return
 
-  let rollAgain = roll === 6
+  // On REJOUE sur un 6, après une capture (pion adverse en prison) ou
+  // quand un pion atteint l'objectif — règles de la table.
+  let rollAgain = roll === 6 || captured > 0 || dest.zone === 'done'
   const landedBonus =
     state.rules.bonusMode && dest.zone === 'track'
       ? state.bonusCells.find((b) => b.cell === dest.cell)
@@ -397,12 +405,15 @@ export function ludoTarget(
     throw new LudoError('Cible invalide : il faut un pion adverse sur la piste')
   }
 
+  let keepTurn = pending.rollAgain
   if (pending.bonus === 'prison') {
     if (enemy.shield) {
       enemy.shield = false
       state.lastEvent = '🛡 Bouclier ! La prison est annulée'
     } else {
       enemy.pawns[targetPawnIndex] = { zone: 'base' }
+      // Pion adverse renvoyé en prison → on garde la main (règle de la table).
+      keepTurn = true
       state.lastEvent = '🚔 En prison !'
     }
   } else {
@@ -415,7 +426,6 @@ export function ludoTarget(
     state.lastEvent = '↔️ Échange !'
   }
 
-  const rollAgain = pending.rollAgain
   state.pendingBonus = null
-  endMove(state, rollAgain)
+  endMove(state, keepTurn)
 }
