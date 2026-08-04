@@ -2517,13 +2517,17 @@ section.game {
 }
 
 /* Cadre du plateau : absorbe l'espace flex restant, le plateau carré se
-   dimensionne DEPUIS cette hauteur — jamais étiré ni coupé, PC comme mobile. */
+   dimensionne DEPUIS cette hauteur — jamais étiré ni coupé, PC comme mobile.
+   FLEX (pas grid) : un pourcentage de hauteur ne se résout que dans un
+   conteneur à hauteur définie — dans une grille à rangée auto, il retombe
+   en auto et les rangées 1fr s'étirent (bases en rectangles). */
 .ludo-frame {
   flex: 1 1 0;
   min-height: 0;
   width: 100%;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .ludo-players {
