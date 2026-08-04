@@ -93,17 +93,30 @@ function RulesEditor({
         </>
       )}
       {rules.gameType !== 'chess' && (
-        <select
-          className="voice-audience"
-          disabled={!editable}
-          value={String(rules.maxSeats)}
-          title="Nombre de joueurs à table"
-          onChange={(e) => onChange({ ...rules, maxSeats: Number(e.target.value) })}
-        >
-          <option value="2">Table à 2</option>
-          <option value="3">Table à 3</option>
-          <option value="4">Table à 4</option>
-        </select>
+        <>
+          <select
+            className="voice-audience"
+            disabled={!editable}
+            value={String(rules.maxSeats)}
+            title="Nombre de joueurs à table"
+            onChange={(e) => onChange({ ...rules, maxSeats: Number(e.target.value) })}
+          >
+            <option value="2">Table à 2</option>
+            <option value="3">Table à 3</option>
+            <option value="4">Table à 4</option>
+          </select>
+          <select
+            className="voice-audience"
+            disabled={!editable}
+            value={String(rules.swapCount)}
+            title="Combien de joueurs de la file entrent à chaque victoire — les plus petits scores sortent (à égalité, celui à gauche du gagnant)"
+            onChange={(e) => onChange({ ...rules, swapCount: Number(e.target.value) })}
+          >
+            <option value="1">File : 1 remplacé</option>
+            <option value="2">File : 2 remplacés</option>
+            <option value="3">File : 3 remplacés</option>
+          </select>
+        </>
       )}
       {rules.gameType === 'ludo' && (
         <>

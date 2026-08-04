@@ -51,6 +51,11 @@ export interface GameRules {
   instantWinScore: number | null
   /** Nombre de joueurs à table (2 à 4). Défaut : 3 — on joue toujours à 3. */
   maxSeats: number
+  /**
+   * Nombre de joueurs remplacés par la file à chaque victoire (1 à 3).
+   * Défaut 1 : seul le plus petit score sort (à égalité, à gauche du gagnant).
+   */
+  swapCount: number
   /** Jeu du salon : dominos, échecs blitz (2 joueurs) ou Ludo (2-4). */
   gameType: 'dominos' | 'chess' | 'ludo'
   /** Échecs : minutes au départ pour chaque pendule (défaut 10). */
@@ -70,6 +75,7 @@ export const DEFAULT_RULES: GameRules = {
   openingMaxPips: null,
   instantWinScore: null,
   maxSeats: 3,
+  swapCount: 1,
   gameType: 'dominos',
   chessMinutes: 10,
   chessIncrement: 0,

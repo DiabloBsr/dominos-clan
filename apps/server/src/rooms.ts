@@ -215,6 +215,10 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
   if (!Number.isInteger(maxSeats) || maxSeats < 2 || maxSeats > MAX_SEATS) {
     throw new RoomError('Taille de table invalide (2 à 4 joueurs)')
   }
+  const swapCount = Number(r.swapCount ?? 1)
+  if (!Number.isInteger(swapCount) || swapCount < 1 || swapCount > 3) {
+    throw new RoomError('Remplacés à la victoire : 1 à 3')
+  }
   const chessMinutes = Number(r.chessMinutes ?? 10)
   if (!Number.isInteger(chessMinutes) || chessMinutes < 1 || chessMinutes > 60) {
     throw new RoomError('Pendule invalide (1 à 60 minutes)')
@@ -234,6 +238,7 @@ export function setRules(room: Room, memberId: string, raw: unknown): void {
     openingMaxPips,
     instantWinScore,
     maxSeats,
+    swapCount,
     gameType,
     chessMinutes,
     chessIncrement,
@@ -445,7 +450,7 @@ function settleLudoEnd(room: Room): void {
   if (!g || g.status !== 'finished' || g.winnerId === null) return
   room.status = 'finished'
   room.lastWinnerId = g.winnerId
-  const rotated = rotateWinnerStays(room.seats, room.queue, g.winnerId)
+  const rotated = rotateWinnerStays(room.seats, room.queue, g.winnerId, {}, room.rules.swapCount)
   room.seats = rotated.seats
   room.queue = rotated.queue
 }
@@ -485,7 +490,13 @@ function settleChessEnd(room: Room): void {
   room.status = 'finished'
   room.lastWinnerId = g.result.winnerId
   if (g.result.winnerId !== null) {
-    const rotated = rotateWinnerStays(room.seats, room.queue, g.result.winnerId)
+    const rotated = rotateWinnerStays(
+      room.seats,
+      room.queue,
+      g.result.winnerId,
+      {},
+      room.rules.swapCount,
+    )
     room.seats = rotated.seats
     room.queue = rotated.queue
   }
@@ -572,6 +583,7 @@ function settleRoundEnd(room: Room): void {
         room.queue,
         result.winnerId,
         Object.fromEntries(room.scores),
+        room.rules.swapCount,
       )
       room.seats = rotated.seats
       room.queue = rotated.queue
@@ -585,7 +597,7 @@ function settleRoundEnd(room: Room): void {
 
   // Manche sèche : rotation immédiate, le gagnant reste (pas de scores :
   // à égalité complète, c'est le voisin de gauche du gagnant qui sort).
-  const rotated = rotateWinnerStays(room.seats, room.queue, result.winnerId)
+  const rotated = rotateWinnerStays(room.seats, room.queue, result.winnerId, {}, room.rules.swapCount)
   room.seats = rotated.seats
   room.queue = rotated.queue
 }

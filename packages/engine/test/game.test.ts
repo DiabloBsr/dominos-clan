@@ -33,6 +33,7 @@ function craftState(partial: {
       openingMaxPips: null,
       instantWinScore: null,
       maxSeats: 3,
+      swapCount: 1,
       gameType: 'dominos',
       chessMinutes: 10,
       chessIncrement: 0,

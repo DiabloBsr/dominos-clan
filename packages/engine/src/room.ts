@@ -36,23 +36,25 @@ export interface RoomView {
 
 /**
  * Rotation "le gagnant reste" (à la victoire) : la file prend les places des
- * perdants. S'il y a moins de remplaçants que de perdants, sortent en
- * priorité les **plus petits scores** ; à égalité, **celui qui est à gauche
- * du gagnant** (le siège précédent dans l'ordre du tour) cède sa place en
- * premier. Sans file, les mêmes joueurs rejouent (gagnant en tête).
+ * perdants. `maxSwaps` borne le nombre de remplacés à chaque victoire
+ * (réglage de table, défaut : autant que possible). Sortent en priorité les
+ * **plus petits scores** ; à égalité, **celui qui est à gauche du gagnant**
+ * (le siège précédent dans l'ordre du tour) cède sa place en premier.
+ * Sans file, les mêmes joueurs rejouent (gagnant en tête).
  */
 export function rotateWinnerStays(
   seats: readonly string[],
   queue: readonly string[],
   winnerId: string,
   scores: Record<string, number> = {},
+  maxSwaps: number = Infinity,
 ): { seats: string[]; queue: string[] } {
   const winnerIndex = seats.indexOf(winnerId)
   if (winnerIndex < 0) {
     throw new Error(`Le gagnant ${winnerId} n'est pas assis`)
   }
   const n = seats.length
-  const openSeats = n - 1
+  const openSeats = Math.max(0, Math.min(n - 1, maxSwaps))
   const incoming = queue.slice(0, openSeats)
 
   // Distance « à gauche du gagnant » : 1 = siège immédiatement à sa gauche.
