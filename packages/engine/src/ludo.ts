@@ -13,7 +13,13 @@ import { mulberry32 } from './tiles'
 
 export const LUDO_TRACK = 52
 export const LUDO_HOME_STEPS = 5
-const FULL_PATH = LUDO_TRACK + LUDO_HOME_STEPS // 57 = arrivée exacte
+/**
+ * Entrée du couloir : après 51 cases de piste (rel 0..50), le pion tourne
+ * DIRECTEMENT dans son allée — il ne repasse jamais par la case d'avant son
+ * départ (classique ; sinon il « dépassait » visuellement l'entrée).
+ */
+const HOME_ENTRY = LUDO_TRACK - 1 // rel 51 = première case du couloir
+const FULL_PATH = HOME_ENTRY + LUDO_HOME_STEPS // 56 = arrivée exacte
 
 export type LudoPawn =
   | { zone: 'base' }
@@ -151,7 +157,7 @@ function relOf(slot: number, pawn: LudoPawn): number | null {
   if (pawn.zone === 'track') {
     return (pawn.cell - ludoStartCell(slot) + LUDO_TRACK) % LUDO_TRACK
   }
-  if (pawn.zone === 'home') return LUDO_TRACK + pawn.step
+  if (pawn.zone === 'home') return HOME_ENTRY + pawn.step
   return null
 }
 
@@ -163,10 +169,10 @@ function destinationOf(slot: number, pawn: LudoPawn, steps: number): LudoPawn | 
   }
   const rel = relOf(slot, pawn)!
   const next = rel + steps
-  if (next < LUDO_TRACK) {
+  if (next < HOME_ENTRY) {
     return { zone: 'track', cell: (ludoStartCell(slot) + next) % LUDO_TRACK }
   }
-  if (next < FULL_PATH) return { zone: 'home', step: next - LUDO_TRACK }
+  if (next < FULL_PATH) return { zone: 'home', step: next - HOME_ENTRY }
   if (next === FULL_PATH) return { zone: 'done' }
   return null // dépassement : arrivée exacte obligatoire
 }
@@ -318,7 +324,7 @@ function drawBonus(
       const pawn = player.pawns[pawnIndex]!
       if (pawn.zone === 'track') {
         const rel = relOf(player.slot, pawn)!
-        for (let k = 1; rel + k < LUDO_TRACK; k++) {
+        for (let k = 1; rel + k < HOME_ENTRY; k++) {
           const cell = (pawn.cell + k) % LUDO_TRACK
           if (ludoStarCells().includes(cell)) {
             player.pawns[pawnIndex] = { zone: 'track', cell }

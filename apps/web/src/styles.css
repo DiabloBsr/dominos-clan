@@ -2701,6 +2701,19 @@ section.game {
   animation: pawn-hop 0.23s ease-in-out infinite;
 }
 
+/* Retour en prison : le pion GLISSE en marche arrière — transition linéaire
+   enchaînée, aucun sautillement, légèrement penché comme traîné. */
+.ludo-pawn.sliding {
+  z-index: 8;
+  transition-timing-function: linear;
+}
+
+.ludo-pawn.sliding .pawn-svg {
+  animation: none;
+  transform: rotate(-8deg);
+  filter: saturate(0.8) brightness(0.9);
+}
+
 @keyframes pawn-hop {
   0%,
   100% {
@@ -2877,12 +2890,14 @@ section.game {
   pointer-events: none;
 }
 
-/* Cri de chambrage à la capture : même pop plein écran que JOYAAA, en rouge. */
+/* Cri de chambrage à la capture : même pop plein écran que JOYAAA, en rouge,
+   affiché ~3 s (le pop de base dure 1 s — trop bref pour être savouré). */
 .slam-fx.capture-fx {
   color: #ff6b5e;
   text-shadow:
     0 4px 0 rgba(0, 0, 0, 0.55),
     0 0 60px rgba(226, 87, 76, 0.55);
+  animation-duration: 3s;
 }
 
 /* ─── Machine à sous du Saut bonus 🚀 ────────────────────────────────── */

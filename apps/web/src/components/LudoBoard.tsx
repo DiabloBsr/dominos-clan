@@ -45,6 +45,15 @@ const BASE_ZONES: Array<[number, number]> = [
 /** Rotation de la flèche d'entrée de chaque coin (sens de la marche). */
 const START_ARROWS = [0, 90, 180, 270]
 
+/** Pions ARRIVÉS : en éventail dans le triangle central de LEUR couleur. */
+function doneSpot(slot: number, pawnIndex: number): [number, number] {
+  const spread = 6.28 + pawnIndex * 0.49
+  if (slot === 0) return [spread, 6.04] // triangle gauche (rouge)
+  if (slot === 1) return [6.04, spread] // triangle haut (vert)
+  if (slot === 2) return [spread, 7.96] // triangle droit (jaune)
+  return [7.96, spread] // triangle bas (bleu)
+}
+
 /** Couleurs du plateau CLASSIQUE (modèle de référence du user) :
  *  coin haut-gauche rouge, haut-droit vert, bas-droit jaune, bas-gauche bleu. */
 export const LUDO_COLORS = ['#e02b2b', '#28a24c', '#f5c518', '#1f7fe0']
@@ -217,9 +226,11 @@ export function LudoBoard({
   const freshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Retenue d'animation : les pions ne bougent qu'après la face affichée. */
   const animHoldUntil = useRef(0)
-  /** Le prochain lancer attend aussi l'apparition de la face. */
+  /** Le prochain lancer n'est disponible qu'une fois TOUTES les animations
+   *  finies (face affichée, pions arrivés, machine à sous, recul…). */
   const [rollHold, setRollHold] = useState(false)
-  const rollHoldTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Seq du dernier bonus déjà intégré aux files d'animation. */
+  const animBonusSeq = useRef(0)
   // Le tirage déjà présent AU MONTAGE date d'une partie précédente : on
   // l'ignore, sinon un dé culbute tout seul au départ sans avoir cliqué.
   const staleRollKey = useRef(roll?.key ?? null)
@@ -228,10 +239,9 @@ export function LudoBoard({
     setLastRolls((prev) => ({ ...prev, [roll.player]: { value: roll.value, key: roll.key } }))
     animHoldUntil.current = Date.now() + 1000
     playDiceRoll()
-    // Le lancer SUIVANT n'est disponible qu'après l'apparition de la face.
+    // Le lancer SUIVANT attend la fin de TOUTE la séquence (relâché par le
+    // ticker d'animation quand plus rien n'est en file).
     setRollHold(true)
-    if (rollHoldTimer.current) clearTimeout(rollHoldTimer.current)
-    rollHoldTimer.current = setTimeout(() => setRollHold(false), 1000)
     setFreshRoll(roll.player)
     if (freshTimer.current) clearTimeout(freshTimer.current)
     freshTimer.current = setTimeout(() => setFreshRoll(null), 2100)
@@ -256,28 +266,33 @@ export function LudoBoard({
     if (pawn.zone === 'base') return BASE_SLOTS[slot]![pawnIndex]!
     if (pawn.zone === 'track') return TRACK[pawn.cell]!
     if (pawn.zone === 'home') return HOME[slot]![pawn.step]!
-    return [6.55 + slot * 0.55, 6.55 + pawnIndex * 0.45]
+    // Pion ARRIVÉ : rangé dans le triangle central de SA couleur.
+    return doneSpot(slot, pawnIndex)
   }
 
   // ── Sautillement case par case : file d'étapes + rebond visible ──
+  // Couloir à rel 51 (51 cases de piste), arrivée à rel 56 — aligné moteur.
   const relOfPawn = (slot: number, pawn: LudoPawnPos): number | null => {
     if (pawn.zone === 'track') return (pawn.cell - ludoStartCell(slot) + 52) % 52
-    if (pawn.zone === 'home') return 52 + pawn.step
-    if (pawn.zone === 'done') return 57
+    if (pawn.zone === 'home') return 51 + pawn.step
+    if (pawn.zone === 'done') return 56
     return null
   }
 
   const pawnAtRel = (slot: number, rel: number): LudoPawnPos =>
-    rel < 52
+    rel < 51
       ? { zone: 'track', cell: (ludoStartCell(slot) + rel) % 52 }
-      : rel < 57
-        ? { zone: 'home', step: rel - 52 }
+      : rel < 56
+        ? { zone: 'home', step: rel - 51 }
         : { zone: 'done' }
 
   const prevPawns = useRef<Map<string, LudoPawnPos>>(new Map())
-  const queues = useRef<Map<string, Array<[number, number]>>>(new Map())
+  /** File d'étapes par pion — `null` = tick d'attente (séquencement). */
+  const queues = useRef<Map<string, Array<[number, number] | null>>>(new Map())
   const [display, setDisplay] = useState<Record<string, [number, number]>>({})
   const [moving, setMoving] = useState<Set<string>>(new Set())
+  /** Pions capturés en cours de RETOUR : ils GLISSENT (pas de sautillement). */
+  const slidingKeys = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     // 1er passage : compter les capturés de cette mise à jour (piste → base).
@@ -298,7 +313,7 @@ export function LudoBoard({
         text: CAPTURE_TAUNTS[Math.floor(Math.random() * CAPTURE_TAUNTS.length)]!,
       })
       const key = captureKey.current
-      setTimeout(() => setCaptureFx((prev) => (prev?.key === key ? null : prev)), 1900)
+      setTimeout(() => setCaptureFx((prev) => (prev?.key === key ? null : prev)), 3100)
     }
     // 🏁 Un pion vient d'atteindre l'objectif : mini-fanfare.
     let reachedGoal = false
@@ -313,8 +328,19 @@ export function LudoBoard({
     // Les pas s'AJOUTENT à la file en cours (jamais d'écrasement) : si une
     // animation tourne encore quand l'état suivant arrive, le pion enchaîne
     // sans téléportation ni pas perdus.
-    const append = (key: string, path: Array<[number, number]>) =>
+    const append = (key: string, path: Array<[number, number] | null>) =>
       queues.current.set(key, [...(queues.current.get(key) ?? []), ...path])
+
+    // 🚀 Saut bonus ramassé pendant CE coup : le pion s'arrête sur la case
+    // bonus, la machine à sous tourne, PUIS le saut s'anime.
+    const lb = state.lastBonus
+    const bonusNow =
+      lb && lb.kind === 'boost' && lb.value !== null && lb.seq !== animBonusSeq.current ? lb : null
+    animBonusSeq.current = lb?.seq ?? animBonusSeq.current
+
+    const SLOT_TICKS = 10 // ≈ 2,3 s de machine à sous
+    let maxForwardTicks = 0
+    const slidingPaths: Array<{ key: string; path: Array<[number, number] | null> }> = []
 
     const next = new Map<string, LudoPawnPos>()
     state.players.forEach((player, pi) =>
@@ -333,23 +359,40 @@ export function LudoBoard({
         ) {
           // Marche arrière : tout le chemin parcouru depuis la sortie,
           // puis retour au box (pas de 2 cases au-delà de 14 pour le rythme).
-          const path: Array<[number, number]> = []
+          const path: Array<[number, number] | null> = []
           const stride = fromRel > 14 ? 2 : 1
           for (let r = fromRel - stride; r > 0; r -= stride) {
             path.push(gridOf(player.slot, pwi, pawnAtRel(player.slot, r)))
           }
           path.push(gridOf(player.slot, pwi, pawnAtRel(player.slot, 0)))
           path.push(gridOf(player.slot, pwi, pawn))
-          append(key, path)
+          slidingKeys.current.add(key)
+          slidingPaths.push({ key, path }) // démarré APRÈS l'arrivée du capteur
         } else if (fromRel !== null && toRel !== null && toRel > fromRel && toRel - fromRel <= 12) {
-          const path: Array<[number, number]> = []
-          for (let r = fromRel + 1; r <= toRel; r++) path.push(gridOf(player.slot, pwi, pawnAtRel(player.slot, r)))
+          const path: Array<[number, number] | null> = []
+          const boostSplit =
+            bonusNow && bonusNow.playerIndex === pi && roll && roll.player === pi
+              ? fromRel + roll.value
+              : null
+          for (let r = fromRel + 1; r <= toRel; r++) {
+            path.push(gridOf(player.slot, pwi, pawnAtRel(player.slot, r)))
+            // Pause machine à sous sur la case bonus, puis le saut reprend.
+            if (boostSplit !== null && r === boostSplit && r < toRel) {
+              for (let w = 0; w < SLOT_TICKS; w++) path.push(null)
+            }
+          }
+          maxForwardTicks = Math.max(maxForwardTicks, path.length)
           append(key, path)
         } else {
+          maxForwardTicks = Math.max(maxForwardTicks, 1)
           append(key, [gridOf(player.slot, pwi, pawn)])
         }
       }),
     )
+    // Le recul du capturé ne COMMENCE qu'une fois le capteur arrivé.
+    for (const { key, path } of slidingPaths) {
+      append(key, [...Array.from({ length: maxForwardTicks }, () => null), ...path])
+    }
     prevPawns.current = next
   }, [state])
 
@@ -378,18 +421,27 @@ export function LudoBoard({
       // Les pions attendent la fin de la culbute du dé : le déplacement ne
       // démarre qu'APRÈS l'affichage de la face tirée.
       if (Date.now() < animHoldUntil.current) return
+      // Plus rien à animer et face affichée → le lancer suivant se débloque.
+      if (queues.current.size === 0) {
+        setRollHold((held) => (held ? false : held))
+        return
+      }
       const updates: Record<string, [number, number]> = {}
       for (const [key, queue] of [...queues.current.entries()]) {
         const step = queue.shift()
         if (step) updates[key] = step
-        if (queue.length === 0) queues.current.delete(key)
+        if (queue.length === 0) {
+          queues.current.delete(key)
+          slidingKeys.current.delete(key)
+        }
       }
       const nowMoving = new Set([...queues.current.keys(), ...Object.keys(updates)])
       setMoving((prev) =>
         prev.size === nowMoving.size && [...prev].every((k) => nowMoving.has(k)) ? prev : nowMoving,
       )
       if (Object.keys(updates).length > 0) {
-        playHop()
+        // Le tic ne joue que pour les SAUTS — la glissade du retour est muette.
+        if (Object.keys(updates).some((k) => !slidingKeys.current.has(k))) playHop()
         setDisplay((prev) => ({ ...prev, ...updates }))
       }
     }, 230)
@@ -478,7 +530,7 @@ export function LudoBoard({
                 <button
                   key={key}
                   className={`ludo-pawn ${playable ? 'playable' : ''} ${targetable ? 'targetable' : ''} ${
-                    moving.has(key) ? 'moving' : ''
+                    moving.has(key) ? (slidingKeys.current.has(key) ? 'sliding' : 'moving') : ''
                   }`}
                   style={pawnPos(player.slot, key, pwi, pawn)}
                   disabled={!playable && !targetable}

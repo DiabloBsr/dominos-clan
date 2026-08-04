@@ -157,17 +157,25 @@ describe('captures et cases sûres', () => {
 })
 
 describe('couloir et arrivée exacte', () => {
-  it('entre dans le couloir puis arrive exactement', () => {
+  it('entre dans le couloir DIRECTEMENT (51 cases de piste) puis arrive exactement', () => {
     const state = createLudo(['a', 'b'])
-    // rel 50 pour le joueur 0 : case 50.
-    craft(state, 0, 0, { zone: 'track', cell: 50 })
+    // rel 49 pour le joueur 0 : case 49 (l'entrée du couloir est à rel 51).
+    craft(state, 0, 0, { zone: 'track', cell: 49 })
     ludoRoll(state, 'a', 4)
-    ludoPlay(state, 'a', 0, noRand) // rel 54 → couloir step 2
+    ludoPlay(state, 'a', 0, noRand) // rel 53 → couloir step 2
     expect(state.players[0]!.pawns[0]).toEqual({ zone: 'home', step: 2 })
     ludoRoll(state, 'b', 3) // b passe (rien à jouer)
     ludoRoll(state, 'a', 3)
-    ludoPlay(state, 'a', 0, noRand) // step 2 + 3 = 5 → done
+    ludoPlay(state, 'a', 0, noRand) // step 2 + 3 → rel 56 = done (et on rejoue)
     expect(state.players[0]!.pawns[0]).toEqual({ zone: 'done' })
+  })
+
+  it('la dernière case de piste avant le couloir est rel 50 — jamais la case d’avant-départ', () => {
+    const state = createLudo(['a', 'b'])
+    craft(state, 0, 0, { zone: 'track', cell: 50 }) // rel 50 : dernière case de piste
+    ludoRoll(state, 'a', 1)
+    ludoPlay(state, 'a', 0, noRand)
+    expect(state.players[0]!.pawns[0]).toEqual({ zone: 'home', step: 0 })
   })
 
   it('le dépassement est interdit', () => {
