@@ -302,6 +302,7 @@ export function Room({
   onKick,
   onSwap,
   onDemote,
+  onSetTaunt,
   onUndo,
   onRedeal,
   onChessMove,
@@ -321,7 +322,7 @@ export function Room({
   voice: VoiceControls
   friends: Friend[]
   friendStatuses: Record<string, FriendStatus>
-  slamFx: { key: number; pseudo: string } | null
+  slamFx: { key: number; pseudo: string; taunt: string } | null
   passFx: { key: number; pseudo: string } | null
   ludoRollFx: { player: number; value: number; key: number } | null
   onInvite: (toUserId: string) => void
@@ -339,6 +340,7 @@ export function Room({
   onKick: (memberId: string) => void
   onSwap: (seatId: string, withId: string) => void
   onDemote: (memberId: string) => void
+  onSetTaunt: (taunt: string) => void
   onUndo: () => void
   onRedeal: () => void
   onChessMove: (from: string, to: string, promotion?: string) => void
@@ -359,6 +361,8 @@ export function Room({
   const [memberMenu, setMemberMenu] = useState<string | null>(null)
   // Confirmation maison (popup centrée de l'app, plus de window.confirm natif).
   const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null)
+  /** Édition de MON cri de capture (accessible même en pleine partie). */
+  const [tauntBox, setTauntBox] = useState<string | null>(null)
   const ask = (message: string, yesLabel: string, onYes: () => void) =>
     setConfirmReq({ message, yesLabel, onYes })
   // Bannière de résultat réduite : on mémorise l'objet résultat écarté —
@@ -440,6 +444,53 @@ export function Room({
                   </div>
                 )
               })}
+            </div>
+          )}
+        </div>
+        <div className="invite-wrap">
+          {/* Mon cri de claque — éditable À TOUT MOMENT, même en plein match :
+              envoyé au serveur à l'enregistrement (member:taunt), il part
+              avec le prochain CLAC. */}
+          <button
+            className={`icon-btn ${tauntBox !== null ? 'live' : ''}`}
+            title="Mon cri de claque (RENAO !, ANY ZANY EEE…)"
+            onClick={() =>
+              setTauntBox((prev) =>
+                prev === null
+                  ? (room.members.find((m) => m.id === selfId)?.taunt ?? '')
+                  : null,
+              )
+            }
+          >
+            🗣
+          </button>
+          {tauntBox !== null && (
+            <div className="invite-panel">
+              <div className="chat-head">🗣 Mon cri de claque</div>
+              <input
+                className="input"
+                value={tauntBox}
+                maxLength={24}
+                placeholder="ex. RENAO ! / ANY ZANY EEE"
+                autoFocus
+                onChange={(e) => setTauntBox(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    onSetTaunt(tauntBox)
+                    setTauntBox(null)
+                  }
+                  if (e.key === 'Escape') setTauntBox(null)
+                }}
+              />
+              <button
+                className="btn sm"
+                onClick={() => {
+                  onSetTaunt(tauntBox)
+                  setTauntBox(null)
+                }}
+              >
+                Enregistrer
+              </button>
             </div>
           )}
         </div>
@@ -549,6 +600,17 @@ export function Room({
                   ⋯
                 </button>
               )}
+              {id === selfId && (
+                <button
+                  className="chip-add"
+                  title="Ton cri de capture (Ludo) — modifiable même en pleine partie"
+                  onClick={() =>
+                    setTauntBox(room.members.find((m) => m.id === selfId)?.taunt ?? '')
+                  }
+                >
+                  ✏️
+                </button>
+              )}
             </span>
           ))}
           {room.seats.length === 0 && <span className="empty">personne…</span>}
@@ -566,6 +628,17 @@ export function Room({
               <span className="chip-avatar">{avatarOf(room, id)}</span>
               <span className="chip-name">{pseudoOf(room, id)}</span>
               {voice.state.inVoice.includes(id) && <span className="chip-ic">🎙</span>}
+              {id === selfId && (
+                <button
+                  className="chip-add"
+                  title="Ton cri de capture (Ludo) — modifiable même en pleine partie"
+                  onClick={() =>
+                    setTauntBox(room.members.find((m) => m.id === selfId)?.taunt ?? '')
+                  }
+                >
+                  ✏️
+                </button>
+              )}
               {isHost && room.status !== 'playing' && room.seats.length < room.rules.maxSeats && (
                 <button
                   className="chip-add"
@@ -841,7 +914,9 @@ export function Room({
 
       {slamFx && (
         <div className="slam-fx" key={slamFx.key}>
-          💥 JOYAAAA&nbsp;!
+          {/* Cri personnalisé du claqueur (« RENAO », « ANY ZANY EEE »…) —
+              vide = le JOYAAAA historique. */}
+          💥 {slamFx.taunt || 'JOYAAAA'}&nbsp;!
         </div>
       )}
       {passFx && (
@@ -1014,6 +1089,45 @@ export function Room({
             </button>
           </form>
         </div>
+      )}
+
+      {tauntBox !== null && (
+        <>
+          <div className="panel-veil" onClick={() => setTauntBox(null)} />
+          <div className="game-modal card">
+            <div className="panel-head">
+              <h2 className="card-title">😤 Ton cri de capture</h2>
+              <button className="icon-btn tiny" onClick={() => setTauntBox(null)}>
+                ✕
+              </button>
+            </div>
+            <p className="hint">
+              Affiché en plein écran quand TU renvoies un pion en prison (Ludo). Vide = cris du
+              clan. Modifiable même en pleine partie.
+            </p>
+            <input
+              className="input"
+              value={tauntBox}
+              maxLength={24}
+              placeholder="ex. RENAO ! / ANY ZANY EEE"
+              onChange={(e) => setTauntBox(e.target.value)}
+            />
+            <div className="lobby-actions">
+              <button className="btn ghost" onClick={() => setTauntBox(null)}>
+                Annuler
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  onSetTaunt(tauntBox)
+                  setTauntBox(null)
+                }}
+              >
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       <ConfirmBox req={confirmReq} onClose={() => setConfirmReq(null)} />

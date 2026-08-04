@@ -66,7 +66,7 @@ export default function App() {
   const [knock, setKnock] = useState<{ fromUserId: string; fromPseudo: string; fromAvatar: string } | null>(
     null,
   )
-  const [slamFx, setSlamFx] = useState<{ key: number; pseudo: string } | null>(null)
+  const [slamFx, setSlamFx] = useState<{ key: number; pseudo: string; taunt: string } | null>(null)
   const [passFx, setPassFx] = useState<{ key: number; pseudo: string } | null>(null)
   const [ludoRollFx, setLudoRollFx] = useState<{ player: number; value: number; key: number } | null>(
     null,
@@ -379,10 +379,10 @@ export default function App() {
       setReactions((prev) => [...prev.slice(-11), { key, memberId: s.memberId, pseudo: s.pseudo, emoji }])
       setTimeout(() => setReactions((prev) => prev.filter((fr) => fr.key !== key)), 2600)
     }
-    const onSlam = (s: { pseudo: string }) => {
+    const onSlam = (s: { pseudo: string; taunt?: string }) => {
       playSlam()
       const key = ++slamKey.current
-      setSlamFx({ key, pseudo: s.pseudo })
+      setSlamFx({ key, pseudo: s.pseudo, taunt: (s.taunt ?? '').trim() })
       setTimeout(() => setSlamFx((prev) => (prev?.key === key ? null : prev)), 1000)
     }
     const onPassed = (p: { pseudo: string }) => {
@@ -490,6 +490,7 @@ export default function App() {
     pseudo: profile.pseudo.trim() || 'joueur',
     userId: profile.id,
     avatar: profile.avatar,
+    taunt: (profile.taunt ?? '').trim(),
   }
 
   const leaveRoomLocal = () => {
@@ -574,6 +575,13 @@ export default function App() {
     onKick: (memberId: string) => simpleEmit('room:kick', { memberId }),
     onSwap: (seatId: string, withId: string) => simpleEmit('room:swap', { seatId, withId }),
     onDemote: (memberId: string) => simpleEmit('room:demote', { memberId }),
+    onSetTaunt: (taunt: string) => {
+      const clean = taunt.replace(/[\r\n<>]/g, '').trim().slice(0, 24)
+      simpleEmit('member:taunt', { taunt: clean })
+      const next = { ...profile, taunt: clean }
+      saveProfile(next)
+      setProfile(next)
+    },
     onCloudSignIn: () => {
       signInWithGoogle().catch(() => showNotice('Connexion Google impossible — réessaie'))
     },

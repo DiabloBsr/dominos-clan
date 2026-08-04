@@ -195,6 +195,16 @@ export function Home({
                 onChange={(e) => onProfile({ ...profile, pseudo: e.target.value })}
               />
             </label>
+            <label className="field">
+              <span>Ton cri de claque 😤</span>
+              <input
+                className="input"
+                value={profile.taunt ?? ''}
+                maxLength={24}
+                placeholder="ex. RENAO ! / ANY ZANY EEE"
+                onChange={(e) => onProfile({ ...profile, taunt: e.target.value })}
+              />
+            </label>
             <button className="friend-code" onClick={copyFriendCode} title="Copier ton code ami">
               code ami : <b>{profile.id}</b> {copied ? '✔' : '⧉'}
             </button>

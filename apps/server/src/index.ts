@@ -46,6 +46,7 @@ import {
   roomView,
   roomsSnapshot,
   sanitizeChatText,
+  sanitizeTaunt,
   setRules,
   startGame,
   swapSeat,
@@ -433,7 +434,14 @@ io.on('connection', (socket: Socket) => {
       // entend le CLAC (pur effet d'ambiance, validé après le coup).
       if (payload.slam === true && payload.move.type === 'play') {
         const member = room.members.get(memberId)
-        if (member) io.to(room.code).emit('game:slam', { memberId, pseudo: member.pseudo })
+        if (member)
+          io.to(room.code).emit('game:slam', {
+            memberId,
+            pseudo: member.pseudo,
+            // Cri de claque personnalisé (« RENAO ! », « ANY ZANY EEE ! »…) —
+            // vide = le JOYAAAA par défaut côté client.
+            taunt: member.taunt,
+          })
       }
       // « JE PASSE 😭 » affiché chez tout le monde quand quelqu'un passe.
       if (payload.move.type === 'pass') {
@@ -512,6 +520,17 @@ io.on('connection', (socket: Socket) => {
       const text = sanitizeChatText(payload?.text)
       if (!canChat(room, memberId)) return
       io.to(room.code).emit('chat:message', { memberId, pseudo: member.pseudo, text })
+    }),
+  )
+
+  // Cri de capture personnel : modifiable n'importe quand, MÊME en pleine partie.
+  socket.on('member:taunt', (payload: { taunt?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      const member = room.members.get(memberId)
+      if (!member) throw new RoomError('Membre inconnu')
+      member.taunt = sanitizeTaunt(payload?.taunt)
+      broadcast(room)
     }),
   )
 
