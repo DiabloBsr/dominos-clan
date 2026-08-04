@@ -115,6 +115,70 @@ function SlotFx({ value }: { value: number }) {
 }
 const CELL = 100 / 15
 
+const pos = (row: number, col: number) => ({ top: `${row * CELL}%`, left: `${col * CELL}%` })
+
+const grid = (r: number, c: number, spanR = 1, spanC = 1) => ({
+  gridRow: `${r + 1} / span ${spanR}`,
+  gridColumn: `${c + 1} / span ${spanC}`,
+})
+
+/** Plateau Ludo STATIQUE (lobby) : la table du jeu, sans pions ni état. */
+export function LudoLobbyBoard() {
+  const stars = ludoStarCells()
+  const starts = [0, 1, 2, 3].map(ludoStartCell)
+  return (
+    <div className="ludo-board" aria-hidden="true">
+      {BASE_ZONES.map(([r, c], slot) => (
+        <div
+          key={slot}
+          className="ludo-base"
+          style={{ ...grid(r, c, 6, 6), ['--pc' as string]: LUDO_COLORS[slot] }}
+        >
+          <div className="ludo-base-inner" />
+        </div>
+      ))}
+      <div className="ludo-goal" style={grid(6, 6, 3, 3)} />
+      {TRACK.map(([r, c], cell) => {
+        const startOwner = starts.indexOf(cell)
+        return (
+          <div
+            key={cell}
+            className={`ludo-cell ${startOwner >= 0 ? 'start' : ''}`}
+            style={{ ...grid(r, c), ['--pc' as string]: startOwner >= 0 ? LUDO_COLORS[startOwner] : undefined }}
+          >
+            {startOwner >= 0 && (
+              <span className="ludo-arrow" style={{ transform: `rotate(${START_ARROWS[startOwner]}deg)` }}>
+                ➤
+              </span>
+            )}
+            {startOwner < 0 && stars.includes(cell) && <span className="ludo-star">★</span>}
+          </div>
+        )
+      })}
+      {HOME.map((column, slot) =>
+        column.map(([r, c], step) => (
+          <div
+            key={`${slot}-${step}`}
+            className="ludo-cell home-lane"
+            style={{ ...grid(r, c), ['--pc' as string]: LUDO_COLORS[slot] }}
+          />
+        )),
+      )}
+      <div className="ludo-overlay">
+        {BASE_SLOTS.map((slots, slot) =>
+          slots.map(([r, c], si) => (
+            <span
+              key={`${slot}-${si}`}
+              className="ludo-ring"
+              style={{ ...pos(r, c), ['--pc' as string]: LUDO_COLORS[slot] }}
+            />
+          )),
+        )}
+      </div>
+    </div>
+  )
+}
+
 function pseudoOf(room: RoomView, id: string): string {
   return room.members.find((m) => m.id === id)?.pseudo ?? '???'
 }
@@ -259,8 +323,6 @@ export function LudoBoard({
   const stars = ludoStarCells()
   const starts = [0, 1, 2, 3].map(ludoStartCell)
   const safes = useMemo(() => ludoSafeCells(), [])
-
-  const pos = (row: number, col: number) => ({ top: `${row * CELL}%`, left: `${col * CELL}%` })
 
   const gridOf = (slot: number, pawnIndex: number, pawn: LudoPawnPos): [number, number] => {
     if (pawn.zone === 'base') return BASE_SLOTS[slot]![pawnIndex]!
@@ -452,11 +514,6 @@ export function LudoBoard({
     const shown = display[key] ?? gridOf(slot, pawnIndex, pawn)
     return pos(shown[0], shown[1])
   }
-
-  const grid = (r: number, c: number, spanR = 1, spanC = 1) => ({
-    gridRow: `${r + 1} / span ${spanR}`,
-    gridColumn: `${c + 1} / span ${spanC}`,
-  })
 
   return (
     <section className="game ludo-game">

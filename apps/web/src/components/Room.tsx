@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChessView, GameRules, GameView, LudoState, Move, RoomView } from '@dominos-clan/engine'
-import { LudoBoard } from './LudoBoard'
+import { LudoBoard, LudoLobbyBoard } from './LudoBoard'
 import { ConfirmBox, type ConfirmRequest } from './ConfirmBox'
 import type { ChatMessage, FloatingReaction } from '../App'
 import type { VoiceAudience, VoiceControls } from '../useVoice'
@@ -11,7 +11,7 @@ import {
   type Friend,
   type FriendStatus,
 } from '../profile'
-import { ChessBoard } from './ChessBoard'
+import { ChessBoard, ChessLobbyBoard } from './ChessBoard'
 import { Game } from './Game'
 
 const REACTIONS = ['😂', '🔥', '👏', '😮', '😭', '😈', '🤝', '💀']
@@ -890,13 +890,31 @@ export function Room({
         />
       ) : (
         <section className="lobby">
-          <div className="table-felt idle">
-            <p className="felt-hint">
-              {room.rules.gameType === 'chess' ? '♟️' : room.rules.gameType === 'ludo' ? '🎲' : '🁫'}{' '}
-              La table est ouverte — {room.seats.length}/{room.rules.maxSeats} assis,{' '}
-              {room.members.length}/24 dans le salon.
+          {/* La table du LOBBY est celle du jeu : plateau Ludo, échiquier,
+              ou feutre à dominos. */}
+          {room.rules.gameType === 'ludo' ? (
+            <div className="lobby-preview">
+              <LudoLobbyBoard />
+            </div>
+          ) : room.rules.gameType === 'chess' ? (
+            <div className="lobby-preview">
+              <ChessLobbyBoard />
+            </div>
+          ) : (
+            <div className="table-felt idle">
+              <p className="felt-hint">
+                🁫 La table est ouverte — {room.seats.length}/{room.rules.maxSeats} assis,{' '}
+                {room.members.length}/24 dans le salon.
+              </p>
+            </div>
+          )}
+          {room.rules.gameType !== 'dominos' && (
+            <p className="felt-hint lobby-count">
+              {room.rules.gameType === 'chess' ? '♟️' : '🎲'} La table est ouverte —{' '}
+              {room.seats.length}/{room.rules.maxSeats} assis, {room.members.length}/24 dans le
+              salon.
             </p>
-          </div>
+          )}
           <div className="lobby-actions">
             {!playing &&
               (seated ? (

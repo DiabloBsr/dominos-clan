@@ -26,6 +26,40 @@ const REASONS: Record<string, string> = {
   abandon: 'gagne par abandon',
 }
 
+/** Échiquier STATIQUE (lobby) : position de départ, aucune interaction. */
+export function ChessLobbyBoard() {
+  const BACK: PieceType[] = ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r']
+  const cells = []
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece: { type: PieceType; color: 'w' | 'b' } | null =
+        r === 0
+          ? { type: BACK[c]!, color: 'b' }
+          : r === 1
+            ? { type: 'p', color: 'b' }
+            : r === 6
+              ? { type: 'p', color: 'w' }
+              : r === 7
+                ? { type: BACK[c]!, color: 'w' }
+                : null
+      cells.push(
+        <span key={`${r}-${c}`} className={`sq ${(r + c) % 2 === 0 ? 'light' : 'dark'}`}>
+          {piece && (
+            <span className="pc">
+              <ChessPiece type={piece.type} color={piece.color} />
+            </span>
+          )}
+        </span>,
+      )
+    }
+  }
+  return (
+    <div className="chess-board lobby-static" aria-hidden="true">
+      {cells}
+    </div>
+  )
+}
+
 export function ChessBoard({
   view,
   room,

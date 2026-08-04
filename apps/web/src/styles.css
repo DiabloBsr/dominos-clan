@@ -2767,6 +2767,29 @@ section.game {
 }
 
 /* Vrai dé : rouge à points blancs, culbute puis se pose. */
+/* ─── Aperçu de table du LOBBY (la table du jeu, statique) ──────────── */
+
+.lobby-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Hors du cadre de jeu, le plateau Ludo se dimensionne tout seul. */
+.lobby-preview .ludo-board {
+  width: min(88vw, 46vh, 26rem);
+  height: min(88vw, 46vh, 26rem);
+}
+
+.lobby-preview .chess-board {
+  width: min(88vw, 46vh, 24rem);
+}
+
+.felt-hint.lobby-count {
+  margin: 0.6rem 0 0;
+}
+
 /* ─── Plaques nominatives + cases de dé aux 4 coins ─────────────────── */
 
 .ludo-plate {
