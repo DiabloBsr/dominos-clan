@@ -16,32 +16,11 @@ const GAMES: Array<{
   emoji: string
   name: string
   tag: string
-  desc: string
   soon?: boolean
 }> = [
-  {
-    type: 'dominos',
-    emoji: '🁫',
-    name: 'Dominos',
-    tag: '2-4 joueurs',
-    desc: 'Le classique de la table — claquage autorisé.',
-  },
-  {
-    type: 'chess',
-    emoji: '♟️',
-    name: 'Échecs',
-    tag: '1 vs 1 · blitz',
-    desc: 'Pendules 10 min, mat ou drapeau.',
-    soon: true,
-  },
-  {
-    type: 'ludo',
-    emoji: '🎲',
-    name: 'Ludo',
-    tag: '2-4 joueurs',
-    desc: 'Petits chevaux, gros chaos — mode bonus 🎁.',
-    soon: true,
-  },
+  { type: 'dominos', emoji: '🁫', name: 'Dominos', tag: '2-4 joueurs' },
+  { type: 'chess', emoji: '♟️', name: 'Échecs', tag: '1 vs 1', soon: true },
+  { type: 'ludo', emoji: '🎲', name: 'Ludo', tag: '2-4 joueurs', soon: true },
 ]
 
 export function Home({
@@ -129,12 +108,7 @@ export function Home({
             <span className="game-emoji">{g.emoji}</span>
             <span className="game-name">{g.name}</span>
             <span className="game-tag">{g.tag}</span>
-            <span className="game-desc">{g.desc}</span>
-            {g.soon ? (
-              <span className="game-soon">⏳ Bientôt disponible</span>
-            ) : (
-              <span className="game-cta">Créer un salon →</span>
-            )}
+            {g.soon && <span className="game-soon">⏳ Bientôt</span>}
           </button>
         ))}
       </div>

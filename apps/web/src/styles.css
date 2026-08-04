@@ -2061,22 +2061,27 @@ button.domino:disabled {
   white-space: nowrap;
 }
 
+/* Cartes de jeux COMPACTES et carrées (icône + nom) : tout l'accueil tient
+   sur un écran de téléphone sans scroll. */
 .hub-games {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: 0.9rem;
+  grid-template-columns: repeat(3, minmax(5.6rem, 8.5rem));
+  justify-content: center;
+  gap: 0.7rem;
   width: 100%;
-  max-width: 52rem;
+  max-width: 30rem;
 }
 
 .game-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
   gap: 0.3rem;
-  text-align: left;
-  padding: 1.2rem 1.2rem 1rem;
+  text-align: center;
+  aspect-ratio: 1;
+  padding: 0.5rem;
   border-radius: 20px;
   cursor: pointer;
   color: var(--ink);
@@ -2126,35 +2131,15 @@ button.domino:disabled {
 
 .game-name {
   font-family: var(--font-display);
-  font-size: 1.35rem;
+  font-size: 1.05rem;
 }
 
 .game-tag {
-  font-size: 0.7rem;
+  font-size: 0.58rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--amber);
-}
-
-.game-desc {
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.game-cta {
-  margin-top: 0.5rem;
-  font-weight: 800;
-  font-size: 0.85rem;
-  color: var(--amber);
-  opacity: 0;
-  transform: translateX(-6px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.game-card:hover .game-cta {
-  opacity: 1;
-  transform: none;
 }
 
 .game-badge {
@@ -2215,14 +2200,15 @@ button.domino:disabled {
 }
 
 .game-soon {
-  margin-top: 0.5rem;
+  margin-top: 0.15rem;
   font-weight: 800;
-  font-size: 0.8rem;
+  font-size: 0.6rem;
   color: var(--muted);
   background: rgba(0, 0, 0, 0.3);
   border: 1px dashed rgba(247, 242, 231, 0.25);
   border-radius: 999px;
-  padding: 0.25rem 0.7rem;
+  padding: 0.15rem 0.5rem;
+  white-space: nowrap;
 }
 
 @keyframes card-in {
