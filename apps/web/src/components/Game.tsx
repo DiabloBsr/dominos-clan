@@ -75,12 +75,10 @@ export function Game({
     prevLineLen.current = game.line.length
   }, [game.line.length])
 
-  // Donnes annulées (excès de doubles) : panneau montré à chaque nouvelle donne.
-  const [hideRedeals, setHideRedeals] = useState(false)
-  const redealKey = game.redeals.map((r) => `${r.culpritId}:${r.doublesCount}`).join('|')
-  useEffect(() => {
-    setHideRedeals(false)
-  }, [redealKey])
+  // Donne annulée (excès de doubles) : seule la donne fautive EN ATTENTE de
+  // redistribution est montrée ; dès que la nouvelle donne est bonne, le jeu
+  // reprend tout seul (le panneau disparaît avec le statut 'redeal').
+  const currentRedeal = game.status === 'redeal' ? game.redeals[game.redeals.length - 1] : undefined
 
   const you = game.you
   const isSpectator = you === null
@@ -227,41 +225,36 @@ export function Game({
 
   return (
     <section className="game">
-      {(game.status === 'redeal' || (game.redeals.length > 0 && !hideRedeals)) && (
+      {currentRedeal && (
         <div className="redeal-banner">
-          <h3>{game.status === 'redeal' ? '🁡 Donne annulée !' : '🁡 Redistribution !'}</h3>
-          {game.redeals.map((redeal, i) => (
-            <div key={i} className="redeal-item">
-              <p>
-                <b>{pseudoOf(room, redeal.culpritId)}</b> avait{' '}
-                <b>{redeal.doublesCount} doubles</b> — donne annulée :
-              </p>
-              <div className="redeal-hands">
-                {redeal.hands.map((h) => (
-                  <div key={h.id} className={`redeal-hand ${h.id === redeal.culpritId ? 'culprit' : ''}`}>
-                    <span className="redeal-name">{pseudoOf(room, h.id)}</span>
-                    <span className="redeal-tiles">
-                      {h.hand.map((t, j) => (
-                        <DominoTile key={j} a={t.hi} b={t.lo} vertical size="sm" />
-                      ))}
-                    </span>
-                  </div>
-                ))}
-              </div>
+          <h3>🁡 Donne annulée !</h3>
+          <div className="redeal-item">
+            <p>
+              <b>{pseudoOf(room, currentRedeal.culpritId)}</b> avait{' '}
+              <b>{currentRedeal.doublesCount} doubles</b> — donne annulée :
+            </p>
+            <div className="redeal-hands">
+              {currentRedeal.hands.map((h) => (
+                <div
+                  key={h.id}
+                  className={`redeal-hand ${h.id === currentRedeal.culpritId ? 'culprit' : ''}`}
+                >
+                  <span className="redeal-name">{pseudoOf(room, h.id)}</span>
+                  <span className="redeal-tiles">
+                    {h.hand.map((t, j) => (
+                      <DominoTile key={j} a={t.hi} b={t.lo} vertical size="sm" />
+                    ))}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-          {game.status === 'redeal' ? (
-            room.members.find((m) => m.id === selfId)?.isHost ? (
-              <button className="btn" onClick={onRedeal}>
-                🔀 Redistribuer
-              </button>
-            ) : (
-              <p className="empty">En attente que l’hôte redistribue…</p>
-            )
-          ) : (
-            <button className="btn sm" onClick={() => setHideRedeals(true)}>
-              OK, on joue !
+          </div>
+          {room.members.find((m) => m.id === selfId)?.isHost ? (
+            <button className="btn" onClick={onRedeal}>
+              🔀 Redistribuer
             </button>
+          ) : (
+            <p className="empty">En attente que l’hôte redistribue…</p>
           )}
         </div>
       )}
