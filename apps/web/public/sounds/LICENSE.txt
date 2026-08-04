@@ -1,0 +1,5 @@
+Samples audio : pack « Impact Sounds » de Kenney (kenney.nl)
+Licence : Creative Commons Zero (CC0) — domaine public.
+
+tap-0..4.ogg  = impactWood_light_000..004.ogg
+slam-0..4.ogg = impactPlank_medium_000..004.ogg

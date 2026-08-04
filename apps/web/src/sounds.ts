@@ -1,7 +1,11 @@
 /**
- * Sons du jeu — synthétisés en WebAudio, aucun fichier à charger.
- * playTap : petit « tac » discret à chaque pose.
- * playSlam : le CLAC du domino rabattu de toutes ses forces (joyaaa !).
+ * Sons du jeu.
+ * playTap / playSlam : VRAIS enregistrements de bois (pack « Impact Sounds »
+ * de Kenney, CC0 — public/sounds/*.ogg), variante et vitesse tirées au hasard
+ * pour que deux poses ne sonnent jamais pareil. La synthèse WebAudio d'origine
+ * reste en secours : premier coup avant la fin du chargement, fichier absent,
+ * ou navigateur sans décodeur ogg (Safari).
+ * Le reste (événements, soundboard) demeure synthétisé.
  */
 let ctx: AudioContext | null = null
 
@@ -13,6 +17,65 @@ function audio(): AudioContext | null {
   } catch {
     return null
   }
+}
+
+/* ─── Samples réels ─────────────────────────────────────────────────── */
+
+type SampleName = 'tap' | 'slam'
+const SAMPLE_COUNT: Record<SampleName, number> = { tap: 5, slam: 5 }
+
+const fetched = new Map<SampleName, Promise<ArrayBuffer[] | null>>()
+const decoded = new Map<SampleName, AudioBuffer[] | null>()
+
+function prefetch(name: SampleName): Promise<ArrayBuffer[] | null> {
+  let p = fetched.get(name)
+  if (!p) {
+    p = Promise.all(
+      Array.from({ length: SAMPLE_COUNT[name] }, (_, i) =>
+        fetch(`/sounds/${name}-${i}.ogg`).then((r) => {
+          if (!r.ok) throw new Error(`${r.status}`)
+          return r.arrayBuffer()
+        }),
+      ),
+    ).catch(() => null)
+    fetched.set(name, p)
+  }
+  return p
+}
+
+// Précharge en tâche de fond dès l'import : les fichiers sont minuscules
+// (~6-12 Ko pièce), le premier CLAC de la partie est déjà prêt.
+void prefetch('tap')
+void prefetch('slam')
+
+/** Joue une variante au hasard ; false si les samples ne sont pas (encore) utilisables. */
+function playSample(ac: AudioContext, name: SampleName, gainValue: number): boolean {
+  const buffers = decoded.get(name)
+  if (buffers && buffers.length > 0) {
+    const buffer = buffers[Math.floor(Math.random() * buffers.length)]!
+    const source = ac.createBufferSource()
+    source.buffer = buffer
+    // Légère variation de hauteur : casse l'effet « même fichier en boucle ».
+    source.playbackRate.value = 0.94 + Math.random() * 0.12
+    const gain = ac.createGain()
+    gain.gain.value = gainValue
+    source.connect(gain).connect(ac.destination)
+    source.start()
+    return true
+  }
+  if (!decoded.has(name)) {
+    decoded.set(name, null)
+    void prefetch(name).then(async (arrays) => {
+      if (!arrays) return
+      try {
+        // slice() : decodeAudioData détache le buffer sur certains navigateurs.
+        decoded.set(name, await Promise.all(arrays.map((a) => ac.decodeAudioData(a.slice(0)))))
+      } catch {
+        // Pas de décodeur ogg : la synthèse reste aux commandes.
+      }
+    })
+  }
+  return false
 }
 
 function noiseBurst(ac: AudioContext, duration: number, gainValue: number, lowpassHz: number): void {
@@ -50,14 +113,16 @@ function thump(ac: AudioContext, fromHz: number, toHz: number, duration: number,
 export function playTap(): void {
   const ac = audio()
   if (!ac) return
-  noiseBurst(ac, 0.05, 0.12, 2400)
+  if (!playSample(ac, 'tap', 0.45)) noiseBurst(ac, 0.05, 0.12, 2400)
 }
 
 export function playSlam(): void {
   const ac = audio()
   if (!ac) return
-  noiseBurst(ac, 0.12, 0.85, 3600)
-  thump(ac, 160, 45, 0.22, 0.7)
+  const real = playSample(ac, 'slam', 0.95)
+  if (!real) noiseBurst(ac, 0.12, 0.85, 3600)
+  // La table qui encaisse : sub grave discret sous le vrai CLAC, plein volume en secours.
+  thump(ac, 160, 45, 0.22, real ? 0.3 : 0.7)
 }
 
 /** Note simple : oscillateur + enveloppe, départ décalé de `at` secondes. */

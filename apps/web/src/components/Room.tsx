@@ -352,6 +352,9 @@ export function Room({
   const [draftRules, setDraftRules] = useState<GameRules>(room.rules)
   const [soundsOpen, setSoundsOpen] = useState(false)
   const [memberMenu, setMemberMenu] = useState<string | null>(null)
+  // Bannière de résultat réduite : on mémorise l'objet résultat écarté —
+  // une nouvelle manche produit un nouvel objet, la bannière revient seule.
+  const [dismissedResult, setDismissedResult] = useState<unknown>(null)
   const [swapMode, setSwapMode] = useState(false)
   const msgsRef = useRef<HTMLDivElement | null>(null)
 
@@ -739,8 +742,15 @@ export function Room({
         </div>
       )}
 
-      {result && (
+      {result && result !== dismissedResult && (
         <div className="banner">
+          <button
+            className="icon-btn tiny banner-close"
+            title="Réduire — le résultat reste accessible en bas de l'écran"
+            onClick={() => setDismissedResult(result)}
+          >
+            ✕
+          </button>
           {result.winnerId === null ? (
             <h2>🤝 Manche nulle — égalité au blocage, personne ne marque</h2>
           ) : room.matchWinnerId === result.winnerId ? (
@@ -792,6 +802,12 @@ export function Room({
             </button>
           )}
         </div>
+      )}
+
+      {result && result === dismissedResult && (
+        <button className="banner-peek" onClick={() => setDismissedResult(null)}>
+          👑 Résultat de la manche
+        </button>
       )}
 
       {slamFx && (

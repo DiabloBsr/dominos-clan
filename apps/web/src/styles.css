@@ -261,6 +261,15 @@ body::before {
   gap: 0.8rem;
 }
 
+/* Partie de dominos en cours : TOUT tient dans l'écran, zéro scroll vertical.
+   Le feutre absorbe la hauteur restante (le plateau se remet à l'échelle via --u). */
+.room:has(section.game) {
+  height: 100dvh;
+  overflow: hidden;
+  gap: 0.55rem;
+  padding-bottom: 4.6rem;
+}
+
 .room-header {
   display: flex;
   align-items: center;
@@ -295,17 +304,25 @@ body::before {
   margin-left: 0.2rem;
 }
 
+/* Une seule ligne qui défile horizontalement (PC comme mobile) :
+   la bande membres ne coûte jamais plus d'une rangée de hauteur. */
 .members-strip {
   display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
+  align-items: center;
+  gap: 0.8rem;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-/* Libellé à largeur fixe + chips uniformes : les noms restent alignés, fini le zigzag. */
+.members-strip::-webkit-scrollbar {
+  display: none;
+}
+
 .member-group {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex: none;
+  flex-wrap: nowrap;
   gap: 0.4rem;
 }
 
@@ -315,7 +332,7 @@ body::before {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted);
-  flex: 0 0 5.2rem;
+  flex: none;
 }
 
 .chip {
@@ -703,15 +720,25 @@ body::before {
 
 /* ─── Donne annulée (excès de doubles) ───────────────────────────── */
 
+/* Popover superposé au plateau : ne consomme aucune hauteur de page. */
 .redeal-banner {
-  background: rgba(255, 182, 72, 0.08);
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 60;
+  width: min(92vw, 34rem);
+  max-height: 80dvh;
+  overflow-y: auto;
+  background: rgba(14, 28, 20, 0.97);
   border: 1.5px dashed rgba(255, 182, 72, 0.5);
   border-radius: 16px;
   padding: 0.9rem 1.1rem;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  animation: fade-up 0.25s ease;
+  animation: pop-in 0.25s ease;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
 }
 
 .redeal-banner h3 {
@@ -794,7 +821,7 @@ body::before {
 
 .ends-hint {
   text-align: center;
-  margin: 0.8rem 0 0;
+  margin: 0.3rem 0 0;
   color: rgba(247, 242, 231, 0.65);
   font-size: 0.85rem;
   font-weight: 700;
@@ -1178,8 +1205,18 @@ button.domino:disabled {
   flex-wrap: wrap;
 }
 
+/* Popover superposé au plateau (mobile ET PC) : le résultat flotte au-dessus
+   du feutre au lieu de pousser la page — zéro scroll. */
 .banner {
-  background: rgba(8, 20, 14, 0.92);
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 60;
+  width: min(92vw, 30rem);
+  max-height: 80dvh;
+  overflow-y: auto;
+  background: rgba(8, 20, 14, 0.96);
   border: 1.5px solid var(--amber);
   border-radius: 18px;
   padding: 1.1rem 1.4rem;
@@ -1188,8 +1225,49 @@ button.domino:disabled {
   flex-direction: column;
   gap: 0.6rem;
   align-items: center;
-  animation: fade-up 0.35s ease;
-  box-shadow: 0 0 40px rgba(255, 182, 72, 0.12);
+  animation: pop-in 0.3s ease;
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.55),
+    0 0 40px rgba(255, 182, 72, 0.12);
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 14px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.banner-close {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.6rem;
+}
+
+/* Pastille de réouverture quand la bannière est réduite : flotte au-dessus
+   de la barre d'emojis, ne pousse rien. */
+.banner-peek {
+  position: fixed;
+  left: 50%;
+  bottom: 4.8rem;
+  transform: translateX(-50%);
+  z-index: 55;
+  background: rgba(8, 20, 14, 0.92);
+  border: 1.5px solid var(--amber);
+  border-radius: 999px;
+  padding: 0.4rem 0.95rem;
+  color: var(--amber);
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  animation: fade-up 0.2s ease;
 }
 
 .banner h2 {
@@ -1484,26 +1562,23 @@ button.domino:disabled {
     display: none;
   }
 
+  /* 🚪 devient un bouton rond compact : il tient à côté de 🔄 sur la même
+     rangée au lieu de retomber seul à la ligne. */
+  .leave-btn {
+    width: 2.4rem;
+    height: 2.4rem;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    font-size: 1.1rem;
+  }
+
+  .voice-audience {
+    max-width: 6.2rem;
+  }
+
   .members-strip {
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-items: center;
-    overflow-x: auto;
     gap: 0.6rem;
-    scrollbar-width: none;
-  }
-
-  .members-strip::-webkit-scrollbar {
-    display: none;
-  }
-
-  .member-group {
-    flex: none;
-    flex-wrap: nowrap;
-  }
-
-  .group-label {
-    flex: none;
   }
 
   .scoreboard {
@@ -1519,12 +1594,6 @@ button.domino:disabled {
   .score-chip {
     flex: none;
     white-space: nowrap;
-  }
-
-  .banner {
-    max-height: 44vh;
-    max-height: 44dvh;
-    overflow-y: auto;
   }
 
   /* La barre d'emojis s'arrête AVANT la bulle 💬 : plus de chevauchement.
@@ -1703,6 +1772,16 @@ button.domino:disabled {
 
 /* ─── Vraie table : les joueurs autour du feutre ─────────────────── */
 
+/* Chaîne « tout tient à l'écran » : la section jeu prend la hauteur restante,
+   seule l'arène se comprime (min-height: 0), la main garde sa taille. */
+section.game {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
 .table-arena {
   display: grid;
   grid-template-areas:
@@ -1710,9 +1789,26 @@ button.domino:disabled {
     'left felt right'
     '. bottom .';
   grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 0.55rem 0.65rem;
   align-items: center;
   justify-items: center;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* Écran large : le feutre remplit la hauteur disponible au lieu d'imposer
+   son ratio 4/3 — le plateau (--u) se met à l'échelle tout seul. */
+@media (min-width: 641px) {
+  .game .arena-felt.table-felt {
+    align-self: stretch;
+    justify-self: stretch;
+    width: auto;
+    max-width: 46rem;
+    min-height: 9rem;
+    aspect-ratio: auto;
+    margin-inline: auto;
+  }
 }
 
 .arena-top {
@@ -1756,7 +1852,16 @@ button.domino:disabled {
     flex-flow: row wrap;
     justify-content: center;
     align-items: stretch;
+    align-content: flex-start;
     gap: 0.35rem;
+    overflow: hidden;
+  }
+
+  /* Le feutre ne mange jamais plus de ~38% de l'écran : le plateau
+     se remet à l'échelle, la main reste toujours visible. */
+  .game .arena-felt.table-felt {
+    max-height: 38dvh;
+    min-height: 9rem;
   }
 
   .arena-top,
