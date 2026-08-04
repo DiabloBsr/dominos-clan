@@ -52,9 +52,10 @@ export const LUDO_COLORS = ['#e02b2b', '#28a24c', '#f5c518', '#1f7fe0']
 const CAPTURE_TAUNTS = [
   '😂 AO ZAO EEEE !',
   '🤣 MIPIAKY !',
-  '😆 REKO AHAHAHA !',
-  '💀 AO ZAO EEEE HAHAHA !',
-  '😈 MIPIAKY IZANY !',
+  '😆 REKO !',
+  '💀 AO ZAO EEEE !',
+  '😈 MIPIAKY !',
+  '🔥 REKO !',
 ]
 
 /** Logo + libellé de chaque type de bonus — discernable d'un coup d'œil. */
