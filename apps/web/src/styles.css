@@ -461,6 +461,9 @@ body::before {
   flex-wrap: wrap;
   gap: 0.3rem;
   justify-content: center;
+  /* 40 avatars : la grille défile dans le panneau au lieu de l'étirer. */
+  max-height: 9.2rem;
+  overflow-y: auto;
 }
 
 .avatar-pick {
@@ -526,20 +529,45 @@ body::before {
   white-space: nowrap;
 }
 
+/* Statut ami : pastille CSS toujours au même endroit, seul le texte change. */
 .friend-status {
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--muted);
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 5.4rem;
+}
+
+.friend-status::before {
+  content: '';
+  flex: none;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #5d7268;
 }
 
 .friend-status.online {
   color: #7ee0a3;
 }
 
+.friend-status.online::before {
+  background: #2ecc71;
+  box-shadow: 0 0 6px rgba(46, 204, 113, 0.6);
+}
+
 .friend-status.playing,
 .friend-status.room {
   color: var(--amber);
+}
+
+.friend-status.playing::before,
+.friend-status.room::before {
+  background: var(--amber);
+  box-shadow: 0 0 6px rgba(255, 182, 72, 0.55);
 }
 
 .icon-btn.tiny {
@@ -741,7 +769,10 @@ body::before {
 
 @media (max-width: 640px) {
   .table-felt {
-    width: 100%;
+    /* Carré, mais jamais plus haut que la place restante à l'écran :
+       l'écran du salon ne doit pas défiler verticalement. */
+    width: min(100%, calc(100vh - 19rem));
+    width: min(100%, calc(100dvh - 19rem));
     aspect-ratio: 1;
   }
 }
@@ -1422,6 +1453,63 @@ button.domino:disabled {
     gap: 0.3rem;
     padding: 0.6rem 0.7rem;
   }
+
+  /* Zéro scroll vertical : le header se resserre, chaque bande large
+     (membres, scores) défile horizontalement DANS sa propre ligne. */
+  .room-header {
+    gap: 0.4rem;
+  }
+
+  .mini-mark {
+    display: none;
+  }
+
+  .leave-label {
+    display: none;
+  }
+
+  .members-strip {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    overflow-x: auto;
+    gap: 0.6rem;
+    scrollbar-width: none;
+  }
+
+  .members-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .member-group {
+    flex: none;
+    flex-wrap: nowrap;
+  }
+
+  .group-label {
+    flex: none;
+  }
+
+  .scoreboard {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .scoreboard::-webkit-scrollbar {
+    display: none;
+  }
+
+  .score-chip {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .banner {
+    max-height: 44vh;
+    max-height: 44dvh;
+    overflow-y: auto;
+  }
 }
 
 /* ══════════════ Passe premium ══════════════
@@ -1643,8 +1731,10 @@ button.domino:disabled {
   }
 
   .seat-chip {
-    flex: 1 1 0;
-    min-width: 0;
+    /* Jamais en dessous de 4.2rem : le nom reste TOUJOURS lisible,
+       quitte à tronquer avec « … » — un joueur sans nom, ça n'existe pas. */
+    flex: 1 1 4.2rem;
+    min-width: 4.2rem;
     max-width: 12rem;
     font-size: 0.85rem;
     padding: 0.35rem 0.5rem;
@@ -1660,8 +1750,10 @@ button.domino:disabled {
   }
 
   .arena-felt {
-    width: 100%;
+    width: min(100%, calc(100vh - 19rem));
+    width: min(100%, calc(100dvh - 19rem));
     order: 10;
+    align-self: center;
   }
 
   /* Le plateau prend le maximum de place : marges internes réduites. */

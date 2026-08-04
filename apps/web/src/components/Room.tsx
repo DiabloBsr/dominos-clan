@@ -276,7 +276,6 @@ export function Room({
   onReact,
   onSound,
   onChat,
-  onRules,
   onReconfigure,
   onTransferHost,
   onUndo,
@@ -310,7 +309,6 @@ export function Room({
   onReact: (emoji: string) => void
   onSound: (kind: string) => void
   onChat: (text: string) => void
-  onRules: (rules: GameRules) => void
   onReconfigure: (rules: GameRules) => void
   onTransferHost: (toId: string) => void
   onUndo: () => void
@@ -444,15 +442,17 @@ export function Room({
             </button>
           )}
         </div>
-        {isHost && (
-          <button
-            className="icon-btn"
-            title="Refaire les réglages (la partie et les scores repartent de zéro)"
-            onClick={openSettings}
-          >
-            ⚙️
-          </button>
-        )}
+        <button
+          className="icon-btn"
+          title={
+            isHost
+              ? 'Réglages du salon (appliquer repart de zéro)'
+              : 'Voir les réglages du salon'
+          }
+          onClick={openSettings}
+        >
+          ⚙️
+        </button>
         {isHost && (
           <button
             className="icon-btn"
@@ -470,8 +470,19 @@ export function Room({
             🔄
           </button>
         )}
-        <button className="btn ghost sm" onClick={onLeave}>
-          Quitter
+        <button
+          className="btn ghost sm leave-btn"
+          onClick={() => {
+            if (
+              window.confirm(
+                'Quitter le salon ? Tu perds ta place à table et le match en cours pour toi.',
+              )
+            ) {
+              onLeave()
+            }
+          }}
+        >
+          🚪<span className="leave-label"> Quitter</span>
         </button>
       </header>
 
@@ -574,44 +585,42 @@ export function Room({
         </div>
       </div>
 
-      {room.status !== 'playing' && (
-        <div className="rules-bar">
-          <span className="group-label">⚙️ Règles</span>
-          <RulesEditor rules={room.rules} editable={isHost} onChange={onRules} />
-          {!isHost && <span className="empty">réglé par l’hôte ⭐</span>}
-        </div>
-      )}
-
       {settingsOpen && (
         <>
           <div className="panel-veil" onClick={() => setSettingsOpen(false)} />
           <div className="game-modal card settings-modal">
             <div className="panel-head">
-              <h2 className="card-title">⚙️ Refaire les réglages</h2>
+              <h2 className="card-title">⚙️ Réglages du salon</h2>
               <button className="icon-btn tiny" onClick={() => setSettingsOpen(false)}>
                 ✕
               </button>
             </div>
-            <p className="hint warn">
-              Appliquer efface la partie en cours et tous les scores — tout le monde repart de
-              zéro.
-            </p>
+            {isHost ? (
+              <p className="hint warn">
+                Appliquer efface la partie en cours et tous les scores — tout le monde repart de
+                zéro.
+              </p>
+            ) : (
+              <p className="hint">Réglé par le chef ⭐ — lecture seule.</p>
+            )}
             <div className="rules-bar in-modal">
-              <RulesEditor rules={draftRules} editable onChange={setDraftRules} />
+              <RulesEditor rules={draftRules} editable={isHost} onChange={setDraftRules} />
             </div>
             <div className="lobby-actions">
               <button className="btn ghost" onClick={() => setSettingsOpen(false)}>
-                Annuler
+                {isHost ? 'Annuler' : 'Fermer'}
               </button>
-              <button
-                className="btn"
-                onClick={() => {
-                  setSettingsOpen(false)
-                  onReconfigure(draftRules)
-                }}
-              >
-                Appliquer — on repart de zéro
-              </button>
+              {isHost && (
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setSettingsOpen(false)
+                    onReconfigure(draftRules)
+                  }}
+                >
+                  Appliquer — on repart de zéro
+                </button>
+              )}
             </div>
           </div>
         </>

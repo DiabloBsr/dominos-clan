@@ -16,13 +16,21 @@ export interface Friend {
 
 export type FriendStatus = 'online' | 'room' | 'playing' | 'offline'
 
-export const AVATARS = ['😎', '🤙', '🦁', '🐯', '🐼', '🦊', '👑', '🎩', '🔥', '🎯', '🃏', '🛸']
+export const AVATARS = [
+  '😎', '🤙', '😏', '🤪', '😈', '🥶', '🤠', '🥷',
+  '🦁', '🐯', '🐼', '🦊', '🐺', '🦍', '🐊', '🦅',
+  '🐉', '🦈', '🐍', '🦂', '🐙', '🦉', '🐸', '🐵',
+  '👑', '🎩', '🧢', '👺', '🤖', '👽', '💀', '🎭',
+  '🔥', '⚡', '🎯', '🃏', '🎱', '🚀', '🛸', '💎',
+]
 
+/** Libellés SANS emoji : la pastille de couleur est dessinée en CSS
+ *  (::before), toujours à la même place — seul le texte change. */
 export const STATUS_LABELS: Record<FriendStatus, string> = {
-  online: '🟢 actif',
-  room: '🟡 au salon',
-  playing: '🎲 en partie',
-  offline: '⚫ hors ligne',
+  online: 'actif',
+  room: 'au salon',
+  playing: 'en partie',
+  offline: 'hors ligne',
 }
 
 const PROFILE_KEY = 'dc:profile'
