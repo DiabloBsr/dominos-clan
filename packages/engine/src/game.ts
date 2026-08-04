@@ -63,6 +63,7 @@ export function createGame(
   const players = playerIds.map((id, i) => ({
     id,
     hand: deck.slice(i * HAND_SIZE, (i + 1) * HAND_SIZE),
+    frozen: [] as Tile[],
   }))
   const sleeping = deck.slice(playerIds.length * HAND_SIZE)
   const verdict = evaluateDeal(players.map((p) => p.hand))
@@ -243,8 +244,12 @@ export function legalMoves(state: GameState, playerId: string): Move[] {
     return hand.map((tile) => ({ type: 'play' as const, tile, end: 'right' as const }))
   }
 
+  // Les dominos gelés par une passe libre ne sont plus jouables de la manche.
+  const frozen = state.players[playerIndex]!.frozen
+  const usable = hand.filter((t) => !frozen.some((f) => tileEquals(f, t)))
+
   const moves: Move[] = []
-  for (const tile of hand) {
+  for (const tile of usable) {
     if (tile.hi === ends.left || tile.lo === ends.left) moves.push({ type: 'play', tile, end: 'left' })
     if (tile.hi === ends.right || tile.lo === ends.right) moves.push({ type: 'play', tile, end: 'right' })
   }
@@ -276,6 +281,17 @@ export function applyMove(state: GameState, playerId: string, move: Move): GameS
   const next = deepClone(state)
 
   if (move.type === 'pass') {
+    // Passe LIBRE (il avait de quoi jouer) : les dominos jouables à cet
+    // instant sont GELÉS — impossibles à poser jusqu'à la fin de la manche,
+    // mais ils comptent toujours dans ses points. Une passe forcée (aucun
+    // coup jouable) ne gèle rien.
+    const playableNow = legal.filter((m): m is PlayMove => m.type === 'play')
+    if (playableNow.length > 0) {
+      const frozen = next.players[playerIndex]!.frozen
+      for (const m of playableNow) {
+        if (!frozen.some((f) => tileEquals(f, m.tile))) frozen.push(m.tile)
+      }
+    }
     next.consecutivePasses += 1
     next.lastPlay = null
     if (next.consecutivePasses >= next.players.length) {

@@ -192,32 +192,38 @@ export function Game({
     arenaSpots.left = [opponents[2]!]
   }
 
-  const renderSeat = (p: PublicPlayer) => (
-    <div
-      key={p.id}
-      className={`seat-chip ${p.id === game.currentPlayerId ? 'turn' : ''} ${
-        speaking.includes(p.id) ? 'speaking' : ''
-      }`}
-    >
-      <span className="seat-name">
-        {avatarOf(room, p.id)} {pseudoOf(room, p.id)}
-        {voiceIds.includes(p.id) ? ' 🎙' : ''}
-        {p.id === selfId ? ' (toi)' : ''}
-      </span>
-      <span className="seat-tiles">
-        {Array.from({ length: p.tileCount }, (_, i) => (
-          <DominoBack key={i} />
-        ))}
-      </span>
-      {p.hand && (showHands || game.status === 'finished') && (
-        <span className="spy-hand">
-          {p.hand.map((t, i) => (
-            <DominoTile key={i} a={t.hi} b={t.lo} vertical size="sm" />
+  const renderSeat = (p: PublicPlayer) => {
+    const spy = Boolean(p.hand) && (showHands || game.status === 'finished')
+    const frozenOf = (t: Tile) => (p.frozen ?? []).some((f) => sameTile(f, t))
+    return (
+      <div
+        key={p.id}
+        className={`seat-chip ${spy ? 'spy' : ''} ${p.id === game.currentPlayerId ? 'turn' : ''} ${
+          speaking.includes(p.id) ? 'speaking' : ''
+        }`}
+      >
+        <span className="seat-name">
+          {avatarOf(room, p.id)} {pseudoOf(room, p.id)}
+          {voiceIds.includes(p.id) ? ' 🎙' : ''}
+          {p.id === selfId ? ' (toi)' : ''}
+        </span>
+        <span className="seat-tiles">
+          {Array.from({ length: p.tileCount }, (_, i) => (
+            <DominoBack key={i} />
           ))}
         </span>
-      )}
-    </div>
-  )
+        {p.hand && spy && (
+          <span className="spy-hand">
+            {p.hand.map((t, i) => (
+              <span key={i} className={`spy-slot ${frozenOf(t) ? 'frozen' : ''}`}>
+                <DominoTile a={t.hi} b={t.lo} vertical size="sm" />
+              </span>
+            ))}
+          </span>
+        )}
+      </div>
+    )
+  }
 
   return (
     <section className="game">
@@ -343,10 +349,12 @@ export function Game({
           <div className="hand-rack">
             {you.hand.map((tile, i) => {
               const playable = movesFor(tile).length > 0
+              const frozen = (you.frozen ?? []).some((f) => sameTile(f, tile))
               return (
                 <span
                   key={i}
-                  className="hand-slot"
+                  className={`hand-slot ${frozen ? 'frozen' : ''}`}
+                  title={frozen ? 'Gelé — tu as passé librement dessus, il reste en main' : undefined}
                   onPointerDown={playable ? onTilePointerDown(tile) : undefined}
                   onPointerMove={playable ? onTilePointerMove(tile) : undefined}
                   onPointerUp={playable ? onTilePointerUp(tile) : undefined}
@@ -359,6 +367,7 @@ export function Game({
                     selected={!!selected && sameTile(selected, tile)}
                     onClick={playable ? () => {} : undefined}
                   />
+                  {frozen && <span className="frozen-mark">🧊</span>}
                 </span>
               )
             })}

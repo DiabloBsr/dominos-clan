@@ -28,7 +28,7 @@ export function viewFor(state: GameState, viewerId: string, role: Role): GameVie
     players: state.players.map((p) => ({
       id: p.id,
       tileCount: p.hand.length,
-      ...(revealAll ? { hand: deepClone(p.hand) } : {}),
+      ...(revealAll ? { hand: deepClone(p.hand), frozen: deepClone(p.frozen) } : {}),
     })),
     line: deepClone(state.line),
     ends: lineEnds(state),
@@ -38,7 +38,12 @@ export function viewFor(state: GameState, viewerId: string, role: Role): GameVie
     sleepingCount: state.sleeping.length,
     you:
       !spectator && self
-        ? { id: self.id, hand: deepClone(self.hand), legalMoves: legalMoves(state, viewerId) }
+        ? {
+            id: self.id,
+            hand: deepClone(self.hand),
+            legalMoves: legalMoves(state, viewerId),
+            frozen: deepClone(self.frozen),
+          }
         : null,
     canUndo,
     // Les donnes annulées sont mortes : on peut les montrer à tout le monde.

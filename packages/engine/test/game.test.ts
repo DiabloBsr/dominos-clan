@@ -23,6 +23,7 @@ function craftState(partial: {
   lastPlayerIndex?: number | null
   rules?: Partial<GameState['rules']>
   openingMaxPips?: number | null
+  frozen?: Record<string, Tile[]>
 }): GameState {
   return {
     rules: {
@@ -39,7 +40,11 @@ function craftState(partial: {
       ludoBonus: false,
       ...partial.rules,
     },
-    players: Object.entries(partial.hands).map(([id, hand]) => ({ id, hand })),
+    players: Object.entries(partial.hands).map(([id, hand]) => ({
+      id,
+      hand,
+      frozen: partial.frozen?.[id] ?? [],
+    })),
     line: partial.line ?? [],
     sleeping: [],
     turn: partial.turn ?? 0,
@@ -298,6 +303,75 @@ describe('applyMove', () => {
       rules: { freePass: false },
     })
     expect(legalMoves(state, 'a').some((m) => m.type === 'pass')).toBe(false)
+  })
+
+  it('passe libre : les dominos jouables au moment de la passe sont GELÉS pour la manche', () => {
+    // a peut jouer 5-2 (sur le 5) et 4-1 (sur le 4) mais passe librement.
+    const state = craftState({
+      hands: {
+        a: [{ hi: 5, lo: 2 }, { hi: 4, lo: 1 }, { hi: 3, lo: 3 }],
+        b: [{ hi: 6, lo: 3 }, { hi: 2, lo: 2 }],
+        c: [{ hi: 4, lo: 4 }, { hi: 6, lo: 6 }],
+      },
+      line: [{ tile: { hi: 5, lo: 4 }, left: 5, right: 4 }],
+      turn: 0,
+      rules: { freePass: true },
+    })
+    const afterPass = applyMove(state, 'a', { type: 'pass' })
+    const frozen = afterPass.players[0]!.frozen
+    expect(frozen.some((t) => tileEquals(t, { hi: 5, lo: 2 }))).toBe(true)
+    expect(frozen.some((t) => tileEquals(t, { hi: 4, lo: 1 }))).toBe(true)
+    // Le 3-3 n'était pas jouable : il n'est pas gelé.
+    expect(frozen.some((t) => tileEquals(t, { hi: 3, lo: 3 }))).toBe(false)
+
+    // b n'a rien de jouable : passe FORCÉE, rien n'est gelé chez lui.
+    const afterB = applyMove(afterPass, 'b', { type: 'pass' })
+    expect(afterB.players[1]!.frozen).toHaveLength(0)
+
+    // c pose son 4-4 : la ligne reste 5 | 4, le tour revient vers a.
+    const afterC = applyMove(afterB, 'c', { type: 'play', tile: { hi: 4, lo: 4 }, end: 'right' })
+
+    // a : ses dominos gelés ne sont PLUS jouables, même s'ils matchent toujours.
+    const moves = legalMoves(afterC, 'a')
+    expect(moves.some((m) => m.type === 'play')).toBe(false)
+    expect(moves).toEqual([{ type: 'pass' }])
+    expect(() =>
+      applyMove(afterC, 'a', { type: 'play', tile: { hi: 5, lo: 2 }, end: 'left' }),
+    ).toThrowError(GameError)
+  })
+
+  it('les dominos gelés comptent toujours dans les points au blocage', () => {
+    // a gèle son 5-2 (passe libre), puis tout le monde passe → blocage.
+    const state = craftState({
+      hands: { a: [{ hi: 5, lo: 2 }], b: [{ hi: 1, lo: 0 }] },
+      line: [{ tile: { hi: 5, lo: 4 }, left: 5, right: 4 }],
+      turn: 0,
+      lastPlayerIndex: 1,
+      rules: { freePass: true },
+    })
+    const afterA = applyMove(state, 'a', { type: 'pass' })
+    expect(afterA.players[0]!.frozen).toHaveLength(1)
+    const blocked = applyMove(afterA, 'b', { type: 'pass' })
+    expect(blocked.status).toBe('finished')
+    // b gagne (1 point contre 7) et ramasse les 7 points du 5-2 gelé de a.
+    expect(blocked.result).toMatchObject({ winnerId: 'b', reason: 'blocked', gain: 7 })
+    expect(blocked.result!.pips['a']).toBe(7)
+  })
+
+  it('la vue expose les gelés au joueur et aux mains révélées', () => {
+    const state = craftState({
+      hands: { a: [{ hi: 5, lo: 2 }, { hi: 3, lo: 3 }], b: [{ hi: 1, lo: 0 }] },
+      line: [{ tile: { hi: 5, lo: 4 }, left: 5, right: 4 }],
+      turn: 0,
+      rules: { freePass: true },
+      frozen: { a: [{ hi: 5, lo: 2 }] },
+    })
+    const own = viewFor(state, 'a', 'player')
+    expect(own.you!.frozen).toEqual([{ hi: 5, lo: 2 }])
+    // Le joueur ne peut pas jouer un gelé : seul pass (et rien d'autre sur ce gelé).
+    expect(own.you!.legalMoves.some((m) => m.type === 'play' && tileEquals(m.tile, { hi: 5, lo: 2 }))).toBe(false)
+    const spy = viewFor(state, 'zorro', 'spectator')
+    expect(spy.players.find((p) => p.id === 'a')!.frozen).toEqual([{ hi: 5, lo: 2 }])
   })
 
   it('refuse tout coup une fois la manche terminée', () => {

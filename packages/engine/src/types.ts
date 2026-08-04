@@ -20,6 +20,12 @@ export type Move = PlayMove | PassMove
 export interface PlayerState {
   id: string
   hand: Tile[]
+  /**
+   * Dominos GELÉS par une passe libre : jouables au moment où le joueur a
+   * choisi de passer, ils ne peuvent plus être posés de la manche (mais
+   * comptent toujours dans ses points en fin de manche).
+   */
+  frozen: Tile[]
 }
 
 /** Préréglages de la table, choisis par l'hôte. */
@@ -153,6 +159,8 @@ export interface PublicPlayer {
   id: string
   tileCount: number
   hand?: Tile[]
+  /** Dominos gelés par passe libre (révélés avec la main). */
+  frozen?: Tile[]
 }
 
 export interface GameView {
@@ -164,7 +172,7 @@ export interface GameView {
   result: RoundResult | null
   sleepingCount: number
   /** Présent uniquement pour un joueur : sa main et ses coups légaux. */
-  you: { id: string; hand: Tile[]; legalMoves: Move[] } | null
+  you: { id: string; hand: Tile[]; legalMoves: Move[]; frozen: Tile[] } | null
   /** Le spectateur/joueur peut-il reprendre son dernier domino posé ? */
   canUndo: boolean
   /** Donnes annulées pour excès de doubles (visibles par tous). */

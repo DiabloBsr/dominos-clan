@@ -919,6 +919,10 @@ body::before {
   gap: 2px;
   padding-top: 0.2rem;
   border-top: 1px dashed rgba(247, 242, 231, 0.2);
+  /* Les mains espionnées ne débordent JAMAIS de leur chip : retour à la ligne. */
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
 }
 
 /* ─── Dominos ────────────────────────────────────────────────────── */
@@ -1751,6 +1755,24 @@ button.domino:disabled {
     gap: 0.2rem;
   }
 
+  /* Spectateur : une chip avec main visible prend sa propre ligne entière,
+     tuiles réduites — plus aucun chevauchement. */
+  .seat-chip.spy {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .seat-chip.spy .domino.sm .half {
+    width: 16px;
+    height: 16px;
+    padding: 1px;
+  }
+
+  .seat-chip.spy .domino.sm .pip {
+    width: 3px;
+    height: 3px;
+  }
+
   .seat-name {
     font-size: 0.8rem;
     white-space: nowrap;
@@ -2557,6 +2579,41 @@ button.domino:disabled {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+/* Dominos gelés par une passe libre : présents mais injouables. */
+.hand-slot {
+  position: relative;
+}
+
+.hand-slot.frozen .domino {
+  filter: grayscale(0.7) brightness(0.65) sepia(0.3) hue-rotate(160deg);
+}
+
+.frozen-mark {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.3rem;
+  font-size: 0.85rem;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+  pointer-events: none;
+}
+
+.spy-slot {
+  position: relative;
+  display: inline-flex;
+}
+
+.spy-slot.frozen .domino {
+  filter: grayscale(0.7) brightness(0.65) sepia(0.3) hue-rotate(160deg);
+}
+
+.spy-slot.frozen::after {
+  content: '🧊';
+  position: absolute;
+  top: -0.35rem;
+  right: -0.25rem;
+  font-size: 0.6rem;
 }
 
 .btn.danger {
