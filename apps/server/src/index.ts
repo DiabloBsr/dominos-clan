@@ -7,6 +7,16 @@ import { viewFor } from '@dominos-clan/engine'
 import type { Move } from '@dominos-clan/engine'
 import { createVoiceToken, voiceEnabled } from './voice'
 import * as presence from './presence'
+import {
+  adminPage,
+  adminStats,
+  initStats,
+  statMemberJoined,
+  statRoomClosed,
+  statRoomCreated,
+  statTrackRoom,
+  statUserSeen,
+} from './stats'
 import { armChessFlag, chessViewOf } from './chess'
 import {
   RoomError,
@@ -34,6 +44,7 @@ import {
   removeMember,
   restartRoom,
   roomView,
+  roomsSnapshot,
   sanitizeChatText,
   setRules,
   startGame,
@@ -70,8 +81,26 @@ const serveStatic = existsSync(staticDir)
 
 if (serveStatic) console.log(`[dominos-clan] client web servi depuis ${staticDir}`)
 
+const ADMIN_KEY = process.env.ADMIN_KEY ?? 'clan-admin'
+
 const httpServer = createServer((req, res) => {
-  if (req.url === '/healthz' || !serveStatic) {
+  const url = new URL(req.url ?? '/', 'http://localhost')
+  if (url.pathname === '/admin' || url.pathname === '/admin/stats.json') {
+    if (url.pathname === '/admin') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+      res.end(adminPage())
+      return
+    }
+    if (url.searchParams.get('key') !== ADMIN_KEY) {
+      res.writeHead(403, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'clé admin invalide' }))
+      return
+    }
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+    res.end(JSON.stringify(adminStats(roomsSnapshot())))
+    return
+  }
+  if (url.pathname === '/healthz' || !serveStatic) {
     res.writeHead(200, { 'content-type': 'application/json' })
     res.end(JSON.stringify({ ok: true, service: 'dominos-clan-server' }))
     return
@@ -112,6 +141,7 @@ type Ack = (response: { ok: true; [key: string]: unknown } | { ok: false; error:
  * jamais les mains adverses, un spectateur reçoit tout.
  */
 function broadcast(room: Room): void {
+  statTrackRoom(room)
   const view = roomView(room)
   for (const member of room.members.values()) {
     if (!member.connected) continue
@@ -169,6 +199,7 @@ io.on('connection', (socket: Socket) => {
         state.roomCode = room.code
         state.memberId = member.id
         socket.join(room.code)
+        statRoomCreated(room, member.pseudo)
         broadcast(room)
         return { code: room.code, selfId: member.id, resumeKey: member.resumeKey }
       }),
@@ -184,6 +215,7 @@ io.on('connection', (socket: Socket) => {
         state.roomCode = room.code
         state.memberId = member.id
         socket.join(room.code)
+        statMemberJoined(room, member.pseudo, member.userId)
         broadcast(room)
         return { code: room.code, selfId: member.id, resumeKey: member.resumeKey }
       }),
@@ -209,6 +241,9 @@ io.on('connection', (socket: Socket) => {
   socket.on('presence:hello', (payload: Record<string, unknown>, ack?: Ack) =>
     handle(ack, () => {
       presence.hello(io, socket.id, payload ?? {})
+      const { userId, avatar } = presence.sanitizeIdentity(payload ?? {})
+      const pseudo = typeof payload?.pseudo === 'string' ? payload.pseudo.trim().slice(0, 20) : ''
+      if (pseudo) statUserSeen(userId, pseudo, avatar)
     }),
   )
 
@@ -503,6 +538,8 @@ io.on('connection', (socket: Socket) => {
       if (!empty) {
         if (aborted) io.to(room.code).emit('game:aborted', { memberId: state.memberId })
         broadcast(room)
+      } else {
+        statRoomClosed(room.code)
       }
     } catch {
       // Salon déjà supprimé : rien à faire.
@@ -544,6 +581,8 @@ io.on('connection', (socket: Socket) => {
               if (!empty) {
                 if (aborted) io.to(code).emit('game:aborted', { memberId })
                 broadcast(r)
+              } else {
+                statRoomClosed(code)
               }
             } catch {
               // Salon déjà supprimé entre-temps.
@@ -558,7 +597,10 @@ io.on('connection', (socket: Socket) => {
   })
 })
 
+initStats()
+
 httpServer.listen(PORT, () => {
   console.log(`[dominos-clan] serveur prêt sur http://localhost:${PORT}`)
   console.log(`[dominos-clan] chat vocal LiveKit : ${voiceEnabled() ? 'configuré' : 'désactivé (LIVEKIT_* manquants)'}`)
+  console.log(`[dominos-clan] dashboard admin : http://localhost:${PORT}/admin`)
 })

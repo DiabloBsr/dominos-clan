@@ -101,6 +101,23 @@ export function getRoom(code: string): Room {
   return room
 }
 
+/** Photo des salons vivants — pour le dashboard admin. */
+export function roomsSnapshot(): Array<{
+  code: string
+  gameType: string
+  status: RoomStatus
+  members: number
+  seated: string[]
+}> {
+  return [...rooms.values()].map((room) => ({
+    code: room.code,
+    gameType: room.rules.gameType,
+    status: room.status,
+    members: room.members.size,
+    seated: room.seats.map((id) => room.members.get(id)?.pseudo ?? '?'),
+  }))
+}
+
 export interface Identity {
   userId: string | null
   avatar: string

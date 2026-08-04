@@ -169,8 +169,14 @@ export default function App() {
   const [connected, setConnected] = useState(socket.connected)
   const [waking, setWaking] = useState(false)
   const [wakeSeconds, setWakeSeconds] = useState(0)
+  // L'écran de réveil ne concerne QUE la première connexion (cold start) :
+  // après, une coupure passagère n'affiche plus ce grand voile.
+  const hasConnected = useRef(socket.connected)
   useEffect(() => {
-    const onConnect = () => setConnected(true)
+    const onConnect = () => {
+      hasConnected.current = true
+      setConnected(true)
+    }
     const onDisconnect = () => setConnected(false)
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
@@ -600,7 +606,7 @@ export default function App() {
 
   return (
     <div className="app">
-      {waking && !connected && (
+      {waking && !connected && !hasConnected.current && (
         <div className="wake-veil" role="status">
           <h1 className="wordmark small">
             Domino’s <span>Clan</span>
