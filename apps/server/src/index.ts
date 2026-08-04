@@ -53,6 +53,9 @@ const serveStatic = existsSync(staticDir)
   ? sirv(staticDir, {
       single: true,
       etag: true,
+      // Hors Render : lit le disque à chaque requête, sinon sirv fige la
+      // liste des fichiers AU DÉMARRAGE et un rebuild local → 404 écran noir.
+      dev: !process.env.RENDER,
       setHeaders: (res, pathname) => {
         // Les assets Vite sont hashés → cache immuable ; le HTML jamais,
         // sinon un navigateur peut rester bloqué sur un ancien déploiement.

@@ -31,8 +31,11 @@ function prefetch(name: SampleName): Promise<ArrayBuffer[] | null> {
   let p = fetched.get(name)
   if (!p) {
     p = Promise.all(
+      // Fichiers SANS extension : les gestionnaires de téléchargement type IDM
+      // capturent les URL en .ogg/.mp3 et ouvrent une popup de téléchargement
+      // — sans extension ni type média, ils ne voient rien à intercepter.
       Array.from({ length: SAMPLE_COUNT[name] }, (_, i) =>
-        fetch(`/sounds/${name}-${i}.ogg`).then((r) => {
+        fetch(`/sounds/${name}-${i}`).then((r) => {
           if (!r.ok) throw new Error(`${r.status}`)
           return r.arrayBuffer()
         }),
