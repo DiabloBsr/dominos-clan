@@ -461,9 +461,11 @@ body::before {
   flex-wrap: wrap;
   gap: 0.3rem;
   justify-content: center;
-  /* 40 avatars : la grille défile dans le panneau au lieu de l'étirer. */
+  /* 40 avatars : la grille défile dans SA zone au lieu d'étirer le panneau —
+     et flex:none l'empêche d'être écrasée à hauteur 0 par la colonne flex. */
   max-height: 9.2rem;
   overflow-y: auto;
+  flex: none;
 }
 
 .avatar-pick {
