@@ -144,7 +144,9 @@ export function LudoLobbyBoard() {
         return (
           <div
             key={cell}
-            className={`ludo-cell ${startOwner >= 0 ? 'start' : ''}`}
+            className={`ludo-cell ${startOwner >= 0 ? 'start' : ''} ${
+              startOwner < 0 && stars.includes(cell) ? 'safe' : ''
+            }`}
             style={{ ...grid(r, c), ['--pc' as string]: startOwner >= 0 ? LUDO_COLORS[startOwner] : undefined }}
           >
             {startOwner >= 0 && (
@@ -624,7 +626,9 @@ export function LudoBoard({
           return (
             <div
               key={cell}
-              className={`ludo-cell ${startOwner >= 0 ? 'start' : ''}`}
+              className={`ludo-cell ${startOwner >= 0 ? 'start' : ''} ${
+                startOwner < 0 && stars.includes(cell) ? 'safe' : ''
+              }`}
               style={{ ...grid(r, c), ['--pc' as string]: startOwner >= 0 ? LUDO_COLORS[startOwner] : undefined }}
             >
               {startOwner >= 0 && (

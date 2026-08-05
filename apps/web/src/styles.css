@@ -2627,6 +2627,17 @@ section.game {
   line-height: 1;
 }
 
+/* Case étoile (refuge, capture interdite) : fond gris doux pour la
+   distinguer d'un coup d'œil des cases blanches ordinaires. */
+.ludo-cell.safe {
+  background: #dedbd2;
+  box-shadow: inset 0 0 0 1px rgba(43, 38, 32, 0.12);
+}
+
+.ludo-cell.safe .ludo-star {
+  color: rgba(43, 38, 32, 0.55);
+}
+
 .ludo-gift {
   font-size: 0.85rem;
   line-height: 1;
