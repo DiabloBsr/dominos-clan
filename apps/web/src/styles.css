@@ -2724,6 +2724,125 @@ section.game {
   transform: scale(0.55);
 }
 
+/* ⚡ Échange TÉLÉPORTÉ : rayon d'énergie entre les deux pions, qui se
+   dématérialisent, permutent invisibles, puis se rematérialisent (~1 s). */
+.swap-beam {
+  position: absolute;
+  height: 3.5px;
+  transform-origin: 0 50%;
+  z-index: 10;
+  pointer-events: none;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(126, 224, 255, 0),
+    #7ee0ff 12%,
+    #d18cff 50%,
+    #7ee0ff 88%,
+    rgba(126, 224, 255, 0)
+  );
+  box-shadow:
+    0 0 10px rgba(126, 224, 255, 0.95),
+    0 0 26px rgba(209, 140, 255, 0.6);
+  animation: beam-zap 0.65s ease forwards;
+}
+
+@keyframes beam-zap {
+  0% {
+    opacity: 0;
+    filter: brightness(2.2);
+  }
+  12% {
+    opacity: 1;
+  }
+  30% {
+    opacity: 0.55;
+  }
+  45% {
+    opacity: 1;
+    filter: brightness(1.6);
+  }
+  100% {
+    opacity: 0;
+    filter: brightness(1);
+  }
+}
+
+.beam-spark {
+  position: absolute;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 12px #7ee0ff,
+    0 0 26px #d18cff;
+  animation: spark-pop 0.65s ease forwards;
+}
+
+.beam-spark.start {
+  left: 0;
+}
+
+.beam-spark.end {
+  left: 100%;
+}
+
+@keyframes spark-pop {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  20% {
+    transform: scale(1.5);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+}
+
+.ludo-pawn.teleporting {
+  z-index: 10;
+}
+
+.ludo-pawn.teleporting .pawn-svg {
+  animation: teleport-pop 0.95s ease both;
+}
+
+@keyframes teleport-pop {
+  0% {
+    transform: none;
+    filter: none;
+  }
+  30% {
+    transform: scale(0.08) rotate(360deg);
+    filter: drop-shadow(0 0 14px #7ee0ff) brightness(2.4);
+    opacity: 0.85;
+  }
+  55% {
+    transform: scale(0.08) rotate(540deg);
+    filter: drop-shadow(0 0 14px #d18cff) brightness(2.4);
+    opacity: 0.5;
+  }
+  80% {
+    transform: scale(1.18) rotate(720deg);
+    filter: drop-shadow(0 0 10px #7ee0ff) brightness(1.4);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+    filter: none;
+  }
+}
+
 /* 🛡 Bouclier actif : les pions protégés brillent (halo cyan + badge). */
 .ludo-pawn.shielded .pawn-svg {
   filter: drop-shadow(0 0 6px rgba(126, 224, 255, 0.95));

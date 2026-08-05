@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ludoLegalPawns, ludoSafeCells, ludoStarCells, ludoStartCell, type LudoState } from '@dominos-clan/engine'
 import type { RoomView } from '@dominos-clan/engine'
-import { playBonusPickup, playCapture, playDiceRoll, playGoal, playHop } from '../sounds'
+import { playBonusPickup, playCapture, playDiceRoll, playGoal, playHop, playTeleport } from '../sounds'
 
 type LudoPawnPos = LudoState['players'][number]['pawns'][number]
 
@@ -412,6 +412,8 @@ export function LudoBoard({
     const SLOT_TICKS = 10 // ≈ 2,3 s de machine à sous
     let maxForwardTicks = 0
     const slidingPaths: Array<{ key: string; path: Array<[number, number] | null> }> = []
+    /** Anciennes positions des deux pions échangés (extrémités du rayon). */
+    const swapEnds: Array<[number, number]> = []
 
     const next = new Map<string, LudoPawnPos>()
     state.players.forEach((player, pi) =>
@@ -423,7 +425,11 @@ export function LudoBoard({
         const fromRel = relOfPawn(player.slot, prev)
         const toRel = relOfPawn(player.slot, pawn)
         if (swapNow) {
+          // Téléportation : le pion se dématérialise, permute pendant qu'il
+          // est invisible, se rematérialise — position appliquée d'un coup.
           maxForwardTicks = Math.max(maxForwardTicks, 1)
+          teleportKeys.current.add(key)
+          swapEnds.push(gridOf(player.slot, pwi, prev))
           append(key, [gridOf(player.slot, pwi, pawn)])
           return
         }
@@ -469,12 +475,35 @@ export function LudoBoard({
     for (const { key, path } of slidingPaths) {
       append(key, [...Array.from({ length: maxForwardTicks }, () => null), ...path])
     }
+    // ⚡ Rayon d'échange entre les deux anciennes positions + zap + nettoyage.
+    if (swapEnds.length === 2) {
+      playTeleport()
+      setSwapBeam((prev) => ({
+        seq: (prev?.seq ?? 0) + 1,
+        ay: (swapEnds[0]![0] + 0.5) * CELL,
+        ax: (swapEnds[0]![1] + 0.5) * CELL,
+        by: (swapEnds[1]![0] + 0.5) * CELL,
+        bx: (swapEnds[1]![1] + 0.5) * CELL,
+      }))
+      setTimeout(() => setSwapBeam(null), 700)
+      setTimeout(() => teleportKeys.current.clear(), 1000)
+    }
     prevPawns.current = next
   }, [state])
 
   // Cri de chambrage plein écran à chaque capture (aléatoire).
   const [captureFx, setCaptureFx] = useState<{ key: number; text: string } | null>(null)
   const captureKey = useRef(0)
+
+  // ⚡ Échange téléporté : rayon entre les deux pions + dématérialisation.
+  const [swapBeam, setSwapBeam] = useState<{
+    seq: number
+    ax: number
+    ay: number
+    bx: number
+    by: number
+  } | null>(null)
+  const teleportKeys = useRef<Set<string>>(new Set())
 
   // Machine à sous du Saut bonus : déclenchée par lastBonus (seq).
   const [slotFx, setSlotFx] = useState<{ value: number; seq: number } | null>(null)
@@ -652,7 +681,13 @@ export function LudoBoard({
                 <button
                   key={key}
                   className={`ludo-pawn ${playable ? 'playable' : ''} ${targetable ? 'targetable' : ''} ${
-                    isMoving ? (slidingKeys.current.has(key) ? 'sliding' : 'moving') : ''
+                    teleportKeys.current.has(key)
+                      ? 'teleporting'
+                      : isMoving
+                        ? slidingKeys.current.has(key)
+                          ? 'sliding'
+                          : 'moving'
+                        : ''
                   } ${!isMoving ? crowd.size : ''} ${player.shield ? 'shielded' : ''}`}
                   style={pawnPos(player.slot, key, pwi, pawn, isMoving ? [0, 0] : crowd.offset)}
                   disabled={!playable && !targetable}
@@ -668,6 +703,30 @@ export function LudoBoard({
             }),
           )}
         </div>
+
+        {/* ⚡ Rayon de téléportation entre les deux pions échangés. */}
+        {swapBeam &&
+          (() => {
+            const dx = swapBeam.bx - swapBeam.ax
+            const dy = swapBeam.by - swapBeam.ay
+            const len = Math.hypot(dx, dy)
+            const ang = (Math.atan2(dy, dx) * 180) / Math.PI
+            return (
+              <div
+                key={swapBeam.seq}
+                className="swap-beam"
+                style={{
+                  left: `${swapBeam.ax}%`,
+                  top: `${swapBeam.ay}%`,
+                  width: `${len}%`,
+                  transform: `rotate(${ang}deg)`,
+                }}
+              >
+                <span className="beam-spark start" />
+                <span className="beam-spark end" />
+              </div>
+            )
+          })()}
 
         {/* Plaque nominative de chaque joueur, ancrée au coin de SA base,
             + sa case de lancé de dé au coin intérieur (vers le centre). */}

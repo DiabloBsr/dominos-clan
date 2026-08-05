@@ -240,6 +240,15 @@ export function playBonusPickup(): void {
   tone(ac, 'sine', 990, 0.09, 0.18, 0.22)
 }
 
+/** ⚡ Téléportation (échange) : zap montant + scintillement + repose. */
+export function playTeleport(): void {
+  const ac = audio()
+  if (!ac) return
+  tone(ac, 'sawtooth', 280, 0, 0.16, 0.18, 1400)
+  noiseAt(ac, 0.05, 0.18, 0.1, 6000)
+  tone(ac, 'sine', 1200, 0.3, 0.2, 0.16, 500)
+}
+
 /** 🏁 Pion arrivé à l'objectif : mini-fanfare (plus courte que la victoire). */
 export function playGoal(): void {
   const ac = audio()
