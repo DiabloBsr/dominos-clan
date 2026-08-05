@@ -510,7 +510,9 @@ const serverRand = () => randomInt(1_000_000) / 1_000_000
 export function ludoRollRoom(room: Room, memberId: string): { player: number; value: number } {
   if (room.status !== 'playing' || !room.ludoGame) throw new RoomError('Aucune partie en cours')
   const player = room.ludoGame.players.findIndex((p) => p.id === memberId)
-  const value = randomInt(1, 7)
+  // Dé PIPÉ maison : le 6 sort 1 fois sur 3 (règle de la table — deux fois
+  // plus de fun), les faces 1-5 se partagent le reste (2/15 chacune).
+  const value = randomInt(0, 3) === 0 ? 6 : randomInt(1, 6)
   ludoRoll(room.ludoGame, memberId, value)
   // UN SEUL pion jouable → il avance tout seul, sans sélection (la sélection
   // n'apparaît qu'à partir de 2 pions possibles).

@@ -45,13 +45,14 @@ const BASE_ZONES: Array<[number, number]> = [
 /** Rotation de la flèche d'entrée de chaque coin (sens de la marche). */
 const START_ARROWS = [0, 90, 180, 270]
 
-/** Pions ARRIVÉS : en éventail dans le triangle central de LEUR couleur. */
+/** Pions ARRIVÉS : minuscules, en éventail serré dans le triangle de LEUR
+ *  couleur — les 4 tiennent sans déborder. */
 function doneSpot(slot: number, pawnIndex: number): [number, number] {
-  const spread = 6.28 + pawnIndex * 0.49
-  if (slot === 0) return [spread, 6.04] // triangle gauche (rouge)
-  if (slot === 1) return [6.04, spread] // triangle haut (vert)
-  if (slot === 2) return [spread, 7.96] // triangle droit (jaune)
-  return [7.96, spread] // triangle bas (bleu)
+  const spread = 6.42 + pawnIndex * 0.4
+  if (slot === 0) return [spread, 6.08] // triangle gauche (rouge)
+  if (slot === 1) return [6.08, spread] // triangle haut (vert)
+  if (slot === 2) return [spread, 7.92] // triangle droit (jaune)
+  return [7.92, spread] // triangle bas (bleu)
 }
 
 /** Couleurs du plateau CLASSIQUE (modèle de référence du user) :
@@ -402,8 +403,10 @@ export function LudoBoard({
     // 🚀 Saut bonus ramassé pendant CE coup : le pion s'arrête sur la case
     // bonus, la machine à sous tourne, PUIS le saut s'anime.
     const lb = state.lastBonus
-    const bonusNow =
-      lb && lb.kind === 'boost' && lb.value !== null && lb.seq !== animBonusSeq.current ? lb : null
+    const lbChanged = lb !== null && lb.seq !== animBonusSeq.current
+    const bonusNow = lbChanged && lb.kind === 'boost' && lb.value !== null ? lb : null
+    // ↔️ Échange : AUCUNE marche — les deux pions permutent d'un seul coup.
+    const swapNow = lbChanged && lb.kind === 'swap'
     animBonusSeq.current = lb?.seq ?? animBonusSeq.current
 
     const SLOT_TICKS = 10 // ≈ 2,3 s de machine à sous
@@ -419,16 +422,21 @@ export function LudoBoard({
         if (!prev || JSON.stringify(prev) === JSON.stringify(pawn)) return
         const fromRel = relOfPawn(player.slot, prev)
         const toRel = relOfPawn(player.slot, pawn)
+        if (swapNow) {
+          maxForwardTicks = Math.max(maxForwardTicks, 1)
+          append(key, [gridOf(player.slot, pwi, pawn)])
+          return
+        }
         if (
           capturedKeys.length === 1 &&
           capturedKeys[0] === key &&
           prev.zone === 'track' &&
           fromRel !== null
         ) {
-          // Marche arrière : tout le chemin parcouru depuis la sortie,
-          // puis retour au box (pas de 2 cases au-delà de 14 pour le rythme).
+          // Marche arrière AMPLIFIÉE : chaque case du chemin parcouru est
+          // rejouée à rebours (pas de 2 seulement au-delà de 30 cases).
           const path: Array<[number, number] | null> = []
-          const stride = fromRel > 14 ? 2 : 1
+          const stride = fromRel > 30 ? 2 : 1
           for (let r = fromRel - stride; r > 0; r -= stride) {
             path.push(gridOf(player.slot, pwi, pawnAtRel(player.slot, r)))
           }
@@ -520,9 +528,54 @@ export function LudoBoard({
     return () => clearInterval(timer)
   }, [])
 
-  const pawnPos = (slot: number, key: string, pawnIndex: number, pawn: LudoPawnPos) => {
+  const pawnPos = (
+    slot: number,
+    key: string,
+    pawnIndex: number,
+    pawn: LudoPawnPos,
+    offset: [number, number] = [0, 0],
+  ) => {
     const shown = display[key] ?? gridOf(slot, pawnIndex, pawn)
-    return pos(shown[0], shown[1])
+    return pos(shown[0] + offset[0], shown[1] + offset[1])
+  }
+
+  // ── Plusieurs pions sur la MÊME case : minuscules et tous visibles ──
+  const MULTI_OFFSETS: Record<number, Array<[number, number]>> = {
+    2: [
+      [-0.17, -0.17],
+      [0.17, 0.17],
+    ],
+    3: [
+      [-0.19, -0.19],
+      [0.19, -0.05],
+      [0, 0.19],
+    ],
+    4: [
+      [-0.19, -0.19],
+      [-0.19, 0.19],
+      [0.19, -0.19],
+      [0.19, 0.19],
+    ],
+  }
+  const cellGroups = new Map<string, string[]>()
+  state.players.forEach((player, pi) =>
+    player.pawns.forEach((pawn, pwi) => {
+      if (pawn.zone !== 'track' && pawn.zone !== 'home') return
+      const [r, c] = gridOf(player.slot, pwi, pawn)
+      const groupKey = `${r},${c}`
+      cellGroups.set(groupKey, [...(cellGroups.get(groupKey) ?? []), `${pi}-${pwi}`])
+    }),
+  )
+  /** Décalage + classe de taille pour un pion selon l'occupation de sa case. */
+  const crowdOf = (pi: number, pwi: number, slot: number, pawn: LudoPawnPos) => {
+    if (pawn.zone === 'done') return { offset: [0, 0] as [number, number], size: 'mini3' }
+    if (pawn.zone !== 'track' && pawn.zone !== 'home') return { offset: [0, 0] as [number, number], size: '' }
+    const [r, c] = gridOf(slot, pwi, pawn)
+    const group = cellGroups.get(`${r},${c}`) ?? []
+    if (group.length <= 1) return { offset: [0, 0] as [number, number], size: '' }
+    const spots = MULTI_OFFSETS[Math.min(group.length, 4)]!
+    const idx = group.indexOf(`${pi}-${pwi}`) % spots.length
+    return { offset: spots[idx]!, size: group.length === 2 ? 'mini2' : 'mini3' }
   }
 
   return (
@@ -593,13 +646,15 @@ export function LudoBoard({
               const mine = pi === myIndex
               const playable = mine && legal.includes(pwi) && !targeting
               const targetable = targeting && !mine && pawn.zone === 'track'
+              const isMoving = moving.has(key)
+              const crowd = crowdOf(pi, pwi, player.slot, pawn)
               return (
                 <button
                   key={key}
                   className={`ludo-pawn ${playable ? 'playable' : ''} ${targetable ? 'targetable' : ''} ${
-                    moving.has(key) ? (slidingKeys.current.has(key) ? 'sliding' : 'moving') : ''
-                  }`}
-                  style={pawnPos(player.slot, key, pwi, pawn)}
+                    isMoving ? (slidingKeys.current.has(key) ? 'sliding' : 'moving') : ''
+                  } ${!isMoving ? crowd.size : ''} ${player.shield ? 'shielded' : ''}`}
+                  style={pawnPos(player.slot, key, pwi, pawn, isMoving ? [0, 0] : crowd.offset)}
                   disabled={!playable && !targetable}
                   onClick={() => {
                     if (targetable) onTarget(pi, pwi)
@@ -607,6 +662,7 @@ export function LudoBoard({
                   }}
                 >
                   <PawnPin color={LUDO_COLORS[player.slot]!} />
+                  {player.shield && <span className="pawn-shield">🛡️</span>}
                 </button>
               )
             }),

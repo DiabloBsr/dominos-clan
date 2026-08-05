@@ -2702,17 +2702,41 @@ section.game {
   animation: pawn-hop 0.23s ease-in-out infinite;
 }
 
-/* Retour en prison : le pion GLISSE en marche arrière — transition linéaire
-   enchaînée, aucun sautillement, légèrement penché comme traîné. */
+/* Retour en prison AMPLIFIÉ : le pion GLISSE en marche arrière — grossi,
+   penché, halo rouge — impossible de le rater. */
 .ludo-pawn.sliding {
-  z-index: 8;
+  z-index: 9;
   transition-timing-function: linear;
 }
 
 .ludo-pawn.sliding .pawn-svg {
   animation: none;
-  transform: rotate(-8deg);
-  filter: saturate(0.8) brightness(0.9);
+  transform: rotate(-10deg) scale(1.25);
+  filter: saturate(0.85) brightness(0.95) drop-shadow(0 0 7px rgba(226, 87, 76, 0.9));
+}
+
+/* Case bondée : pions minuscules et tous visibles (éventail dans la case). */
+.ludo-pawn.mini2 .pawn-svg {
+  transform: scale(0.72);
+}
+
+.ludo-pawn.mini3 .pawn-svg {
+  transform: scale(0.55);
+}
+
+/* 🛡 Bouclier actif : les pions protégés brillent (halo cyan + badge). */
+.ludo-pawn.shielded .pawn-svg {
+  filter: drop-shadow(0 0 6px rgba(126, 224, 255, 0.95));
+}
+
+.pawn-shield {
+  position: absolute;
+  top: -14%;
+  right: -18%;
+  font-size: 0.62em;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+  pointer-events: none;
+  animation: pulse 1.6s ease-in-out infinite;
 }
 
 @keyframes pawn-hop {
