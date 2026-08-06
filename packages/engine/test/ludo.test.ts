@@ -134,14 +134,23 @@ describe('captures et cases sûres', () => {
     expect(state.dice).toBeNull()
   })
 
-  it('pas de capture sur une case sûre (étoile)', () => {
+  it('la capture a lieu MÊME sur une case étoile : seul le bouclier protège', () => {
     const star = ludoStarCells()[1]! // 21
     const state = createLudo(['a', 'b'])
     craft(state, 0, 0, { zone: 'track', cell: star - 2 })
     craft(state, 1, 0, { zone: 'track', cell: star })
     ludoRoll(state, 'a', 2)
     ludoPlay(state, 'a', 0, noRand)
-    expect(state.players[1]!.pawns[0]).toEqual({ zone: 'track', cell: star })
+    expect(state.players[1]!.pawns[0]).toEqual({ zone: 'base' })
+
+    // …sauf si le pion visé porte un bouclier.
+    const shielded = createLudo(['a', 'b'])
+    shielded.players[1]!.shields[0] = true
+    craft(shielded, 0, 0, { zone: 'track', cell: star - 2 })
+    craft(shielded, 1, 0, { zone: 'track', cell: star })
+    ludoRoll(shielded, 'a', 2)
+    ludoPlay(shielded, 'a', 0, noRand)
+    expect(shielded.players[1]!.pawns[0]).toEqual({ zone: 'track', cell: star })
   })
 
   it('le bouclier annule une capture — et SEUL le pion protégé est couvert', () => {
@@ -287,6 +296,31 @@ describe('bonus 🎁', () => {
     expect(state.pendingBonus).toBeNull()
     expect(state.turn).toBe(0)
     expect(state.dice).toBeNull()
+  })
+
+  it('🚔 prison : atteint aussi un pion du COULOIR coloré et une case sûre', () => {
+    const state = createLudo(['a', 'b'], { bonusMode: true })
+    craft(state, 1, 2, { zone: 'home', step: 3 }) // couloir coloré de b
+    landOnBonus(state, bonusRand(2))
+    expect(state.pendingBonus?.bonus).toBe('prison')
+    ludoTarget(state, 'a', 1, 2)
+    expect(state.players[1]!.pawns[2]).toEqual({ zone: 'base' })
+
+    const onStar = createLudo(['a', 'b'], { bonusMode: true })
+    craft(onStar, 1, 1, { zone: 'track', cell: ludoStarCells()[2]! })
+    landOnBonus(onStar, bonusRand(2))
+    ludoTarget(onStar, 'a', 1, 1)
+    expect(onStar.players[1]!.pawns[1]).toEqual({ zone: 'base' })
+  })
+
+  it('🚔 prison : un pion ARRIVÉ à l’objectif est intouchable', () => {
+    const state = createLudo(['a', 'b'], { bonusMode: true })
+    craft(state, 1, 2, { zone: 'track', cell: 40 }) // cible valide pour armer le bonus
+    craft(state, 1, 3, { zone: 'done' })
+    landOnBonus(state, bonusRand(2))
+    expect(state.pendingBonus?.bonus).toBe('prison')
+    expect(() => ludoTarget(state, 'a', 1, 3)).toThrowError(LudoError)
+    expect(state.players[1]!.pawns[3]).toEqual({ zone: 'done' })
   })
 
   it('🛡 bouclier s’active sur LE pion qui l’a ramassé, pas sur les autres', () => {

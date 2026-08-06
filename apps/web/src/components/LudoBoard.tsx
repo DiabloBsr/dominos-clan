@@ -710,7 +710,13 @@ export function LudoBoard({
               const key = `${pi}-${pwi}`
               const mine = pi === myIndex
               const playable = mine && legal.includes(pwi) && !targeting
-              const targetable = targeting && !mine && pawn.zone === 'track'
+              // La prison atteint aussi le couloir coloré ; l'échange non.
+              const targetable =
+                targeting &&
+                !mine &&
+                (state.pendingBonus?.bonus === 'prison'
+                  ? pawn.zone === 'track' || pawn.zone === 'home'
+                  : pawn.zone === 'track')
               const isMoving = moving.has(key)
               const crowd = crowdOf(pi, pwi, player.slot, pawn)
               return (

@@ -95,6 +95,11 @@ export function ludoStarCells(): number[] {
   return [0, 1, 2, 3].map((i) => (i * 13 + 8) % LUDO_TRACK)
 }
 
+/**
+ * Cases « repères » (départs + étoiles). Attention : ce ne sont PLUS des
+ * refuges — seul le bouclier annule une prise. Elles servent au décor et à
+ * éviter d'y poser une case bonus.
+ */
 export function ludoSafeCells(): number[] {
   return [...[0, 1, 2, 3].map(ludoStartCell), ...ludoStarCells()]
 }
@@ -254,10 +259,13 @@ export function ludoRoll(state: LudoState, playerId: string, roll: number): void
   }
 }
 
-/** Captures sur une case de piste (sauf case sûre ; le bouclier encaisse une
- *  fois). Retourne le nombre de pions renvoyés en prison. */
+/**
+ * Captures sur une case de piste. Règle de la table : SEUL le bouclier peut
+ * annuler une prise — aucune case n'est un refuge, étoiles et cases de départ
+ * comprises (elles ne sont plus que des repères visuels).
+ * Retourne le nombre de pions renvoyés en prison.
+ */
 function resolveCaptures(state: LudoState, moverIndex: number, cell: number): number {
-  if (ludoSafeCells().includes(cell)) return 0
   let captured = 0
   for (let i = 0; i < state.players.length; i++) {
     if (i === moverIndex) continue
@@ -308,9 +316,15 @@ function drawBonus(
       seq: (state.lastBonus?.seq ?? 0) + 1,
     }
   }
-  const enemiesOnTrack = state.players.some(
-    (p, i) => i !== playerIndex && p.pawns.some((pw) => pw.zone === 'track'),
-  )
+  const enemyPawnExists = (pred: (pw: LudoPawn) => boolean) =>
+    state.players.some((p, i) => i !== playerIndex && p.pawns.some(pred))
+  // 🚔 La prison frappe partout — cases sûres ET couloir coloré compris ;
+  // seuls les pions ARRIVÉS (et ceux déjà en prison) sont hors d'atteinte.
+  // ↔️ L'échange, lui, ne peut permuter que des pions de la piste commune.
+  const enemiesTargetable =
+    bonus === 'prison'
+      ? enemyPawnExists((pw) => pw.zone === 'track' || pw.zone === 'home')
+      : enemyPawnExists((pw) => pw.zone === 'track')
 
   switch (bonus) {
     case 'reroll':
@@ -358,7 +372,7 @@ function drawBonus(
     case 'prison':
     case 'swap':
       announce(null)
-      if (!enemiesOnTrack) {
+      if (!enemiesTargetable) {
         state.lastEvent = '🎁 … mais aucune cible adverse !'
         return rollAgain
       }
@@ -426,7 +440,14 @@ export function ludoTarget(
   if (targetPlayerIndex === index) throw new LudoError('Choisis un pion ADVERSE')
   const enemy = state.players[targetPlayerIndex]
   const target = enemy?.pawns[targetPawnIndex]
-  if (!enemy || !target || target.zone !== 'track') {
+  if (!enemy || !target) throw new LudoError('Cible invalide')
+  if (pending.bonus === 'prison') {
+    // Ni les cases sûres ni le couloir coloré ne protègent : seul un pion
+    // ARRIVÉ à l'objectif (ou déjà en prison) échappe à la prison.
+    if (target.zone !== 'track' && target.zone !== 'home') {
+      throw new LudoError('Cible invalide : ce pion est déjà arrivé ou en prison')
+    }
+  } else if (target.zone !== 'track') {
     throw new LudoError('Cible invalide : il faut un pion adverse sur la piste')
   }
 
@@ -442,17 +463,22 @@ export function ludoTarget(
       state.lastEvent = '🚔 En prison !'
     }
   } else {
-    // Échange de positions entre le pion bonus et la cible.
+    // Échange de positions : les DEUX pions doivent être sur la piste commune
+    // (permuter avec un couloir coloré adverse n'aurait aucun sens).
+    if (target.zone !== 'track') {
+      throw new LudoError('Cible invalide : il faut un pion adverse sur la piste')
+    }
     const mine = state.players[index]!.pawns[pending.pawnIndex]!
     if (mine.zone !== 'track') throw new LudoError('Ton pion n’est plus sur la piste')
     const myCell = mine.cell
-    state.players[index]!.pawns[pending.pawnIndex] = { zone: 'track', cell: target.cell }
+    const targetCell = target.cell
+    state.players[index]!.pawns[pending.pawnIndex] = { zone: 'track', cell: targetCell }
     enemy.pawns[targetPawnIndex] = { zone: 'track', cell: myCell }
     // Marqueur d'échange RÉSOLU : c'est ICI que la téléportation a lieu.
     state.lastSwap = {
       seq: (state.lastSwap?.seq ?? 0) + 1,
       cellA: myCell,
-      cellB: target.cell,
+      cellB: targetCell,
     }
     state.lastEvent = '↔️ Échange !'
   }
