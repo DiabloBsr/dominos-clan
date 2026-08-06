@@ -98,7 +98,7 @@ function SlotFx({ value }: { value: number }) {
             <div
               className="slot-strip"
               style={{
-                transitionDuration: `${1.05 + reel * 0.4}s`,
+                transitionDuration: `${0.75 + reel * 0.3}s`,
                 transform: go ? `translateY(calc(-${digits.length - 1} * var(--digit)))` : 'none',
               }}
             >
@@ -298,6 +298,10 @@ export function LudoBoard({
   const [rollHold, setRollHold] = useState(false)
   /** Seq du dernier bonus déjà intégré aux files d'animation. */
   const animBonusSeq = useRef(0)
+  /** Seq du dernier ÉCHANGE résolu déjà animé (téléportation). */
+  const animSwapSeq = useRef(0)
+  /** Instant où la file d'animation s'est vidée (délai avant le dé suivant). */
+  const idleSince = useRef(0)
   // Le tirage déjà présent AU MONTAGE date d'une partie précédente : on
   // l'ignore, sinon un dé culbute tout seul au départ sans avoir cliqué.
   const staleRollKey = useRef(roll?.key ?? null)
@@ -305,6 +309,7 @@ export function LudoBoard({
     if (!roll || roll.key === staleRollKey.current) return
     setLastRolls((prev) => ({ ...prev, [roll.player]: { value: roll.value, key: roll.key } }))
     animHoldUntil.current = Date.now() + 1000
+    idleSince.current = 0
     playDiceRoll()
     // Le lancer SUIVANT attend la fin de TOUTE la séquence (relâché par le
     // ticker d'animation quand plus rien n'est en file).
@@ -407,15 +412,23 @@ export function LudoBoard({
     const lb = state.lastBonus
     const lbChanged = lb !== null && lb.seq !== animBonusSeq.current
     const bonusNow = lbChanged && lb.kind === 'boost' && lb.value !== null ? lb : null
-    // ↔️ Échange : AUCUNE marche — les deux pions permutent d'un seul coup.
-    const swapNow = lbChanged && lb.kind === 'swap'
     animBonusSeq.current = lb?.seq ?? animBonusSeq.current
+    // ↔️ Échange RÉSOLU (pas le ramassage du bonus !) : les deux pions
+    // permutent d'un seul coup, avec la téléportation.
+    const ls = state.lastSwap
+    const swapNow = ls !== null && ls.seq !== animSwapSeq.current
+    animSwapSeq.current = ls?.seq ?? animSwapSeq.current
+    const swapCells = swapNow ? [ls.cellA, ls.cellB] : []
 
-    const SLOT_TICKS = 10 // ≈ 2,3 s de machine à sous
+    // Pause du pion sur la case bonus, calée sur l'arrêt du 3e rouleau
+    // (1,35 s) : 10 tics × 145 ms ≈ 1,45 s — le saut reprend pile après.
+    const SLOT_TICKS = 10
     let maxForwardTicks = 0
     const slidingPaths: Array<{ key: string; path: Array<[number, number] | null> }> = []
     /** Anciennes positions des deux pions échangés (extrémités du rayon). */
     const swapEnds: Array<[number, number]> = []
+    /** Pions à téléporter pendant CETTE mise à jour (marqueur temporaire). */
+    const teleportedKeys: string[] = []
 
     const next = new Map<string, LudoPawnPos>()
     state.players.forEach((player, pi) =>
@@ -426,11 +439,18 @@ export function LudoBoard({
         if (!prev || JSON.stringify(prev) === JSON.stringify(pawn)) return
         const fromRel = relOfPawn(player.slot, prev)
         const toRel = relOfPawn(player.slot, pawn)
-        if (swapNow) {
+        // Seuls les DEUX pions réellement échangés se téléportent.
+        if (
+          swapNow &&
+          prev.zone === 'track' &&
+          pawn.zone === 'track' &&
+          swapCells.includes(prev.cell) &&
+          swapCells.includes(pawn.cell)
+        ) {
           // Téléportation : le pion se dématérialise, permute pendant qu'il
           // est invisible, se rematérialise — position appliquée d'un coup.
           maxForwardTicks = Math.max(maxForwardTicks, 1)
-          teleportKeys.current.add(key)
+          teleportedKeys.push(key)
           swapEnds.push(gridOf(player.slot, pwi, prev))
           append(key, [gridOf(player.slot, pwi, pawn)])
           return
@@ -444,7 +464,9 @@ export function LudoBoard({
           // Marche arrière AMPLIFIÉE : chaque case du chemin parcouru est
           // rejouée à rebours (pas de 2 seulement au-delà de 30 cases).
           const path: Array<[number, number] | null> = []
-          const stride = fromRel > 30 ? 2 : 1
+          // Le pas s'élargit avec la distance : spectaculaire mais borné à
+          // ~18 pas (≈2,6 s), jamais 7 s de glissade qui bloque la partie.
+          const stride = Math.max(1, Math.ceil(fromRel / 18))
           for (let r = fromRel - stride; r > 0; r -= stride) {
             path.push(gridOf(player.slot, pwi, pawnAtRel(player.slot, r)))
           }
@@ -487,8 +509,10 @@ export function LudoBoard({
         by: (swapEnds[1]![0] + 0.5) * CELL,
         bx: (swapEnds[1]![1] + 0.5) * CELL,
       }))
+      setTeleporting(new Set(teleportedKeys))
       setTimeout(() => setSwapBeam(null), 700)
-      setTimeout(() => teleportKeys.current.clear(), 1000)
+      // Le marqueur RETOMBE toujours : aucune animation ne survit à sa durée.
+      setTimeout(() => setTeleporting(new Set()), 1000)
     }
     prevPawns.current = next
   }, [state])
@@ -505,7 +529,9 @@ export function LudoBoard({
     bx: number
     by: number
   } | null>(null)
-  const teleportKeys = useRef<Set<string>>(new Set())
+  // ÉTAT (pas une ref) : le retrait du marqueur déclenche un vrai rendu, donc
+  // la classe d'animation ne peut PAS rester collée au pion après coup.
+  const [teleporting, setTeleporting] = useState<Set<string>>(new Set())
 
   // Machine à sous du Saut bonus : déclenchée par lastBonus (seq).
   const [slotFx, setSlotFx] = useState<{ value: number; seq: number } | null>(null)
@@ -519,7 +545,7 @@ export function LudoBoard({
     if (lb.kind === 'boost' && lb.value !== null) {
       setSlotFx({ value: lb.value, seq: lb.seq })
       if (slotTimer.current) clearTimeout(slotTimer.current)
-      slotTimer.current = setTimeout(() => setSlotFx(null), 3400)
+      slotTimer.current = setTimeout(() => setSlotFx(null), 2200)
     }
   }, [state.lastBonus])
 
@@ -534,9 +560,15 @@ export function LudoBoard({
       if (queues.current.size === 0) {
         slidingKeys.current.clear()
         setMoving((prev) => (prev.size ? new Set<string>() : prev))
-        setRollHold((held) => (held ? false : held))
+        // Le dé du joueur suivant ne s'active qu'1 s APRÈS la fin complète
+        // de la séquence (le temps de voir où tout le monde est arrivé).
+        if (idleSince.current === 0) idleSince.current = Date.now()
+        if (Date.now() - idleSince.current >= 1000) {
+          setRollHold((held) => (held ? false : held))
+        }
         return
       }
+      idleSince.current = 0
       const updates: Record<string, [number, number]> = {}
       for (const [key, queue] of [...queues.current.entries()]) {
         const step = queue.shift()
@@ -555,7 +587,7 @@ export function LudoBoard({
         if (Object.keys(updates).some((k) => !slidingKeys.current.has(k))) playHop()
         setDisplay((prev) => ({ ...prev, ...updates }))
       }
-    }, 230)
+    }, 145)
     return () => clearInterval(timer)
   }, [])
 
@@ -685,14 +717,14 @@ export function LudoBoard({
                 <button
                   key={key}
                   className={`ludo-pawn ${playable ? 'playable' : ''} ${targetable ? 'targetable' : ''} ${
-                    teleportKeys.current.has(key)
+                    teleporting.has(key)
                       ? 'teleporting'
                       : isMoving
                         ? slidingKeys.current.has(key)
                           ? 'sliding'
                           : 'moving'
                         : ''
-                  } ${!isMoving ? crowd.size : ''} ${player.shield ? 'shielded' : ''}`}
+                  } ${!isMoving ? crowd.size : ''} ${player.shields[pwi] ? 'shielded' : ''}`}
                   style={pawnPos(player.slot, key, pwi, pawn, isMoving ? [0, 0] : crowd.offset)}
                   disabled={!playable && !targetable}
                   onClick={() => {
@@ -701,7 +733,7 @@ export function LudoBoard({
                   }}
                 >
                   <PawnPin color={LUDO_COLORS[player.slot]!} />
-                  {player.shield && <span className="pawn-shield">🛡️</span>}
+                  {player.shields[pwi] && <span className="pawn-shield">🛡️</span>}
                 </button>
               )
             }),
@@ -751,7 +783,7 @@ export function LudoBoard({
                   {avatarOf(room, p.id)} {pseudoOf(room, p.id)}
                   {voiceIds.includes(p.id) ? ' 🎙' : ''}
                   {mine ? ' (toi)' : ''}
-                  {p.shield ? ' 🛡' : ''}
+                  {p.shields.some(Boolean) ? ' 🛡' : ''}
                 </span>
                 <span className="plate-done">
                   {p.pawns.filter((pw) => pw.zone === 'done').length}/4 🏁

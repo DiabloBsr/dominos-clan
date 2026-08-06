@@ -207,13 +207,40 @@ function noiseAt(ac: AudioContext, at: number, duration: number, gainValue: numb
   source.start(t0)
 }
 
-/** 🎲 Lancer de dé : cliquetis du cornet puis clac de la pose (~0,9 s). */
+/** 🎲 Lancer de dé : roulement CONTINU « KRRRRRR » (bruit haché à ~45 Hz,
+ *  pas des clics espacés), puis clac de la pose. */
 export function playDiceRoll(): void {
   const ac = audio()
   if (!ac) return
-  for (const at of [0, 0.1, 0.22, 0.36, 0.52]) noiseAt(ac, at, 0.035, 0.14, 3200)
-  noiseAt(ac, 0.82, 0.06, 0.3, 2600)
-  tone(ac, 'sine', 130, 0.82, 0.12, 0.25, 70)
+  const t0 = ac.currentTime
+  const duration = 0.5
+  const buffer = ac.createBuffer(1, Math.ceil(ac.sampleRate * duration), ac.sampleRate)
+  const data = buffer.getChannelData(0)
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1
+  const source = ac.createBufferSource()
+  source.buffer = buffer
+  const filter = ac.createBiquadFilter()
+  filter.type = 'bandpass'
+  filter.frequency.value = 2700
+  filter.Q.value = 0.8
+  const gain = ac.createGain()
+  gain.gain.setValueAtTime(0.16, t0)
+  gain.gain.exponentialRampToValueAtTime(0.05, t0 + duration)
+  // Hachage rapide du niveau : c'est LUI qui fait le « rrrrr ».
+  const lfo = ac.createOscillator()
+  lfo.type = 'square'
+  lfo.frequency.setValueAtTime(48, t0)
+  lfo.frequency.exponentialRampToValueAtTime(34, t0 + duration)
+  const lfoGain = ac.createGain()
+  lfoGain.gain.value = 0.12
+  lfo.connect(lfoGain).connect(gain.gain)
+  source.connect(filter).connect(gain).connect(ac.destination)
+  source.start(t0)
+  lfo.start(t0)
+  lfo.stop(t0 + duration)
+  // La pose : clac + petit choc sourd.
+  noiseAt(ac, 0.55, 0.06, 0.3, 2600)
+  tone(ac, 'sine', 130, 0.55, 0.12, 0.25, 70)
 }
 
 /** Petit tic discret à chaque case sautée par un pion. */

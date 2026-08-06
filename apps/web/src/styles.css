@@ -2690,10 +2690,11 @@ section.game {
   padding: 0;
   cursor: default;
   z-index: 5;
-  /* Saut case par case : chaque étape est une transition courte… */
+  /* Saut case par case : chaque étape est une transition courte, calée juste
+     sous le tic de 145 ms pour que le pion soit posé avant le pas suivant. */
   transition:
-    top 0.2s ease-in-out,
-    left 0.2s ease-in-out;
+    top 0.13s ease-in-out,
+    left 0.13s ease-in-out;
 }
 
 .pawn-svg {
@@ -2710,7 +2711,8 @@ section.game {
 }
 
 .ludo-pawn.moving .pawn-svg {
-  animation: pawn-hop 0.23s ease-in-out infinite;
+  /* Un rebond = un pas (synchronisé au tic de 145 ms). */
+  animation: pawn-hop 0.145s ease-in-out infinite;
 }
 
 /* Retour en prison AMPLIFIÉ : le pion GLISSE en marche arrière — grossi,
@@ -3098,7 +3100,7 @@ section.game {
   box-shadow:
     0 24px 70px rgba(0, 0, 0, 0.6),
     0 0 40px rgba(255, 182, 72, 0.25);
-  animation: slot-pop 3.4s ease forwards;
+  animation: slot-pop 2.2s ease forwards;
 }
 
 @keyframes slot-pop {

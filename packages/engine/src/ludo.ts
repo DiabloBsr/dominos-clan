@@ -36,7 +36,11 @@ export interface LudoPlayerState {
   slot: number
   pawns: LudoPawn[]
   /** 🛡 Bouclier actif (mode bonus) : annule la prochaine capture subie. */
-  shield: boolean
+  /**
+   * 🛡 Bouclier PAR PION (un par index de pion) : seul le pion qui a ramassé
+   * le bonus est protégé, et il encaisse UNE capture avant de retomber.
+   */
+  shields: boolean[]
 }
 
 export type LudoBonus = 'reroll' | 'boost' | 'prison' | 'shield' | 'swap' | 'star'
@@ -73,6 +77,12 @@ export interface LudoState {
    * la machine à sous du boost affiche `value`. `seq` change à chaque bonus.
    */
   lastBonus: { playerIndex: number; kind: LudoBonus; value: number | null; seq: number } | null
+  /**
+   * Échange RÉELLEMENT résolu (bonus ↔️, après le choix de la cible) : les
+   * deux cases permutées, pour l'animation de téléportation. `seq` change à
+   * chaque échange. Ne surtout pas confondre avec le ramassage du bonus.
+   */
+  lastSwap: { seq: number; cellA: number; cellB: number } | null
 }
 
 export class LudoError extends Error {}
@@ -139,7 +149,7 @@ export function createLudo(
       id,
       slot: (playerIds.length === 2 ? [0, 2] : [0, 1, 2, 3])[i]!,
       pawns: [{ zone: 'base' }, { zone: 'base' }, { zone: 'base' }, { zone: 'base' }],
-      shield: false,
+      shields: [false, false, false, false],
     })),
     turn: 0,
     dice: null,
@@ -149,6 +159,7 @@ export function createLudo(
     pendingBonus: null,
     lastEvent: null,
     lastBonus: null,
+    lastSwap: null,
   }
 }
 
@@ -200,6 +211,13 @@ function advanceTurn(state: LudoState): void {
   state.turn = (state.turn + 1) % state.players.length
   state.dice = null
   state.consecutiveSixes = 0
+  // 🛡 Le bouclier ne dure QU'UN TOUR de table : il protège pendant que les
+  // autres jouent, et expire dès que son propriétaire retrouve la main.
+  const back = state.players[state.turn]!
+  if (back.shields.some(Boolean)) {
+    back.shields = back.shields.map(() => false)
+    state.lastEvent = '🛡 Bouclier expiré'
+  }
 }
 
 /** Fin de coup : un 6 (ou un bonus « rejoue ») redonne le dé, sinon le tour passe. */
@@ -247,8 +265,8 @@ function resolveCaptures(state: LudoState, moverIndex: number, cell: number): nu
     for (let p = 0; p < enemy.pawns.length; p++) {
       const pawn = enemy.pawns[p]!
       if (pawn.zone === 'track' && pawn.cell === cell) {
-        if (enemy.shield) {
-          enemy.shield = false
+        if (enemy.shields[p]) {
+          enemy.shields[p] = false
           state.lastEvent = '🛡 Bouclier ! La capture est annulée'
         } else {
           enemy.pawns[p] = { zone: 'base' }
@@ -300,7 +318,8 @@ function drawBonus(
       state.lastEvent = '🎁 🎲 Deuxième lancer !'
       return true // rejoue quoi qu'il arrive
     case 'shield':
-      player.shield = true
+      // Seul le pion qui a ramassé le bonus est protégé.
+      player.shields[pawnIndex] = true
       announce(null)
       state.lastEvent = '🎁 🛡 Bouclier activé !'
       return rollAgain
@@ -413,8 +432,8 @@ export function ludoTarget(
 
   let keepTurn = pending.rollAgain
   if (pending.bonus === 'prison') {
-    if (enemy.shield) {
-      enemy.shield = false
+    if (enemy.shields[targetPawnIndex]) {
+      enemy.shields[targetPawnIndex] = false
       state.lastEvent = '🛡 Bouclier ! La prison est annulée'
     } else {
       enemy.pawns[targetPawnIndex] = { zone: 'base' }
@@ -429,6 +448,12 @@ export function ludoTarget(
     const myCell = mine.cell
     state.players[index]!.pawns[pending.pawnIndex] = { zone: 'track', cell: target.cell }
     enemy.pawns[targetPawnIndex] = { zone: 'track', cell: myCell }
+    // Marqueur d'échange RÉSOLU : c'est ICI que la téléportation a lieu.
+    state.lastSwap = {
+      seq: (state.lastSwap?.seq ?? 0) + 1,
+      cellA: myCell,
+      cellB: target.cell,
+    }
     state.lastEvent = '↔️ Échange !'
   }
 

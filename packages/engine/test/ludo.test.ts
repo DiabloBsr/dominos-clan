@@ -144,15 +144,41 @@ describe('captures et cases sûres', () => {
     expect(state.players[1]!.pawns[0]).toEqual({ zone: 'track', cell: star })
   })
 
-  it('le bouclier annule une capture', () => {
+  it('le bouclier annule une capture — et SEUL le pion protégé est couvert', () => {
     const state = createLudo(['a', 'b'], { bonusMode: true })
-    state.players[1]!.shield = true
+    state.players[1]!.shields[0] = true
     craft(state, 0, 0, { zone: 'track', cell: 20 })
     craft(state, 1, 0, { zone: 'track', cell: 22 })
     ludoRoll(state, 'a', 2)
     ludoPlay(state, 'a', 0, noRand)
     expect(state.players[1]!.pawns[0]).toEqual({ zone: 'track', cell: 22 })
-    expect(state.players[1]!.shield).toBe(false)
+    expect(state.players[1]!.shields[0]).toBe(false) // consommé
+  })
+
+  it('un pion NON protégé du même joueur se fait bien capturer', () => {
+    const state = createLudo(['a', 'b'], { bonusMode: true })
+    state.players[1]!.shields[0] = true // le pion 0 est protégé, pas le 1
+    craft(state, 0, 0, { zone: 'track', cell: 20 })
+    craft(state, 1, 1, { zone: 'track', cell: 22 })
+    ludoRoll(state, 'a', 2)
+    ludoPlay(state, 'a', 0, noRand)
+    expect(state.players[1]!.pawns[1]).toEqual({ zone: 'base' })
+    expect(state.players[1]!.shields[0]).toBe(true) // intact
+  })
+
+  it('le bouclier ne dure qu’UN TOUR : il expire quand son propriétaire rejoue', () => {
+    // Sans mode bonus : aucune case ne peut redonner la main et fausser le tour.
+    const state = createLudo(['a', 'b'])
+    state.players[0]!.shields[2] = true
+    craft(state, 0, 0, { zone: 'track', cell: 10 })
+    ludoRoll(state, 'a', 3)
+    ludoPlay(state, 'a', 0, noRand) // fin du tour de a → au tour de b
+    expect(state.players[0]!.shields[2]).toBe(true) // protégé pendant le tour de b
+    craft(state, 1, 0, { zone: 'track', cell: 30 })
+    ludoRoll(state, 'b', 2)
+    ludoPlay(state, 'b', 0, noRand) // le tour revient à a
+    expect(state.turn).toBe(0)
+    expect(state.players[0]!.shields[2]).toBe(false) // expiré
   })
 })
 
@@ -247,7 +273,7 @@ describe('bonus 🎁', () => {
     craft(state, 0, 0, { zone: 'track', cell: bonusCell - 3 })
     ludoRoll(state, 'a', 3)
     ludoPlay(state, 'a', 0, noRand)
-    expect(state.players[0]!.shield).toBe(true)
+    expect(state.players[0]!.shields[0]).toBe(true)
     expect(state.lastBonus).toMatchObject({ kind: 'shield', value: null })
   })
 
@@ -263,10 +289,11 @@ describe('bonus 🎁', () => {
     expect(state.dice).toBeNull()
   })
 
-  it('🛡 bouclier s’active', () => {
+  it('🛡 bouclier s’active sur LE pion qui l’a ramassé, pas sur les autres', () => {
     const state = createLudo(['a', 'b'], { bonusMode: true })
-    landOnBonus(state, bonusRand(3))
-    expect(state.players[0]!.shield).toBe(true)
+    landOnBonus(state, bonusRand(3)) // c'est le pion 0 qui ramasse
+    expect(state.players[0]!.shields[0]).toBe(true)
+    expect(state.players[0]!.shields.filter(Boolean)).toHaveLength(1)
   })
 
   it('↔️ échange de positions', () => {

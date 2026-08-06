@@ -510,9 +510,12 @@ const serverRand = () => randomInt(1_000_000) / 1_000_000
 export function ludoRollRoom(room: Room, memberId: string): { player: number; value: number } {
   if (room.status !== 'playing' || !room.ludoGame) throw new RoomError('Aucune partie en cours')
   const player = room.ludoGame.players.findIndex((p) => p.id === memberId)
-  // Dé PIPÉ maison : le 6 sort 1 fois sur 3 (règle de la table — deux fois
-  // plus de fun), les faces 1-5 se partagent le reste (2/15 chacune).
-  const value = randomInt(0, 3) === 0 ? 6 : randomInt(1, 6)
+  // Dé PIPÉ maison, SANS séries : le 6 sort 1 fois sur 3 au PREMIER lancer
+  // du tour (2/15 pour chaque autre face) ; comme un 6 fait rejouer, le
+  // boost serait cumulatif et enchaînerait les 6 — les relances repassent
+  // donc sur un dé équitable (6 à 1/6). Séries : 2 six ≈ 5,5 %, 3 ≈ 0,9 %.
+  const boosted = room.ludoGame.consecutiveSixes === 0
+  const value = boosted ? (randomInt(0, 3) === 0 ? 6 : randomInt(1, 6)) : randomInt(1, 7)
   ludoRoll(room.ludoGame, memberId, value)
   // UN SEUL pion jouable → il avance tout seul, sans sélection (la sélection
   // n'apparaît qu'à partir de 2 pions possibles).
