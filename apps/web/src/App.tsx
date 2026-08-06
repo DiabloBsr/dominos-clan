@@ -392,6 +392,10 @@ export default function App() {
       // Le cri reste lisible ~2 s (1,1 s était trop bref pour être lu).
       setTimeout(() => setPassFx((prev) => (prev?.key === key ? null : prev)), 2100)
     }
+    const onSterile = (s: { rounds: number }) =>
+      showNotice(
+        `🧹 ${s.rounds} manches sans la moindre marque — table renouvelée, la file prend les places !`,
+      )
     const onLudoRolled = (r: { player: number; value: number }) =>
       setLudoRollFx({ ...r, key: ++ludoRollKey.current })
     const onAborted = () => showNotice('Un joueur a quitté : manche annulée')
@@ -418,6 +422,7 @@ export default function App() {
     socket.on('sound:played', onSoundPlayed)
     socket.on('game:slam', onSlam)
     socket.on('game:passed', onPassed)
+    socket.on('game:sterile', onSterile)
     socket.on('ludo:rolled', onLudoRolled)
     socket.on('game:aborted', onAborted)
     socket.on('disconnect', onDisconnect)
@@ -438,6 +443,7 @@ export default function App() {
       socket.off('sound:played', onSoundPlayed)
       socket.off('game:slam', onSlam)
       socket.off('game:passed', onPassed)
+      socket.off('game:sterile', onSterile)
       socket.off('ludo:rolled', onLudoRolled)
       socket.off('game:aborted', onAborted)
       socket.off('disconnect', onDisconnect)

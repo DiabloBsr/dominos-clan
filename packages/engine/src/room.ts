@@ -44,6 +44,27 @@ export interface RoomView {
  * (le siège précédent dans l'ordre du tour) cède sa place en premier.
  * Sans file, les mêmes joueurs rejouent (gagnant en tête).
  */
+/**
+ * Table « stérile » : personne n'a ouvert son compteur après N manches — on
+ * renouvelle TOUTE la table. Les sortants partent en fin de file dans l'ordre,
+ * la file prend les sièges. S'il n'y a pas assez de monde en file, les premiers
+ * sortants complètent la table (et ne bougent donc pas).
+ */
+export function renewSterileTable(
+  seats: readonly string[],
+  queue: readonly string[],
+): { seats: string[]; queue: string[] } {
+  const outgoing = [...seats]
+  const incoming = queue.slice(0, outgoing.length)
+  const restQueue = queue.slice(incoming.length)
+  // Sièges non pourvus par la file : les premiers sortants restent assis.
+  const staying = outgoing.slice(0, outgoing.length - incoming.length)
+  return {
+    seats: [...incoming, ...staying],
+    queue: [...restQueue, ...outgoing.filter((id) => !staying.includes(id))],
+  }
+}
+
 export function rotateWinnerStays(
   seats: readonly string[],
   queue: readonly string[],

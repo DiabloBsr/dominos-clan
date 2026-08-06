@@ -7,6 +7,7 @@ import {
   applyMove,
   createGame,
   legalMoves,
+  renewSterileTable,
   rotateWinnerStays,
   undoLastMove,
 } from '@dominos-clan/engine'
@@ -613,8 +614,9 @@ export function redealNow(room: Room, memberId: string): void {
  * reste manuelle : on ne passe jamais à la place de quelqu'un qui peut jouer.
  * Retourne les membres passés d'office (pour annoncer leur cri).
  */
-function autoPassBlocked(room: Room): string[] {
+function autoPassBlocked(room: Room): { passed: string[]; sterile: boolean } {
   const passed: string[] = []
+  let sterile = false
   while (room.status === 'playing' && room.game && room.game.status === 'playing') {
     const current = room.game.players[room.game.turn]!
     const moves = legalMoves(room.game, current.id)
@@ -624,16 +626,22 @@ function autoPassBlocked(room: Room): string[] {
     room.game = applyMove(room.game, current.id, { type: 'pass' })
     passed.push(current.id)
     // Tout le monde a passé → manche bloquée : on solde et on sort.
-    if (room.game.status === 'finished') settleRoundEnd(room)
+    if (room.game.status === 'finished') sterile = settleRoundEnd(room) || sterile
   }
-  return passed
+  return { passed, sterile }
 }
 
-export function playMove(room: Room, memberId: string, move: Move): { autoPassed: string[] } {
+export function playMove(
+  room: Room,
+  memberId: string,
+  move: Move,
+): { autoPassed: string[]; sterile: boolean } {
   if (room.status !== 'playing' || !room.game) throw new RoomError('Aucune manche en cours')
   room.game = applyMove(room.game, memberId, move)
-  if (room.game.status === 'finished') settleRoundEnd(room)
-  return { autoPassed: autoPassBlocked(room) }
+  let sterile = false
+  if (room.game.status === 'finished') sterile = settleRoundEnd(room)
+  const auto = autoPassBlocked(room)
+  return { autoPassed: auto.passed, sterile: sterile || auto.sterile }
 }
 
 export function undoMove(room: Room, memberId: string): void {
@@ -642,7 +650,40 @@ export function undoMove(room: Room, memberId: string): void {
 }
 
 /** Fin de manche : scores, victoire éclair, vainqueur de match, rotation. */
-function settleRoundEnd(room: Room): void {
+/** Nombre de manches sans la moindre marque avant de renouveler la table. */
+export const STERILE_ROUNDS = 3
+
+/**
+ * Règle de la table « 3 manches pour rien » : en match aux points AVEC seuil
+ * d'ouverture, si aucun joueur n'a ouvert son compteur au bout de 3 manches,
+ * la partie est déclarée stérile — toute la table saute, la file prend les
+ * places et une nouvelle partie repart de zéro.
+ */
+function applySterileTableRule(room: Room): boolean {
+  if (room.rules.gameType !== 'dominos') return false
+  if (room.rules.targetScore === null || room.rules.openThreshold <= 0) return false
+  if (room.matchWinnerId !== null) return false // match déjà remporté : rotation normale
+  if (room.roundIndex < STERILE_ROUNDS) return false
+  if (!room.seats.every((id) => (room.scores.get(id) ?? 0) === 0)) return false
+
+  const renewed = renewSterileTable(room.seats, room.queue)
+  room.seats = renewed.seats
+  room.queue = renewed.queue
+  room.scores = new Map()
+  room.matchWinnerId = null
+  room.roundIndex = 0
+  room.lastStarterSeatIndex = null
+  room.lastWinnerId = null
+  return true
+}
+
+/** Solde la manche puis applique la règle de la table stérile. */
+function settleRoundEnd(room: Room): boolean {
+  settleRoundScores(room)
+  return applySterileTableRule(room)
+}
+
+function settleRoundScores(room: Room): void {
   room.status = 'finished'
   const result = room.game!.result!
   room.lastWinnerId = result.winnerId

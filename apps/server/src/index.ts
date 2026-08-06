@@ -46,6 +46,7 @@ import {
   restartRoom,
   roomView,
   roomsSnapshot,
+  STERILE_ROUNDS,
   sanitizeChatText,
   sanitizeTaunt,
   setRules,
@@ -430,7 +431,7 @@ io.on('connection', (socket: Socket) => {
     handle(ack, () => {
       const { room, memberId } = withRoom(state)
       if (!payload?.move) throw new RoomError('Coup manquant')
-      const { autoPassed } = playMove(room, memberId, payload.move)
+      const { autoPassed, sterile } = playMove(room, memberId, payload.move)
       // Claquage : le domino rabattu de toutes ses forces — tout le salon
       // entend le CLAC (pur effet d'ambiance, validé après le coup).
       if (payload.slam === true && payload.move.type === 'play') {
@@ -458,6 +459,9 @@ io.on('connection', (socket: Socket) => {
       }
       if (payload.move.type === 'pass') announcePass(memberId)
       for (const id of autoPassed) announcePass(id)
+      // Table stérile : 3 manches sans qu'un seul joueur ouvre son compteur
+      // → toute la table saute, la file prend les places.
+      if (sterile) io.to(room.code).emit('game:sterile', { rounds: STERILE_ROUNDS })
       broadcast(room)
     }),
   )

@@ -1,5 +1,30 @@
 import { describe, expect, it } from 'vitest'
-import { rotateWinnerStays } from '../src/room'
+import { renewSterileTable, rotateWinnerStays } from '../src/room'
+
+describe('renewSterileTable', () => {
+  it('file pleine : toute la table est remplacée, les sortants partent en fin de file', () => {
+    const { seats, queue } = renewSterileTable(['a', 'b', 'c'], ['x', 'y', 'z', 'w'])
+    expect(seats).toEqual(['x', 'y', 'z'])
+    expect(queue).toEqual(['w', 'a', 'b', 'c'])
+  })
+
+  it('file trop courte : les premiers sortants gardent leur siège', () => {
+    const { seats, queue } = renewSterileTable(['a', 'b', 'c'], ['x'])
+    expect(seats).toEqual(['x', 'a', 'b'])
+    expect(queue).toEqual(['c'])
+  })
+
+  it('file vide : personne ne bouge (la partie repart simplement à zéro)', () => {
+    const { seats, queue } = renewSterileTable(['a', 'b', 'c'], [])
+    expect(seats).toEqual(['a', 'b', 'c'])
+    expect(queue).toEqual([])
+  })
+
+  it('aucun joueur n’est perdu ni dupliqué', () => {
+    const { seats, queue } = renewSterileTable(['a', 'b', 'c'], ['x', 'y'])
+    expect([...seats, ...queue].sort()).toEqual(['a', 'b', 'c', 'x', 'y'])
+  })
+})
 
 describe('rotateWinnerStays', () => {
   it('les perdants partent en fin de file, la file remplit les sièges', () => {
