@@ -67,7 +67,7 @@ export default function App() {
     null,
   )
   const [slamFx, setSlamFx] = useState<{ key: number; pseudo: string; taunt: string } | null>(null)
-  const [passFx, setPassFx] = useState<{ key: number; pseudo: string } | null>(null)
+  const [passFx, setPassFx] = useState<{ key: number; pseudo: string; cry: number } | null>(null)
   const [ludoRollFx, setLudoRollFx] = useState<{ player: number; value: number; key: number } | null>(
     null,
   )
@@ -385,11 +385,12 @@ export default function App() {
       setSlamFx({ key, pseudo: s.pseudo, taunt: (s.taunt ?? '').trim() })
       setTimeout(() => setSlamFx((prev) => (prev?.key === key ? null : prev)), 1000)
     }
-    const onPassed = (p: { pseudo: string }) => {
+    const onPassed = (p: { pseudo: string; cry?: number }) => {
       playPass()
       const key = ++passKey.current
-      setPassFx({ key, pseudo: p.pseudo })
-      setTimeout(() => setPassFx((prev) => (prev?.key === key ? null : prev)), 1100)
+      setPassFx({ key, pseudo: p.pseudo, cry: p.cry ?? 0 })
+      // Le cri reste lisible ~2 s (1,1 s était trop bref pour être lu).
+      setTimeout(() => setPassFx((prev) => (prev?.key === key ? null : prev)), 2100)
     }
     const onLudoRolled = (r: { player: number; value: number }) =>
       setLudoRollFx({ ...r, key: ++ludoRollKey.current })

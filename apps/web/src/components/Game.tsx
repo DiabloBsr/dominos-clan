@@ -376,9 +376,16 @@ export function Game({
             {canPass && (
               <button
                 className={`btn pass ${playMoves.length > 0 ? 'optional' : ''}`}
+                // Sans domino jouable, le serveur passe TOUT SEUL : ce bouton
+                // ne sert donc plus qu'à la passe libre (garder ses dominos).
+                title={
+                  playMoves.length > 0
+                    ? 'Passe libre : tu gardes tes dominos alors que tu pouvais jouer'
+                    : undefined
+                }
                 onClick={() => onMove({ type: 'pass' })}
               >
-                Je passe 😤
+                Paiky 😤
               </button>
             )}
             {game.canUndo && (

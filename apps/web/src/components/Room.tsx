@@ -16,6 +16,10 @@ import { Game } from './Game'
 
 const REACTIONS = ['😂', '🔥', '👏', '😮', '😭', '😈', '🤝', '💀']
 
+/** Cris de passe (dominos) — l'index est tiré par le serveur, tout le salon
+ *  voit donc le même cri au même instant. */
+const PASS_CRIES = ['Manaraky ao e!.😂', 'Mbo tsy mahefa lahy e!🤣', 'PAIKY😂']
+
 /** Soundboard : sons de chambrage joués chez TOUT le salon. */
 const SOUNDS: Array<{ kind: string; emoji: string; label: string }> = [
   { kind: 'pet', emoji: '💨', label: 'Prout' },
@@ -323,7 +327,7 @@ export function Room({
   friends: Friend[]
   friendStatuses: Record<string, FriendStatus>
   slamFx: { key: number; pseudo: string; taunt: string } | null
-  passFx: { key: number; pseudo: string } | null
+  passFx: { key: number; pseudo: string; cry: number } | null
   ludoRollFx: { player: number; value: number; key: number } | null
   onInvite: (toUserId: string) => void
   onSit: () => void
@@ -921,7 +925,7 @@ export function Room({
       )}
       {passFx && (
         <div className="slam-fx pass-fx" key={passFx.key}>
-          😭 JE PASSE&nbsp;!
+          {PASS_CRIES[passFx.cry % PASS_CRIES.length]}
         </div>
       )}
 

@@ -229,8 +229,10 @@ export function playDiceRoll(): void {
   // Hachage rapide du niveau : c'est LUI qui fait le « rrrrr ».
   const lfo = ac.createOscillator()
   lfo.type = 'square'
-  lfo.frequency.setValueAtTime(48, t0)
-  lfo.frequency.exponentialRampToValueAtTime(34, t0 + duration)
+  // 30 → 20 Hz : encore un roulement continu (au-dessus de ~10 Hz l'oreille
+  // ne sépare plus les grains), mais moins nerveux que le premier essai.
+  lfo.frequency.setValueAtTime(30, t0)
+  lfo.frequency.exponentialRampToValueAtTime(20, t0 + duration)
   const lfoGain = ac.createGain()
   lfoGain.gain.value = 0.12
   lfo.connect(lfoGain).connect(gain.gain)

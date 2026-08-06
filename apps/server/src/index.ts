@@ -1,4 +1,5 @@
 import { createServer } from 'node:http'
+import { randomInt } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import sirv from 'sirv'
@@ -429,7 +430,7 @@ io.on('connection', (socket: Socket) => {
     handle(ack, () => {
       const { room, memberId } = withRoom(state)
       if (!payload?.move) throw new RoomError('Coup manquant')
-      playMove(room, memberId, payload.move)
+      const { autoPassed } = playMove(room, memberId, payload.move)
       // Claquage : le domino rabattu de toutes ses forces — tout le salon
       // entend le CLAC (pur effet d'ambiance, validé après le coup).
       if (payload.slam === true && payload.move.type === 'play') {
@@ -443,11 +444,20 @@ io.on('connection', (socket: Socket) => {
             taunt: member.taunt,
           })
       }
-      // « JE PASSE 😭 » affiché chez tout le monde quand quelqu'un passe.
-      if (payload.move.type === 'pass') {
-        const member = room.members.get(memberId)
-        if (member) io.to(room.code).emit('game:passed', { memberId, pseudo: member.pseudo })
+      // Cri de passe affiché chez tout le monde — celui qui passe de son plein
+      // gré (passe libre) comme ceux passés d'office faute de domino jouable.
+      // L'index du cri est tiré par le SERVEUR : tout le salon voit le même.
+      const announcePass = (id: string) => {
+        const member = room.members.get(id)
+        if (!member) return
+        io.to(room.code).emit('game:passed', {
+          memberId: id,
+          pseudo: member.pseudo,
+          cry: randomInt(0, 3),
+        })
       }
+      if (payload.move.type === 'pass') announcePass(memberId)
+      for (const id of autoPassed) announcePass(id)
       broadcast(room)
     }),
   )

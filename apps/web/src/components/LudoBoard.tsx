@@ -235,7 +235,9 @@ function Die({ value, animKey }: { value: number; animKey: number }) {
   useEffect(() => {
     if (animKey === 0) return
     setRolling(true)
-    const settle = setTimeout(() => setRolling(false), 850)
+    // Culbute courte et nerveuse (0,5 s) : juste 30 ms avant la fin des
+    // animations CSS, pour que le ressort de pose enchaîne sans à-coup.
+    const settle = setTimeout(() => setRolling(false), 470)
     return () => clearTimeout(settle)
   }, [animKey, value])
   return (
@@ -290,7 +292,8 @@ export function LudoBoard({
   // résultat (~2 s), même si le tour est déjà passé — elle ne devient
   // grisâtre qu'APRÈS l'affichage du résultat.
   const [freshRoll, setFreshRoll] = useState<number | null>(null)
-  const freshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Plancher de lisibilité : la case reste vive au moins jusqu'à cet instant. */
+  const freshUntil = useRef(0)
   /** Retenue d'animation : les pions ne bougent qu'après la face affichée. */
   const animHoldUntil = useRef(0)
   /** Le prochain lancer n'est disponible qu'une fois TOUTES les animations
@@ -308,15 +311,17 @@ export function LudoBoard({
   useEffect(() => {
     if (!roll || roll.key === staleRollKey.current) return
     setLastRolls((prev) => ({ ...prev, [roll.player]: { value: roll.value, key: roll.key } }))
-    animHoldUntil.current = Date.now() + 1000
+    // Les pions démarrent dès que la face est posée (culbute de 0,5 s).
+    animHoldUntil.current = Date.now() + 550
     idleSince.current = 0
+    // La case du lanceur reste vive au moins ce temps-là, même si rien ne
+    // bouge : le résultat doit rester lisible avant l'extinction.
+    freshUntil.current = Date.now() + 900
     playDiceRoll()
     // Le lancer SUIVANT attend la fin de TOUTE la séquence (relâché par le
     // ticker d'animation quand plus rien n'est en file).
     setRollHold(true)
     setFreshRoll(roll.player)
-    if (freshTimer.current) clearTimeout(freshTimer.current)
-    freshTimer.current = setTimeout(() => setFreshRoll(null), 2100)
   }, [roll])
   // Reprise en cours de partie : le dé déjà tiré s'affiche sans culbute.
   useEffect(() => {
@@ -560,12 +565,13 @@ export function LudoBoard({
       if (queues.current.size === 0) {
         slidingKeys.current.clear()
         setMoving((prev) => (prev.size ? new Set<string>() : prev))
-        // Le dé du joueur suivant ne s'active qu'1 s APRÈS la fin complète
-        // de la séquence (le temps de voir où tout le monde est arrivé).
         if (idleSince.current === 0) idleSince.current = Date.now()
-        if (Date.now() - idleSince.current >= 1000) {
-          setRollHold((held) => (held ? false : held))
-        }
+        // Enchaînement lisible : tout s'arrête → la case du lanceur S'ÉTEINT
+        // → 0,5 s plus tard SEULEMENT, le dé suivant s'allume.
+        const greyAt = Math.max(idleSince.current, freshUntil.current)
+        const now = Date.now()
+        if (now >= greyAt) setFreshRoll((p) => (p === null ? p : null))
+        if (now >= greyAt + 500) setRollHold((held) => (held ? false : held))
         return
       }
       idleSince.current = 0

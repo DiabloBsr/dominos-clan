@@ -6,6 +6,7 @@ import {
   ROOM_CAPACITY,
   applyMove,
   createGame,
+  legalMoves,
   rotateWinnerStays,
   undoLastMove,
 } from '@dominos-clan/engine'
@@ -606,10 +607,33 @@ export function redealNow(room: Room, memberId: string): void {
   room.game!.redeals = [...priorRedeals, ...room.game!.redeals]
 }
 
-export function playMove(room: Room, memberId: string, move: Move): void {
+/**
+ * Passe AUTOMATIQUE : tant que le joueur au trait n'a AUCUN domino jouable,
+ * on passe pour lui (personne n'a à cliquer pour subir). La passe libre, elle,
+ * reste manuelle : on ne passe jamais à la place de quelqu'un qui peut jouer.
+ * Retourne les membres passés d'office (pour annoncer leur cri).
+ */
+function autoPassBlocked(room: Room): string[] {
+  const passed: string[] = []
+  while (room.status === 'playing' && room.game && room.game.status === 'playing') {
+    const current = room.game.players[room.game.turn]!
+    const moves = legalMoves(room.game, current.id)
+    // Un seul domino jouable suffit à rendre la main au joueur.
+    if (moves.some((m) => m.type === 'play')) break
+    if (!moves.some((m) => m.type === 'pass')) break
+    room.game = applyMove(room.game, current.id, { type: 'pass' })
+    passed.push(current.id)
+    // Tout le monde a passé → manche bloquée : on solde et on sort.
+    if (room.game.status === 'finished') settleRoundEnd(room)
+  }
+  return passed
+}
+
+export function playMove(room: Room, memberId: string, move: Move): { autoPassed: string[] } {
   if (room.status !== 'playing' || !room.game) throw new RoomError('Aucune manche en cours')
   room.game = applyMove(room.game, memberId, move)
   if (room.game.status === 'finished') settleRoundEnd(room)
+  return { autoPassed: autoPassBlocked(room) }
 }
 
 export function undoMove(room: Room, memberId: string): void {
