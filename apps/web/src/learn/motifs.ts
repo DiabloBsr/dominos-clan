@@ -25,8 +25,13 @@ export interface Motif {
   fen: string
   /** Ligne complète en SAN anglais. */
   line: string[]
-  /** Ce que la ligne doit prouver (vérifié par le script). */
-  expect: { kind: 'mate' } | { kind: 'win'; gain: number }
+  /**
+   * Ce que la ligne doit prouver (vérifié par le script).
+   * `advantage` sert aux attaques qui ne gagnent pas de matériel tout de
+   * suite mais laissent une position gagnante — les annoncer comme un mat
+   * forcé serait un mensonge.
+   */
+  expect: { kind: 'mate' } | { kind: 'win'; gain: number } | { kind: 'advantage'; cp: number }
   /** Commentaires par demi-coup. */
   notes: Record<number, string>
 }
@@ -61,12 +66,12 @@ export const MOTIFS: Motif[] = [
     title: 'La fourchette de pion',
     keyword: 'Fourchette',
     idea: 'Le pion est la pièce la moins chère : quand il fourche deux pièces, tu gagnes forcément.',
-    spot: 'Avant chaque poussée de pion, regarde les DEUX cases en diagonale devant lui.',
-    fen: '4k3/8/2n1b3/8/3P4/8/8/4K3 w - - 0 1',
-    line: ['d5', 'Nd8', 'dxe6'],
+    spot: 'Avant chaque poussée de pion, regarde les DEUX cases en diagonale devant lui — et vérifie que la case d’arrivée n’est pas défendue. Contre un FOU, la fourchette de pion ne marche jamais : le fou défend toujours la case d’où on l’attaque.',
+    fen: '4k3/8/2n1n3/8/3P4/8/8/4K3 w - - 0 1',
+    line: ['d5', 'Ncd8', 'dxe6'],
     expect: { kind: 'win', gain: 3 },
     notes: {
-      0: 'd5 attaque le cavalier c6 et le fou e6 en même temps. Un pion contre deux pièces.',
+      0: 'd5 attaque les deux cavaliers en même temps. Aucun des deux ne défend d5 — c’est ce qui rend la fourchette valable.',
       2: 'dxe6 : le pion rentre avec une pièce en poche.',
     },
   },
@@ -76,15 +81,14 @@ export const MOTIFS: Motif[] = [
     title: 'Le clouage',
     keyword: 'Clouage',
     idea: 'Une pièce ne peut plus bouger sans exposer une pièce plus chère derrière elle. Elle devient une statue — alors on la tape.',
-    spot: 'Aligne fou/tour/dame avec une pièce adverse ET quelque chose de gros derrière. Puis attaque la statue avec un pion.',
-    fen: '3qkb1r/ppp2ppp/5n2/6B1/4P3/8/PPP2PPP/4K2R w Kk - 0 1',
-    line: ['e5', 'Nd5', 'Bxd8', 'Kxd8'],
-    expect: { kind: 'win', gain: 6 },
+    spot: 'Aligne fou/tour/dame avec une pièce adverse ET le ROI derrière : là, la pièce clouée ne peut même pas bouger, c’est illégal. Ensuite on l’attaque une fois de plus qu’elle n’est défendue.',
+    fen: '4k3/8/2n5/1B6/3P4/8/8/4K3 w - - 0 1',
+    line: ['d5', 'Ke7', 'dxc6'],
+    expect: { kind: 'win', gain: 3 },
     notes: {
-      0: 'e5 attaque le cavalier f6… qui est cloué sur la dame d8 par le fou g5.',
-      1: 'Le cavalier fuit, mais il découvre la dame. C’est un clouage RELATIF : bouger est légal, juste ruineux.',
-      2: 'Fxd8 ramasse la dame.',
-      3: 'Le roi reprend le fou : dame contre fou, +6 pour les blancs.',
+      0: 'd5 attaque le cavalier c6, qui est cloué ABSOLUMENT : le bouger exposerait le roi e8 au fou b5. Il est donc condamné à rester.',
+      1: 'Le roi sort de la ligne pour libérer son cavalier… trop tard, c’est déjà le tour des blancs.',
+      2: 'dxc6 : un cavalier gratuit. Un clouage absolu, c’est une pièce en moins pour l’adversaire.',
     },
   },
   {
@@ -111,7 +115,7 @@ export const MOTIFS: Motif[] = [
     idea: 'Une pièce s’écarte et libère la ligne d’une autre. Deux attaques pour un seul coup.',
     spot: 'Regarde tes fous et tours bloqués par TES propres pièces : si la pièce bloquante peut partir en menaçant quelque chose, c’est une découverte.',
     fen: '8/6k1/2q5/8/3N4/8/1B6/6K1 w - - 0 1',
-    line: ['Nxc6', 'Kf7'],
+    line: ['Nxc6+', 'Kf7'],
     expect: { kind: 'win', gain: 9 },
     notes: {
       0: 'Cxc6 prend la dame ET découvre l’échec du fou b2 sur le roi g7.',
@@ -140,13 +144,14 @@ export const MOTIFS: Motif[] = [
     keyword: 'Déviation',
     idea: 'Une pièce adverse fait un travail vital. On la force à aller ailleurs — même si ça coûte du matériel.',
     spot: 'Demande-toi : « quelle pièce l’empêche de perdre ? ». Puis : « comment je l’oblige à bouger ? ».',
-    fen: 'r5k1/1P6/8/8/8/8/6PP/2R3K1 w - - 0 1',
-    line: ['Rc8+', 'Rxc8', 'bxc8=Q+', 'Kh7'],
+    fen: '3r2k1/1P6/8/8/8/8/6PP/2R3K1 w - - 0 1',
+    line: ['Rc8', 'Rf8', 'Rxf8+', 'Kxf8', 'b8=Q+'],
     expect: { kind: 'win', gain: 8 },
     notes: {
-      0: 'La tour a8 empêche b8=D. Tc8+ ! On lui offre la tour : elle ne peut pas refuser (c’est un échec).',
-      1: 'Txc8 — la tour a quitté la case a8. Son travail est fini.',
-      2: 'bxc8=D+ : le pion promeut EN PRENANT. Une dame pour une tour.',
+      0: 'La tour d8 a UN seul travail : tenir la case b8 pour empêcher la promotion. Tc8 ! On vient se coller à elle sur la 8e rangée.',
+      1: 'Elle esquive… mais en s’écartant elle abandonne la 8e rangée.',
+      2: 'Txf8+ : on échange les tours, le roi doit reprendre.',
+      4: 'b8=D+ : la voie est libre. Un pion vient de devenir une dame.',
     },
   },
   {
@@ -155,17 +160,19 @@ export const MOTIFS: Motif[] = [
     title: 'Le sacrifice grec (Fxh7+)',
     keyword: 'Sacrifice grec',
     idea: 'Le fou se donne sur h7 pour attirer le roi dehors, le cavalier arrive en g5, la dame en h5 : mat.',
-    spot: 'Il faut trois choses : fou en d3, cavalier en f3, et la dame qui peut atteindre h5. Si le roi noir a roqué et qu’aucune pièce ne garde h7, vise.',
-    fen: 'r4rk1/ppp2ppp/2n1p3/q7/3P4/2NB1N2/PPP2PPP/R2Q1RK1 w - - 0 1',
-    line: ['Bxh7+', 'Kxh7', 'Ng5+', 'Kg8', 'Qh5', 'Qxc3', 'Qh7#'],
-    expect: { kind: 'mate' },
+    spot: 'Il faut trois choses : fou en d3, cavalier en f3, et une dame qui peut rejoindre l’aile roi. Et surtout : AUCUN cavalier noir en f6, sinon il défend h5 et tout s’écroule.',
+    fen: 'rn3rk1/ppp2ppp/1q2p3/8/3P4/2NB1N2/PPP2PPP/R2QR1K1 w - - 0 1',
+    line: [
+      'Bxh7+', 'Kxh7', 'Qd3+', 'Kg8', 'Ng5', 'Rd8', 'Qh7+', 'Kf8', 'Qh8+', 'Ke7', 'Qxg7',
+    ],
+    expect: { kind: 'advantage', cp: 150 },
     notes: {
       0: 'Fxh7+ !! On donne un fou pour un pion. Ce n’est pas un cadeau : c’est un billet d’entrée.',
       1: 'Le roi prend — sinon il est juste un pion en moins pour rien.',
-      2: 'Cg5+ ! Le cavalier arrive avec échec, le roi doit reculer.',
-      4: 'Dh5 : la menace est Dh7 mat. Il n’y a presque jamais de défense.',
-      5: 'Les noirs prennent une pièce à l’autre bout… trop tard.',
-      6: 'Dh7# : la dame est protégée par le cavalier g5, et le roi est enterré par ses propres pions.',
+      2: 'Dd3+ : la dame arrive AVEC échec. Le roi doit rentrer.',
+      4: 'Cg5 : le cavalier rejoint l’attaque et menace Dh7 mat.',
+      6: 'Dh7+ chasse le roi hors de son abri…',
+      10: 'Dxg7 : le roi noir est nu au milieu de l’échiquier. Ce n’est pas un mat forcé, c’est une position gagnante — et c’est déjà énorme.',
     },
   },
   {
@@ -231,13 +238,13 @@ export const MOTIFS: Motif[] = [
     keyword: 'Escalier',
     idea: 'Deux tours qui alternent : une coupe le roi, l’autre le pousse. Rangée par rangée jusqu’au bord.',
     spot: 'Avec deux tours (ou tour + dame), tu n’as jamais besoin de calculer : applique la méthode.',
-    fen: '8/8/R7/4k3/8/8/8/1R5K w - - 0 1',
-    line: ['Rb5+', 'Ke4', 'Ra4+', 'Ke3', 'Rb3+', 'Ke2', 'Ra2+', 'Ke1', 'Rb1#'],
+    fen: '1R6/8/8/8/8/R7/3k4/7K w - - 0 1',
+    line: ['Rb2+', 'Kc1', 'Raa2', 'Kd1', 'Ra1#'],
     expect: { kind: 'mate' },
     notes: {
-      0: 'Tb5+ : la tour a6 interdit déjà la 6e rangée, celle-ci pousse le roi vers le bas.',
-      2: 'Ta4+ : l’autre tour prend le relais. Elles ne se gênent jamais.',
-      8: 'Tb1# : le roi est au bord, les deux dernières rangées sont couvertes. Mat.',
+      0: 'Tb2+ : la tour a3 interdit déjà la 3e rangée, celle-ci pousse le roi sur la première.',
+      2: 'Taa2 : les deux tours se rangent côte à côte sur la 2e. Le roi n’a plus qu’une rangée.',
+      4: 'Ta1# : une tour couvre la 1re, l’autre la 2e. C’est toute la méthode, et elle marche depuis n’importe quelle position.',
     },
   },
   {
@@ -279,8 +286,8 @@ export const MOTIFS: Motif[] = [
     title: 'Le mat d’Anastasie',
     keyword: 'Anastasie',
     idea: 'Le cavalier en e7 enferme le roi, on sacrifie une tour sur h7 pour l’attirer, et la deuxième tour mate sur la colonne h.',
-    spot: 'Il faut un cavalier qui contrôle g8 et deux tours. Vise la colonne h.',
-    fen: 'r5k1/6pp/8/3N3R/8/8/8/1K1R4 w - - 0 1',
+    spot: 'Il faut un cavalier qui contrôle g8 et deux tours, ET que le roi n’ait pas de fuite en f7 ou f8 — sinon il sort du filet et tout tombe à l’eau.',
+    fen: '5rk1/5ppp/8/3N3R/8/8/8/1K1R4 w - - 0 1',
     line: ['Ne7+', 'Kh8', 'Rxh7+', 'Kxh7', 'Rh1#'],
     expect: { kind: 'mate' },
     notes: {
@@ -297,12 +304,12 @@ export const MOTIFS: Motif[] = [
     keyword: 'Boden',
     idea: 'Deux fous sur des diagonales croisées piègent un roi qui a roqué du grand côté.',
     spot: 'Roi en c8, pion b7 : si tu peux dégager b7 par un sacrifice, les deux fous font le reste.',
-    fen: '2kr4/pp1p4/2n5/8/Q4B2/3B4/8/6K1 w - - 0 1',
+    fen: '2kr4/pp1n4/2n5/8/Q4B2/3B4/8/6K1 w - - 0 1',
     line: ['Qxc6+', 'bxc6', 'Ba6#'],
     expect: { kind: 'mate' },
     notes: {
       0: 'Dxc6+ !! La dame se sacrifie uniquement pour forcer le pion b7 à bouger.',
-      1: 'bxc6 — obligé, et la diagonale a6-c8 vient de s’ouvrir.',
+      1: 'bxc6 — obligé : c’est la SEULE reprise. S’il y avait un pion en d7, il reprendrait de l’autre côté, b7 resterait en place et tout le sacrifice tomberait à l’eau.',
       2: 'Fa6# : un fou tient a6-c8, l’autre tient f4-b8. Le roi est pris en croix.',
     },
   },

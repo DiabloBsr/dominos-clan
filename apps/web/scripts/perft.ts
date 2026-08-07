@@ -43,6 +43,9 @@ const SUITES: Suite[] = [
   },
 ]
 
+/** Positions où l'empreinte incrémentale a divergé du calcul complet. */
+let hashMismatches = 0
+
 function perft(board: Board, depth: number): number {
   if (depth === 0) return 1
   const moves = board.generateMoves()
@@ -50,6 +53,10 @@ function perft(board: Board, depth: number): number {
   let nodes = 0
   for (const move of moves) {
     board.makeMove(move)
+    // L'empreinte Zobrist est mise à jour par XOR à chaque coup. Ici on la
+    // recalcule DE ZÉRO et on exige l'égalité : une seule divergence rendrait
+    // la table de transposition menteuse, et l'IA jouerait des coups absurdes.
+    if (board.hash !== board.computeHash()) hashMismatches++
     nodes += perft(board, depth - 1)
     board.undoMove(move)
   }
@@ -94,6 +101,15 @@ console.log(
     totalNodes / seconds,
   ).toLocaleString('fr-FR')} coups/seconde`,
 )
+
+if (hashMismatches > 0) {
+  console.error(
+    `\n${hashMismatches} position(s) où l’empreinte Zobrist incrémentale diverge du calcul complet.`,
+  )
+  failed++
+} else {
+  console.log('🔑 Empreinte Zobrist : identique au recalcul sur TOUTES les positions visitées.')
+}
 
 if (failed > 0) {
   console.error(`\n${failed} test(s) perft en échec : le générateur est FAUX, ne pas s’en servir.`)

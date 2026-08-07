@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Chess, type Square } from 'chess.js'
-import { LESSONS, PUZZLES, PUZZLES_BY_LEVEL, QUIZ, type LearnGame } from '../learn/content'
+import { LESSONS, PUZZLES, PUZZLES_BY_LEVEL, type LearnGame } from '../learn/content'
+import { Board, moveFrom, moveTo, squareName } from '../learn/board0x88'
+import { quizSet } from '../learn/exercises'
 import { DailyTab, MotifsTab, OpeningsTab } from './Academy'
+import { MiniBoard } from './MiniBoard'
 import { loadStreak } from '../learn/daily'
 import { ChessPiece, type PieceType } from './ChessPieces'
 import { playCheck, playChessCapture, playChessMove, playMate, playVictory } from '../sounds'
@@ -261,91 +264,158 @@ function Training({
   )
 }
 
-/* ─── Quiz ───────────────────────────────────────────────────────────── */
+/* ─── Quiz SUR PLATEAU ───────────────────────────────────────────────── */
 
-function Quiz({ best, onScore }: { best: number; onScore: (score: number) => void }) {
+const QUIZ_LENGTH = 10
+
+/**
+ * Le quiz ne pose plus de questions à choix multiples : on affiche une
+ * position et il faut JOUER le bon coup. On retient un motif quand la main l'a
+ * exécuté, pas quand on a coché la bonne case.
+ */
+function BoardQuiz({ best, onScore }: { best: number; onScore: (score: number) => void }) {
+  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e9))
+  const series = useMemo(() => quizSet(QUIZ_LENGTH, seed), [seed])
   const [step, setStep] = useState(0)
-  const [picked, setPicked] = useState<number | null>(null)
   const [score, setScore] = useState(0)
   const [done, setDone] = useState(false)
-  const q = QUIZ[step]!
+  const [verdict, setVerdict] = useState<'ok' | 'ko' | null>(null)
+  const [showHint, setShowHint] = useState(false)
+  const [selected, setSelected] = useState<number | null>(null)
+  const [lastMove, setLastMove] = useState<{ from: number; to: number } | null>(null)
 
-  const answer = (i: number) => {
-    if (picked !== null) return
-    setPicked(i)
-    if (i === q.answer) setScore((s) => s + 1)
+  const exercise = series[step]!
+  const [board, setBoard] = useState(() => {
+    const b = new Board()
+    b.loadFen(exercise.fen)
+    return b
+  })
+
+  // Nouvelle position à chaque question.
+  useEffect(() => {
+    const b = new Board()
+    b.loadFen(exercise.fen)
+    setBoard(b)
+    setSelected(null)
+    setLastMove(null)
+    setVerdict(null)
+    setShowHint(false)
+  }, [exercise])
+
+  const legal = useMemo(
+    () => (selected === null ? [] : board.generateMoves().filter((m) => moveFrom(m) === selected)),
+    [board, selected],
+  )
+
+  const onSquare = (sq: number) => {
+    if (verdict !== null) return
+    const piece = board.squares[sq]!
+    const mine = piece !== 0 && (piece > 0 ? 1 : -1) === board.side
+    if (selected === null || mine) {
+      setSelected(mine ? sq : null)
+      return
+    }
+    const move = board.generateMoves().find((m) => moveFrom(m) === selected && moveTo(m) === sq)
+    setSelected(null)
+    if (move === undefined) return
+
+    const next = new Board()
+    next.loadFen(board.fen())
+    const captured = next.squares[moveTo(move)] !== 0
+    next.makeMove(move)
+    setBoard(next)
+    setLastMove({ from: moveFrom(move), to: moveTo(move) })
+    if (next.isCheckmate()) playMate()
+    else if (next.inCheck()) playCheck()
+    else if (captured) playChessCapture()
+    else playChessMove()
+
+    const good =
+      squareName(moveFrom(move)) === exercise.from && squareName(moveTo(move)) === exercise.to
+    setVerdict(good ? 'ok' : 'ko')
+    if (good) setScore((s) => s + 1)
   }
 
   const next = () => {
-    if (step >= QUIZ.length - 1) {
-      const finalScore = score
+    if (step >= series.length - 1) {
       setDone(true)
-      onScore(finalScore)
-      if (finalScore > best) playVictory()
+      onScore(score)
+      if (score > best) playVictory()
       return
     }
     setStep((s) => s + 1)
-    setPicked(null)
+  }
+
+  const restart = () => {
+    setSeed(Math.floor(Math.random() * 1e9))
+    setStep(0)
+    setScore(0)
+    setDone(false)
   }
 
   if (done) {
     return (
       <div className="learn-quiz">
         <h3>
-          🏁 Score : {score}/{QUIZ.length}
+          🏁 Score : {score}/{series.length}
         </h3>
         <p className="hint">
-          {score === QUIZ.length
-            ? 'Sans faute — tu connais les règles mieux que la table !'
-            : score >= QUIZ.length * 0.7
-              ? 'Solide. Relis les fiches pour le reste.'
-              : 'Passe un tour par l’onglet Règles, puis reviens.'}
+          {score === series.length
+            ? 'Sans faute — tu vois les motifs à l’œil nu.'
+            : score >= series.length * 0.7
+              ? 'Solide. Repasse par l’onglet Combinaisons pour le reste.'
+              : 'Va réviser les Combinaisons, puis reviens te venger.'}
           {score > best ? ' 🎉 Nouveau record !' : ` (record : ${Math.max(best, score)})`}
         </p>
-        <button
-          className="btn"
-          onClick={() => {
-            setStep(0)
-            setPicked(null)
-            setScore(0)
-            setDone(false)
-          }}
-        >
-          Rejouer le quiz
+        <button className="btn" onClick={restart}>
+          Une nouvelle série
         </button>
       </div>
     )
   }
 
   return (
-    <div className="learn-quiz">
-      <div className="learn-head">
-        <h3>
-          Question {step + 1}/{QUIZ.length}{' '}
-          <span className="quiz-tag">{GAME_LABELS[q.game]}</span>
-        </h3>
-        <p className="quiz-question">{q.question}</p>
+    <div className="learn-quiz board-quiz">
+      <div className="quiz-head">
+        <span className="quiz-count">
+          {step + 1}/{series.length}
+        </span>
+        <span className="quiz-theme">{exercise.theme}</span>
+        <span className="quiz-score">✅ {score}</span>
       </div>
-      <div className="quiz-options">
-        {q.options.map((opt, i) => (
-          <button
-            key={i}
-            className={`btn ghost quiz-opt ${
-              picked === null ? '' : i === q.answer ? 'good' : i === picked ? 'bad' : 'dim'
-            }`}
-            onClick={() => answer(i)}
-          >
-            {opt}
-          </button>
-        ))}
-      </div>
-      {picked !== null && (
+      <p className="quiz-question">
+        {exercise.question} Aux {exercise.side === 'w' ? 'blancs' : 'noirs'} de jouer.
+      </p>
+
+      <MiniBoard
+        board={board}
+        flipped={exercise.side === 'b'}
+        selected={selected}
+        legalMoves={legal}
+        lastMove={lastMove}
+        onSquare={onSquare}
+      />
+
+      {verdict === null ? (
         <>
-          <p className={`learn-verdict ${picked === q.answer ? 'ok' : 'ko'}`}>
-            {picked === q.answer ? '✅ Exact !' : '❌ Raté.'} {q.explanation}
+          <div className="line-controls">
+            <button className="btn ghost sm" onClick={() => setShowHint((s) => !s)}>
+              {showHint ? 'Cacher l’indice' : '💡 Indice'}
+            </button>
+            <button className="btn ghost sm" onClick={() => setVerdict('ko')}>
+              Je donne ma langue au chat
+            </button>
+          </div>
+          {showHint && <p className="line-hint">{exercise.hint}</p>}
+        </>
+      ) : (
+        <>
+          <p className={`learn-verdict ${verdict}`}>
+            {verdict === 'ok' ? '✅ Exact !' : `❌ Il fallait jouer ${exercise.from}–${exercise.to}.`}{' '}
+            {exercise.explanation}
           </p>
           <button className="btn" onClick={next}>
-            {step >= QUIZ.length - 1 ? 'Voir mon score' : 'Question suivante →'}
+            {step >= series.length - 1 ? 'Voir mon score' : 'Position suivante →'}
           </button>
         </>
       )}
@@ -357,8 +427,12 @@ function Quiz({ best, onScore }: { best: number; onScore: (score: number) => voi
 
 type Tab = 'daily' | 'rules' | 'openings' | 'motifs' | 'training' | 'quiz'
 
-export function Learn({ onBack }: { onBack: () => void }) {
-  const [tab, setTab] = useState<Tab>('daily')
+/**
+ * Écran d'apprentissage. Aux échecs c'est l'ACADÉMIE complète ; pour les autres
+ * jeux ce sont simplement leurs règles, ouvertes depuis leur propre panneau.
+ */
+export function Learn({ game = 'chess', onBack }: { game?: LearnGame; onBack: () => void }) {
+  const [tab, setTab] = useState<Tab>(game === 'chess' ? 'daily' : 'rules')
   const [progress, setProgress] = useState<Progress>(() => loadProgress())
   const [openLesson, setOpenLesson] = useState<string | null>(null)
   // Lu une seule fois : sert juste à afficher la flamme sur l'onglet.
@@ -382,6 +456,8 @@ export function Learn({ onBack }: { onBack: () => void }) {
     })
   }
 
+  const lessons = LESSONS.filter((l) => l.game === game)
+
   return (
     <main className="home learn">
       <header className="hub-header">
@@ -389,38 +465,53 @@ export function Learn({ onBack }: { onBack: () => void }) {
           ← Retour
         </button>
         <h1 className="wordmark small">
-          📚 Appren<span>dre</span>
+          {game === 'chess' ? '📚 Acadé' : '📖 Rè'}
+          <span>{game === 'chess' ? 'mie' : 'gles'}</span>
         </h1>
       </header>
 
       <div className="learn-tabs">
-        <button className={`btn ${tab === 'daily' ? '' : 'ghost'} sm`} onClick={() => setTab('daily')}>
-          🔥 Défi du jour{streakAtOpen > 0 ? ` (${streakAtOpen})` : ''}
-        </button>
-        <button
-          className={`btn ${tab === 'openings' ? '' : 'ghost'} sm`}
-          onClick={() => setTab('openings')}
-        >
-          📚 Ouvertures
-        </button>
-        <button
-          className={`btn ${tab === 'motifs' ? '' : 'ghost'} sm`}
-          onClick={() => setTab('motifs')}
-        >
-          ⚡ Combinaisons
-        </button>
+        {game === 'chess' && (
+          <>
+            <button
+              className={`btn ${tab === 'daily' ? '' : 'ghost'} sm`}
+              onClick={() => setTab('daily')}
+            >
+              🔥 Défi du jour{streakAtOpen > 0 ? ` (${streakAtOpen})` : ''}
+            </button>
+            <button
+              className={`btn ${tab === 'openings' ? '' : 'ghost'} sm`}
+              onClick={() => setTab('openings')}
+            >
+              📚 Ouvertures
+            </button>
+            <button
+              className={`btn ${tab === 'motifs' ? '' : 'ghost'} sm`}
+              onClick={() => setTab('motifs')}
+            >
+              ⚡ Combinaisons
+            </button>
+          </>
+        )}
         <button className={`btn ${tab === 'rules' ? '' : 'ghost'} sm`} onClick={() => setTab('rules')}>
           📖 Règles
         </button>
-        <button
-          className={`btn ${tab === 'training' ? '' : 'ghost'} sm`}
-          onClick={() => setTab('training')}
-        >
-          ♟️ Entraînement ({progress.solved.length}/{PUZZLES.length})
-        </button>
-        <button className={`btn ${tab === 'quiz' ? '' : 'ghost'} sm`} onClick={() => setTab('quiz')}>
-          ❓ Quiz ({progress.bestQuiz}/{QUIZ.length})
-        </button>
+        {game === 'chess' && (
+          <>
+            <button
+              className={`btn ${tab === 'training' ? '' : 'ghost'} sm`}
+              onClick={() => setTab('training')}
+            >
+              ♟️ Entraînement ({progress.solved.length}/{PUZZLES.length})
+            </button>
+            <button
+              className={`btn ${tab === 'quiz' ? '' : 'ghost'} sm`}
+              onClick={() => setTab('quiz')}
+            >
+              🎯 Quiz sur plateau ({progress.bestQuiz}/{QUIZ_LENGTH})
+            </button>
+          </>
+        )}
       </div>
 
       {tab === 'daily' && <DailyTab />}
@@ -429,7 +520,7 @@ export function Learn({ onBack }: { onBack: () => void }) {
 
       {tab === 'rules' && (
         <div className="learn-lessons">
-          {LESSONS.map((l) => (
+          {lessons.map((l) => (
             <div key={l.id} className={`lesson-card ${openLesson === l.id ? 'open' : ''}`}>
               <button
                 className="lesson-head"
@@ -454,7 +545,7 @@ export function Learn({ onBack }: { onBack: () => void }) {
       )}
 
       {tab === 'training' && <Training solved={progress.solved} onSolved={markSolved} />}
-      {tab === 'quiz' && <Quiz best={progress.bestQuiz} onScore={recordScore} />}
+      {tab === 'quiz' && <BoardQuiz best={progress.bestQuiz} onScore={recordScore} />}
     </main>
   )
 }

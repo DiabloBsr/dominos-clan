@@ -85,7 +85,45 @@ interface Undo {
   ep: number
   halfmove: number
   kingSquare: number
+  /** Empreinte AVANT le coup : restaurée telle quelle, elle ne peut pas dériver. */
+  hash: number
 }
+
+/* ─── Hachage Zobrist ──────────────────────────────────────────────────
+ *
+ * Chaque position reçoit une empreinte de 32 bits, mise à jour à chaque coup
+ * par simples XOR (donc gratuite). C'est ce qui rend possible la table de
+ * transposition : reconnaître une position DÉJÀ analysée, quel que soit
+ * l'ordre des coups qui y a mené.
+ *
+ * Les nombres viennent d'un générateur à graine fixe : la même position donne
+ * la même empreinte à chaque exécution, sur toutes les machines.
+ */
+const zobristRandom = (() => {
+  let state = 0x9e3779b9
+  return () => {
+    state ^= state << 13
+    state ^= state >>> 17
+    state ^= state << 5
+    return state | 0
+  }
+})()
+
+/** Index 1..12 d'une pièce signée, pour adresser la table. */
+const zIndex = (piece: number): number => (piece > 0 ? piece : 6 - piece)
+
+const Z_PIECE = (() => {
+  const table: number[][] = []
+  for (let i = 0; i < 13; i++) {
+    const row: number[] = []
+    for (let sq = 0; sq < 128; sq++) row.push(zobristRandom())
+    table.push(row)
+  }
+  return table
+})()
+const Z_SIDE = zobristRandom()
+const Z_CASTLE = Array.from({ length: 16 }, () => zobristRandom())
+const Z_EP = Array.from({ length: 8 }, () => zobristRandom())
 
 export class Board {
   /** Pièce par case : positif = blanc, négatif = noir, 0 = vide. */
@@ -97,6 +135,8 @@ export class Board {
   halfmove = 0
   fullmove = 1
   kings: Record<number, number> = { [WHITE]: -1, [BLACK]: -1 }
+  /** Empreinte Zobrist de la position courante (32 bits signés). */
+  hash = 0
   private history: Undo[] = []
 
   constructor(fen?: string) {
@@ -130,6 +170,21 @@ export class Board {
     this.halfmove = Number(half ?? 0)
     this.fullmove = Number(full ?? 1)
     this.history = []
+    this.hash = this.computeHash()
+  }
+
+  /** Empreinte recalculée de zéro — sert de référence pour vérifier l'incrément. */
+  computeHash(): number {
+    let hash = 0
+    for (let sq = 0; sq < 128; sq++) {
+      if ((sq & 0x88) !== 0) continue
+      const piece = this.squares[sq]!
+      if (piece !== 0) hash ^= Z_PIECE[zIndex(piece)]![sq]!
+    }
+    hash ^= Z_CASTLE[this.castling]!
+    if (this.ep >= 0) hash ^= Z_EP[fileOf(this.ep)]!
+    if (this.side === BLACK) hash ^= Z_SIDE
+    return hash | 0
   }
 
   fen(): string {
@@ -331,26 +386,42 @@ export class Board {
     let capturedSquare = to
     if (flag === FLAG_EP) capturedSquare = side === WHITE ? to - 16 : to + 16
 
+    const captured = this.squares[capturedSquare]!
     this.history.push({
-      captured: this.squares[capturedSquare]!,
+      captured,
       capturedSquare,
       castling: this.castling,
       ep: this.ep,
       halfmove: this.halfmove,
       kingSquare: this.kings[side]!,
+      hash: this.hash,
     })
+
+    // Empreinte : on retire l'ancien contexte (prise en passant, roques) et la
+    // pièce qui part, on ajoute ce qui arrive. Tout est réversible par XOR.
+    let hash = this.hash
+    if (this.ep >= 0) hash ^= Z_EP[fileOf(this.ep)]!
+    hash ^= Z_CASTLE[this.castling]!
+    if (captured !== 0) hash ^= Z_PIECE[zIndex(captured)]![capturedSquare]!
+    hash ^= Z_PIECE[zIndex(piece)]![from]!
 
     this.squares[capturedSquare] = EMPTY
     this.squares[from] = EMPTY
-    this.squares[to] = flag === FLAG_PROMO ? side * movePromo(move) : piece
+    const landing = flag === FLAG_PROMO ? side * movePromo(move) : piece
+    this.squares[to] = landing
+    hash ^= Z_PIECE[zIndex(landing)]![to]!
     if (Math.abs(piece) === KING) this.kings[side] = to
 
     if (flag === FLAG_CASTLE_K) {
-      this.squares[to - 1] = this.squares[to + 1]!
+      const rook = this.squares[to + 1]!
+      this.squares[to - 1] = rook
       this.squares[to + 1] = EMPTY
+      hash ^= Z_PIECE[zIndex(rook)]![to + 1]! ^ Z_PIECE[zIndex(rook)]![to - 1]!
     } else if (flag === FLAG_CASTLE_Q) {
-      this.squares[to + 1] = this.squares[to - 2]!
+      const rook = this.squares[to - 2]!
+      this.squares[to + 1] = rook
       this.squares[to - 2] = EMPTY
+      hash ^= Z_PIECE[zIndex(rook)]![to - 2]! ^ Z_PIECE[zIndex(rook)]![to + 1]!
     }
 
     // Droits de roque : perdus dès que le roi ou une tour bouge (ou est prise).
@@ -368,6 +439,31 @@ export class Board {
     this.halfmove = Math.abs(piece) === PAWN || moveCapt(move) ? 0 : this.halfmove + 1
     if (side === BLACK) this.fullmove += 1
     this.side = -side
+
+    hash ^= Z_CASTLE[this.castling]!
+    if (this.ep >= 0) hash ^= Z_EP[fileOf(this.ep)]!
+    this.hash = (hash ^ Z_SIDE) | 0
+  }
+
+  /**
+   * Coup NUL : on passe la main sans jouer. Sert à l'élagage « null move » —
+   * si l'adversaire ne peut pas nous faire mal même quand on lui offre un coup
+   * gratuit, la branche ne mérite pas d'être explorée.
+   */
+  makeNullMove(): { ep: number; hash: number } {
+    const saved = { ep: this.ep, hash: this.hash }
+    let hash = this.hash
+    if (this.ep >= 0) hash ^= Z_EP[fileOf(this.ep)]!
+    this.ep = -1
+    this.side = -this.side
+    this.hash = (hash ^ Z_SIDE) | 0
+    return saved
+  }
+
+  undoNullMove(saved: { ep: number; hash: number }): void {
+    this.side = -this.side
+    this.ep = saved.ep
+    this.hash = saved.hash
   }
 
   undoMove(move: number): void {
@@ -382,6 +478,7 @@ export class Board {
     this.castling = undo.castling
     this.ep = undo.ep
     this.halfmove = undo.halfmove
+    this.hash = undo.hash
 
     const moved = flag === FLAG_PROMO ? side * PAWN : this.squares[to]!
     this.squares[from] = moved

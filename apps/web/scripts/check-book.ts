@@ -24,6 +24,7 @@ import {
 import { OPENINGS } from '../src/learn/openings'
 import { MOTIFS } from '../src/learn/motifs'
 import { EMPTY_STREAK, dailyMotif, dailyPuzzle, daysBetween, recordDaily } from '../src/learn/daily'
+import { clearTables, rankRootMoves } from '../src/learn/search'
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 const VALUE: Record<number, number> = {
@@ -127,11 +128,20 @@ for (const motif of MOTIFS) {
     if (motif.line.length % 2 === 0) {
       fail(label, 'la ligne finit sur un coup adverse alors qu’elle annonce un mat')
     }
-  } else {
+  } else if (motif.expect.kind === 'win') {
     const endDelta = material(end, solver) - material(end, -solver)
     const gain = endDelta - startDelta
     if (gain < motif.expect.gain) {
       fail(label, `gain annoncé ${motif.expect.gain}, gain réel ${gain}`)
+    }
+  } else {
+    // Avantage positionnel : on demande au moteur ce qu'il pense de la
+    // position finale, du point de vue de celui qui a mené l'attaque.
+    clearTables()
+    const verdict = rankRootMoves(end, 6, 2000)[0]?.score ?? 0
+    const forSolver = end.side === solver ? verdict : -verdict
+    if (forSolver < motif.expect.cp) {
+      fail(label, `avantage annoncé ${motif.expect.cp} centipions, mesuré ${forSolver}`)
     }
   }
 
@@ -140,6 +150,39 @@ for (const motif of MOTIFS) {
     if (!Number.isInteger(idx) || idx < 0 || idx >= motif.line.length) {
       fail(label, `note sur le demi-coup ${key} qui n'existe pas`)
     }
+  }
+
+  // SOLIDITÉ — le test le plus important, et celui qui manquait.
+  //
+  // Rejouer la ligne prouve seulement qu'elle est LÉGALE. Elle peut être
+  // réfutée par une meilleure défense qu'on n'a pas écrite : c'est exactement
+  // ce qui s'était produit pour deux motifs (les noirs reprenaient de l'autre
+  // côté, et la combinaison tombait). On vérifie donc que CHAQUE réponse
+  // adverse de la ligne est bien la meilleure du camp adverse.
+  const probe = new Board()
+  probe.loadFen(motif.fen)
+  for (let i = 0; i < motif.line.length; i++) {
+    const move = probe.findSan(motif.line[i]!)
+    if (move === null) break
+    const defending = i % 2 === 1
+    if (defending) {
+      clearTables()
+      const ranked = rankRootMoves(probe, 6, 1500)
+      const bestScore = ranked[0]?.score ?? 0
+      const chosen = ranked.find((r) => r.move === move)
+      // Une défense strictement meilleure que celle qu'on propose signifie que
+      // la combinaison ne fonctionne pas.
+      if (chosen && bestScore - chosen.score > 80) {
+        const refutation = probe.san(ranked[0]!.move)
+        fail(
+          label,
+          `la défense ${motif.line[i]} n'est pas la meilleure : ${refutation} réfute la combinaison ` +
+            `(${chosen.score} contre ${bestScore})`,
+        )
+        break
+      }
+    }
+    probe.makeMove(move)
   }
 }
 console.log(`  ${failures === before ? '✅' : '⚠️'} ${MOTIFS.length} motifs rejoués`)

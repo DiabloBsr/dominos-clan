@@ -1296,19 +1296,40 @@ button.domino:disabled {
   font-style: italic;
 }
 
+/* Emojis et sons : COLONNE VERTICALE collée au bord droit. En barre
+   horizontale en bas, elle passait par-dessus le plateau et cachait les
+   dernières rangées. Le plateau se réserve la place via le gouttière de
+   `.table-arena`, donc les deux ne se croisent jamais. */
 .reactions-bar {
   position: fixed;
-  bottom: 0.9rem;
-  left: 50%;
-  transform: translateX(-50%);
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
-  gap: 0.3rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 78vh;
+  overflow-y: auto;
+  scrollbar-width: none;
   background: rgba(8, 20, 14, 0.85);
   border: 1px solid rgba(247, 242, 231, 0.12);
   border-radius: 999px;
-  padding: 0.35rem 0.6rem;
+  padding: 0.5rem 0.3rem;
   backdrop-filter: blur(8px);
   z-index: 50;
+}
+
+.reactions-bar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Gouttière à droite : le plateau ne passe jamais sous la colonne d'emojis.
+   Les échecs ont leur PROPRE conteneur (`.chess-game`), pas `.table-arena` :
+   l'oublier laissait l'échiquier passer sous les emojis. */
+.table-arena,
+.chess-game,
+.ludo-game {
+  padding-right: 3rem;
 }
 
 .react-btn {
@@ -1596,23 +1617,26 @@ button.domino:disabled {
     white-space: nowrap;
   }
 
-  /* La barre d'emojis s'arrête AVANT la bulle 💬 : plus de chevauchement.
-     Si elle est trop large, elle défile dans sa propre bande. */
+  /* Sur mobile la colonne reste à droite mais se resserre, et elle s'arrête
+     au-dessus de la bulle 💬 pour ne rien recouvrir. */
   .reactions-bar {
-    left: 0.6rem;
-    right: 4.2rem;
-    transform: none;
-    justify-content: flex-start;
-    overflow-x: auto;
-    scrollbar-width: none;
+    right: 0.25rem;
+    max-height: 62vh;
+    gap: 0.15rem;
+    padding: 0.35rem 0.2rem;
   }
 
-  .reactions-bar::-webkit-scrollbar {
-    display: none;
+  .table-arena,
+  .chess-game,
+  .ludo-game {
+    padding-right: 2.4rem;
   }
 
   .react-btn {
     flex: none;
+    width: 1.9rem;
+    height: 1.9rem;
+    font-size: 1.05rem;
   }
 
   /* Les pastilles « untel a réagi » flottent AU-DESSUS des icônes du bas. */
@@ -1942,7 +1966,10 @@ section.game {
 
 .chess-board {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  /* minmax(0, 1fr) et pas 1fr : sinon chaque case refuse de descendre sous la
+     largeur intrinsèque du SVG de la pièce, les 8 colonnes débordent et
+     `overflow: hidden` ampute la colonne h. */
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   /* Piloté par la hauteur flex RESTANTE (après les rangées joueurs) : la
      largeur découle de la hauteur via aspect-ratio — jamais coupé, PC comme
      mobile, quelle que soit la place prise par le reste de l'interface. */
@@ -1951,7 +1978,10 @@ section.game {
   height: auto;
   width: auto;
   aspect-ratio: 1;
+  /* Les DEUX plafonds, sinon la hauteur flex l'emporte sur `aspect-ratio` et
+     les cases deviennent des rectangles. */
   max-width: min(94vw, 30rem);
+  max-height: min(94vw, 30rem);
   align-self: center;
   border-radius: 8px;
   overflow: hidden;
@@ -4033,6 +4063,17 @@ section.game {
 
 /* ─── Académie : ouvertures, combinaisons, défi du jour ───────────────── */
 
+/* HORS TABLE DE JEU (académie, solo, puzzles) l'échiquier n'est plus piloté
+   par la hauteur restante de la table : `flex: 1 1 0` lui donnerait une
+   hauteur de ZÉRO et le plateau disparaîtrait complètement — c'est arrivé.
+   Ici c'est la LARGEUR qui commande, et aspect-ratio en déduit la hauteur. */
+.learn .chess-board {
+  flex: none;
+  width: min(92vw, 25rem);
+  height: auto;
+  max-width: none;
+}
+
 .academy-list,
 .academy-detail,
 .daily {
@@ -4284,5 +4325,73 @@ section.game {
 @media (max-width: 30rem) {
   .academy-cards {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Chantier en cours : on prévient SANS bloquer (l'académie est derrière). */
+.game-soon.wip {
+  background: rgba(226, 176, 76, 0.22);
+  color: var(--amber);
+}
+
+.game-card.wip {
+  border-color: rgba(226, 176, 76, 0.4);
+}
+
+/* Créer / rejoindre un salon depuis les Échecs */
+.friend-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(92vw, 22rem);
+  align-items: stretch;
+}
+
+/* Quiz sur plateau */
+.board-quiz {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.quiz-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  justify-content: center;
+}
+
+.quiz-count {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.quiz-theme {
+  padding: 0.15rem 0.6rem;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: var(--amber);
+  background: rgba(226, 176, 76, 0.14);
+  border: 1px solid rgba(226, 176, 76, 0.4);
+  border-radius: 999px;
+}
+
+.quiz-score {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* Le plateau est piloté par la HAUTEUR : sans ce plafond il déborde la
+   gouttière et repasse sous la colonne d'emojis (mesuré : 7 347 px² de
+   recouvrement sur un écran de 390 px). La règle doit venir APRÈS le
+   `max-width` de base, sinon c'est ce dernier qui gagne. */
+@media (max-width: 640px) {
+  .room .chess-board {
+    max-width: calc(100vw - 3.9rem);
+    max-height: calc(100vw - 3.9rem);
   }
 }

@@ -143,7 +143,9 @@ function MotifDetail({ motif, onBack }: { motif: Motif; onBack: () => void }) {
         endLabel={
           motif.expect.kind === 'mate'
             ? '👑 Mat. Retiens la FIGURE, pas les cases.'
-            : `✅ ${motif.expect.gain} points de matériel gagnés.`
+            : motif.expect.kind === 'win'
+              ? `✅ ${motif.expect.gain} points de matériel gagnés.`
+              : '🔥 Position gagnante : le roi adverse ne s’en remettra pas.'
         }
       />
     </div>

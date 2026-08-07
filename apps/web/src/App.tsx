@@ -34,6 +34,7 @@ import {
 import { Home } from './components/Home'
 import { ChessHub } from './components/ChessHub'
 import { Learn } from './components/Learn'
+import type { LearnGame } from './learn/content'
 import { Room } from './components/Room'
 
 export interface FloatingReaction {
@@ -68,8 +69,8 @@ export default function App() {
   const [knock, setKnock] = useState<{ fromUserId: string; fromPseudo: string; fromAvatar: string } | null>(
     null,
   )
-  /** Écran « Apprendre » (solo, hors salon). */
-  const [learning, setLearning] = useState(false)
+  /** Règles d'un jeu, ouvertes depuis son propre panneau (null = fermé). */
+  const [learning, setLearning] = useState<LearnGame | null>(null)
   /** Écran de modes des Échecs (solo IA / coaché / avec un ami). */
   const [chessHub, setChessHub] = useState(false)
   const [slamFx, setSlamFx] = useState<{ key: number; pseudo: string; taunt: string } | null>(null)
@@ -681,17 +682,17 @@ export default function App() {
         </div>
       )}
       {learning && !room ? (
-        <Learn onBack={() => setLearning(false)} />
+        <Learn game={learning} onBack={() => setLearning(null)} />
       ) : chessHub && !room ? (
         <ChessHub
           onBack={() => setChessHub(false)}
-          onLearn={() => {
-            setChessHub(false)
-            setLearning(true)
-          }}
-          onFriendGame={() => {
+          onCreate={() => {
             setChessHub(false)
             handlers.onCreate('chess')
+          }}
+          onJoin={(code) => {
+            setChessHub(false)
+            handlers.onJoin(code)
           }}
         />
       ) : room && selfId ? (
@@ -726,7 +727,7 @@ export default function App() {
           onKnock={handlers.onKnock}
           onCreate={handlers.onCreate}
           onJoin={handlers.onJoin}
-          onLearn={() => setLearning(true)}
+          onLearn={(g) => setLearning(g)}
           onChessHub={() => setChessHub(true)}
         />
       )}

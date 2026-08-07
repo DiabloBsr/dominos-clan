@@ -14,13 +14,12 @@ import {
 } from '../learn/board0x88'
 import {
   AI_LEVELS,
-  aiMove,
   formatScore,
-  reviewMove,
   verdictLabel,
   type AiProfile,
   type MoveReview,
 } from '../learn/ai'
+import { requestMove, requestReview } from '../learn/engineClient'
 import { MiniBoard } from './MiniBoard'
 import { playCheck, playChessCapture, playChessMove, playMate, playVictory } from '../sounds'
 
@@ -119,12 +118,13 @@ export function SoloChess({
   }, [playerSide])
 
   /**
-   * Tour de l'IA : on laisse l'écran se repeindre (« réfléchit… ») avant de
-   * lancer la recherche, qui est synchrone.
+   * Tour de l'IA. La recherche part dans un WORKER : au niveau Grand Maître
+   * elle peut réfléchir plusieurs secondes, et sur le fil principal l'onglet
+   * paraîtrait planté.
    *
    * Le garde est une RÉFÉRENCE, pas l'état `thinking` : mettre l'état dans
-   * les dépendances relançait l'effet, dont le nettoyage annulait aussitôt le
-   * minuteur — l'IA ne jouait jamais.
+   * les dépendances relançait l'effet, dont le nettoyage annulait aussitôt la
+   * demande — l'IA ne jouait jamais.
    */
   const aiBusy = useRef(false)
   useEffect(() => {
@@ -132,32 +132,47 @@ export function SoloChess({
     if (boardRef.current.side === playerSide) return
     aiBusy.current = true
     setThinking(true)
-    const timer = setTimeout(() => {
-      const choice = aiMove(boardRef.current, profile)
-      if (choice) applyMove(choice.move)
+    let cancelled = false
+    void requestMove(boardRef.current.fen(), profile).then((choice) => {
       aiBusy.current = false
       setThinking(false)
+      if (cancelled) return
+      if (choice) {
+        // Le coup vient d'un autre thread : on le retrouve dans NOTRE position
+        // plutôt que de faire confiance à un entier calculé ailleurs.
+        const legal = boardRef.current.generateMoves()
+        const move = legal.includes(choice.move) ? choice.move : null
+        if (move !== null) applyMove(move)
+      }
       const end = checkEnd()
       if (end) {
         setGameOver(end)
         if (end.startsWith('🏆')) playVictory()
       }
-    }, 120)
-    return () => clearTimeout(timer)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [history, gameOver, playerSide, profile, applyMove, checkEnd])
 
   const playerMove = (move: number) => {
     const b = boardRef.current
     // Le coach juge AVANT que le coup soit joué (il compare aux alternatives).
-    const review = coached ? reviewMove(b, move, 2) : undefined
-    if (review) setCoachNote(review)
-    applyMove(move, review)
+    const fenBefore = b.fen()
+    applyMove(move)
     setSelected(null)
     setLegalForSquare([])
     const end = checkEnd()
     if (end) {
       setGameOver(end)
       if (end.startsWith('🏆')) playVictory()
+    }
+    if (coached) {
+      // La note arrive juste après le coup : on ne fait jamais attendre le
+      // joueur pour la voir jouer.
+      void requestReview(fenBefore, move, 6).then((review) => {
+        if (review) setCoachNote(review)
+      })
     }
   }
 
@@ -214,18 +229,19 @@ export function SoloChess({
     if (mine.length === 0) return
     setAnalysis({ done: 0, total: mine.length, reviews: [] })
     let index = 0
-    const step = () => {
+    const step = async () => {
       const played = mine[index]
       if (!played) return
-      const probe = new Board(played.fenBefore)
-      const review = reviewMove(probe, played.move, 3)
-      setAnalysis((a) =>
-        a ? { ...a, done: index + 1, reviews: [...a.reviews, review] } : a,
-      )
+      // Chaque coup est analysé dans le worker : la barre de progression
+      // continue d'avancer à l'écran pendant le calcul.
+      const review = await requestReview(played.fenBefore, played.move, 6)
+      if (review) {
+        setAnalysis((a) => (a ? { ...a, done: index + 1, reviews: [...a.reviews, review] } : a))
+      }
       index += 1
-      if (index < mine.length) setTimeout(step, 16)
+      if (index < mine.length) void step()
     }
-    setTimeout(step, 16)
+    void step()
   }
 
   const summary = analysis && analysis.done === analysis.total ? summarize(analysis.reviews) : null

@@ -17,10 +17,13 @@ const GAMES: Array<{
   emoji: string
   name: string
   tag: string
+  /** Grise complètement la carte. */
   soon?: boolean
+  /** Signale un chantier en cours SANS bloquer l'accès (l'académie est dedans). */
+  wip?: boolean
 }> = [
   { type: 'dominos', emoji: '🁫', name: 'Dominos', tag: '2-4 joueurs' },
-  { type: 'chess', emoji: '♟️', name: 'Échecs', tag: 'IA · coach · ami' },
+  { type: 'chess', emoji: '♟️', name: 'Échecs', tag: 'académie · IA', wip: true },
   { type: 'ludo', emoji: '🎲', name: 'Ludo', tag: '2-4 joueurs' },
 ]
 
@@ -54,7 +57,7 @@ export function Home({
   onKnock: (id: string) => void
   onCreate: (gameType: GameRules['gameType']) => void
   onJoin: (code: string) => void
-  onLearn: () => void
+  onLearn: (game: GameRules['gameType']) => void
   onChessHub: () => void
 }) {
   const [code, setCode] = useState('')
@@ -103,28 +106,18 @@ export function Home({
       <p className="tagline">Le jeu entre potes — mic ouvert, chambrage permis.</p>
 
       <div className="hub-games">
-        {/* Apprendre : solo, hors-ligne, aucun salon nécessaire. */}
-        <button
-          className="game-card learn-card"
-          style={{ ['--i' as string]: -1 }}
-          onClick={onLearn}
-        >
-          <span className="game-emoji">📚</span>
-          <span className="game-name">Apprendre</span>
-          <span className="game-tag">règles · puzzles · quiz</span>
-        </button>
         {GAMES.map((g, i) => (
           <button
             key={g.type}
-            className={`game-card ${g.soon ? 'soon' : ''}`}
+            className={`game-card ${g.soon ? 'soon' : ''} ${g.wip ? 'wip' : ''}`}
             style={{ ['--i' as string]: i }}
             disabled={g.soon}
             onClick={
               g.soon
                 ? undefined
                 : g.type === 'chess'
-                  ? // Les Échecs ouvrent leur propre écran de modes (solo IA,
-                    // entraînement coaché, ou salon entre amis).
+                  ? // Les Échecs ouvrent leur propre écran de modes : académie,
+                    // entraînement coaché, partie contre l'IA, ou salon.
                     onChessHub
                   : requirePseudo(() => setGamePanel(g.type))
             }
@@ -133,6 +126,7 @@ export function Home({
             <span className="game-name">{g.name}</span>
             <span className="game-tag">{g.tag}</span>
             {g.soon && <span className="game-soon">⏳ Bientôt</span>}
+            {g.wip && <span className="game-soon wip">🚧 En chantier</span>}
           </button>
         ))}
       </div>
@@ -180,6 +174,17 @@ export function Home({
               </button>
             </div>
             <p className="hint">Le code du salon est donné par celui qui l’a créé.</p>
+            {/* Les règles vivent DANS le jeu concerné, plus sur l'accueil. */}
+            <button
+              className="btn ghost sm"
+              onClick={() => {
+                const game = gamePanel
+                setGamePanel(null)
+                onLearn(game)
+              }}
+            >
+              📖 Règles du jeu
+            </button>
           </div>
         </>
       )}
