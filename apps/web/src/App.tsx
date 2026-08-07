@@ -32,6 +32,7 @@ import {
   type CloudUser,
 } from './cloud'
 import { Home } from './components/Home'
+import { ChessHub } from './components/ChessHub'
 import { Learn } from './components/Learn'
 import { Room } from './components/Room'
 
@@ -69,6 +70,8 @@ export default function App() {
   )
   /** Écran « Apprendre » (solo, hors salon). */
   const [learning, setLearning] = useState(false)
+  /** Écran de modes des Échecs (solo IA / coaché / avec un ami). */
+  const [chessHub, setChessHub] = useState(false)
   const [slamFx, setSlamFx] = useState<{ key: number; pseudo: string; taunt: string } | null>(null)
   const [passFx, setPassFx] = useState<{ key: number; pseudo: string; cry: number } | null>(null)
   const [ludoRollFx, setLudoRollFx] = useState<{ player: number; value: number; key: number } | null>(
@@ -679,6 +682,18 @@ export default function App() {
       )}
       {learning && !room ? (
         <Learn onBack={() => setLearning(false)} />
+      ) : chessHub && !room ? (
+        <ChessHub
+          onBack={() => setChessHub(false)}
+          onLearn={() => {
+            setChessHub(false)
+            setLearning(true)
+          }}
+          onFriendGame={() => {
+            setChessHub(false)
+            handlers.onCreate('chess')
+          }}
+        />
       ) : room && selfId ? (
         <Room
           room={room}
@@ -712,6 +727,7 @@ export default function App() {
           onCreate={handlers.onCreate}
           onJoin={handlers.onJoin}
           onLearn={() => setLearning(true)}
+          onChessHub={() => setChessHub(true)}
         />
       )}
     </div>

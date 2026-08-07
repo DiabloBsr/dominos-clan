@@ -2924,6 +2924,249 @@ section.game {
 }
 
 /* Vrai dé : rouge à points blancs, culbute puis se pose. */
+/* ─── Modes des Échecs + partie solo contre l'IA ─────────────────────── */
+
+.mode-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  text-align: left;
+}
+
+.mode-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'emoji name' 'emoji desc';
+  gap: 0.1rem 0.8rem;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  cursor: pointer;
+  color: var(--ink);
+  text-align: left;
+  background: linear-gradient(160deg, rgba(31, 92, 64, 0.5), rgba(13, 26, 20, 0.9));
+  border: 1px solid rgba(247, 242, 231, 0.12);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.mode-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--amber);
+}
+
+.mode-card.coach {
+  background: linear-gradient(160deg, rgba(255, 182, 72, 0.22), rgba(13, 26, 20, 0.9));
+  border-color: rgba(255, 182, 72, 0.4);
+}
+
+.mode-card.learn {
+  background: linear-gradient(160deg, rgba(126, 224, 255, 0.18), rgba(13, 26, 20, 0.9));
+  border-color: rgba(126, 224, 255, 0.3);
+}
+
+.mode-emoji {
+  grid-area: emoji;
+  font-size: 2rem;
+}
+
+.mode-name {
+  grid-area: name;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+
+.mode-desc {
+  grid-area: desc;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.solo-chess,
+.solo-setup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+}
+
+.solo-head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.solo-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--amber);
+}
+
+.solo-chess .chess-board {
+  width: min(92vw, 26rem);
+}
+
+.setup-label {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+}
+
+.level-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+.level-grid .btn small {
+  opacity: 0.7;
+  font-size: 0.7rem;
+}
+
+.level-taunt {
+  margin: 0;
+  font-style: italic;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.promo-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+/* Verdict du coach, coloré selon la gravité */
+.coach-note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 12px;
+  border-left: 4px solid var(--muted);
+  background: rgba(8, 20, 14, 0.75);
+  font-size: 0.85rem;
+  max-width: min(92vw, 30rem);
+  animation: fade-up 0.25s ease;
+}
+
+.coach-note b {
+  font-family: var(--font-display);
+}
+
+.coach-note.brillant,
+.coach-note.excellent {
+  border-left-color: #7ee0a3;
+}
+.coach-note.bon {
+  border-left-color: #9fd4ff;
+}
+.coach-note.imprecision {
+  border-left-color: var(--amber);
+}
+.coach-note.erreur {
+  border-left-color: #ff9f5e;
+}
+.coach-note.gaffe {
+  border-left-color: var(--clay);
+}
+
+.move-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: center;
+  max-width: min(92vw, 30rem);
+}
+
+.move-chip {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 6px;
+  background: rgba(247, 242, 231, 0.07);
+}
+
+.move-chip.erreur,
+.move-chip.gaffe {
+  background: rgba(226, 87, 76, 0.2);
+}
+
+.analysis {
+  width: min(92vw, 34rem);
+  text-align: left;
+  background: rgba(8, 20, 14, 0.7);
+  border: 1px solid rgba(247, 242, 231, 0.12);
+  border-radius: 14px;
+  padding: 0.8rem 1rem;
+}
+
+.analysis h3 {
+  font-family: var(--font-display);
+  margin: 0 0 0.4rem;
+}
+
+.analysis-accuracy {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.analysis-accuracy b {
+  color: var(--amber);
+  font-size: 1.2rem;
+}
+
+.analysis-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.6rem;
+}
+
+.count-chip {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(247, 242, 231, 0.08);
+}
+
+.analysis-list {
+  max-height: 16rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.analysis-row {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  padding-left: 0.5rem;
+  border-left: 3px solid transparent;
+}
+
+.analysis-row.imprecision {
+  border-left-color: var(--amber);
+}
+.analysis-row.erreur {
+  border-left-color: #ff9f5e;
+}
+.analysis-row.gaffe {
+  border-left-color: var(--clay);
+}
+
 /* ─── Section APPRENDRE (règles · entraînement · quiz) ───────────────── */
 
 .learn {

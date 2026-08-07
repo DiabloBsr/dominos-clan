@@ -20,7 +20,7 @@ const GAMES: Array<{
   soon?: boolean
 }> = [
   { type: 'dominos', emoji: '🁫', name: 'Dominos', tag: '2-4 joueurs' },
-  { type: 'chess', emoji: '♟️', name: 'Échecs', tag: '1 vs 1', soon: true },
+  { type: 'chess', emoji: '♟️', name: 'Échecs', tag: 'IA · coach · ami' },
   { type: 'ludo', emoji: '🎲', name: 'Ludo', tag: '2-4 joueurs' },
 ]
 
@@ -39,6 +39,7 @@ export function Home({
   onCreate,
   onJoin,
   onLearn,
+  onChessHub,
 }: {
   profile: Profile
   friends: Friend[]
@@ -54,6 +55,7 @@ export function Home({
   onCreate: (gameType: GameRules['gameType']) => void
   onJoin: (code: string) => void
   onLearn: () => void
+  onChessHub: () => void
 }) {
   const [code, setCode] = useState('')
   const [friendCode, setFriendCode] = useState('')
@@ -117,7 +119,15 @@ export function Home({
             className={`game-card ${g.soon ? 'soon' : ''}`}
             style={{ ['--i' as string]: i }}
             disabled={g.soon}
-            onClick={g.soon ? undefined : requirePseudo(() => setGamePanel(g.type))}
+            onClick={
+              g.soon
+                ? undefined
+                : g.type === 'chess'
+                  ? // Les Échecs ouvrent leur propre écran de modes (solo IA,
+                    // entraînement coaché, ou salon entre amis).
+                    onChessHub
+                  : requirePseudo(() => setGamePanel(g.type))
+            }
           >
             <span className="game-emoji">{g.emoji}</span>
             <span className="game-name">{g.name}</span>
