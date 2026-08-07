@@ -4030,3 +4030,259 @@ section.game {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ─── Académie : ouvertures, combinaisons, défi du jour ───────────────── */
+
+.academy-list,
+.academy-detail,
+.daily {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  text-align: center;
+}
+
+.academy-intro {
+  max-width: 34rem;
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  opacity: 0.78;
+}
+
+.academy-family {
+  width: 100%;
+  text-align: left;
+}
+
+.academy-family-title {
+  margin: 0.6rem 0 0.5rem;
+  font-size: 0.92rem;
+  letter-spacing: 0.02em;
+  opacity: 0.9;
+}
+
+.academy-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.5rem;
+}
+
+.academy-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  background: rgba(8, 20, 14, 0.7);
+  border: 1px solid rgba(247, 242, 231, 0.12);
+  border-radius: 14px;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.academy-card:hover {
+  border-color: rgba(226, 176, 76, 0.55);
+  transform: translateY(-2px);
+}
+
+.ac-name {
+  font-weight: 800;
+  font-size: 0.92rem;
+}
+
+.ac-eco {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.ac-idea {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  opacity: 0.8;
+}
+
+.ac-moves {
+  margin-top: 0.15rem;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 0.72rem;
+  opacity: 0.6;
+}
+
+.academy-title {
+  margin: 0.5rem 0 0;
+  font-size: 1.05rem;
+}
+
+.academy-idea,
+.academy-style {
+  max-width: 34rem;
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  opacity: 0.82;
+}
+
+.academy-detail > .btn.ghost.sm {
+  align-self: flex-start;
+}
+
+/* Lecteur de variante */
+
+.line-viewer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+}
+
+.line-viewer .chess-board {
+  width: min(92vw, 25rem);
+}
+
+.line-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: center;
+}
+
+.line-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.72;
+}
+
+.line-wrong {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #e2574c;
+}
+
+.line-note {
+  max-width: min(92vw, 32rem);
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  text-align: left;
+  background: rgba(226, 176, 76, 0.12);
+  border-left: 3px solid rgba(226, 176, 76, 0.75);
+  border-radius: 0 10px 10px 0;
+}
+
+.line-note.ok {
+  background: rgba(106, 190, 122, 0.14);
+  border-left-color: rgba(106, 190, 122, 0.8);
+}
+
+.line-moves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: center;
+  max-width: min(92vw, 30rem);
+}
+
+.line-moves .move-chip {
+  border: 1px solid transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.45;
+}
+
+.line-moves .move-chip.played {
+  opacity: 1;
+}
+
+.line-moves .move-chip.cur {
+  border-color: rgba(226, 176, 76, 0.8);
+  background: rgba(226, 176, 76, 0.2);
+}
+
+/* Défi du jour et série */
+
+.streak-card {
+  width: min(92vw, 32rem);
+  padding: 0.7rem 0.9rem;
+  background: rgba(8, 20, 14, 0.7);
+  border: 1px solid rgba(226, 176, 76, 0.35);
+  border-radius: 16px;
+}
+
+.streak-figures {
+  display: flex;
+  justify-content: space-around;
+  gap: 0.5rem;
+}
+
+.streak-fig {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sf-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.sf-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.streak-msg {
+  margin: 0.5rem 0 0.45rem;
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+
+.streak-calendar {
+  display: flex;
+  gap: 0.22rem;
+  justify-content: center;
+}
+
+.streak-day {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 4px;
+  background: rgba(247, 242, 231, 0.1);
+}
+
+.streak-day.hit {
+  background: rgba(226, 176, 76, 0.85);
+  box-shadow: 0 0 6px rgba(226, 176, 76, 0.5);
+}
+
+.daily-done {
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  background: rgba(106, 190, 122, 0.2);
+  border-radius: 999px;
+}
+
+.daily .chess-board {
+  width: min(92vw, 25rem);
+}
+
+@media (max-width: 30rem) {
+  .academy-cards {
+    grid-template-columns: 1fr;
+  }
+}

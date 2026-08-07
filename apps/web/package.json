@@ -11,7 +11,8 @@
     "check:puzzles": "tsx scripts/check-puzzles.ts",
     "gen:puzzles": "tsx scripts/gen-puzzles.ts",
     "perft": "tsx scripts/perft.ts",
-    "check:ai": "tsx scripts/check-ai.ts"
+    "check:ai": "tsx scripts/check-ai.ts",
+    "check:book": "tsx scripts/check-book.ts"
   },
   "dependencies": {
     "@dominos-clan/engine": "*",

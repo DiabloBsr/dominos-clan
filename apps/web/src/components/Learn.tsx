@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Chess, type Square } from 'chess.js'
 import { LESSONS, PUZZLES, PUZZLES_BY_LEVEL, QUIZ, type LearnGame } from '../learn/content'
+import { DailyTab, MotifsTab, OpeningsTab } from './Academy'
+import { loadStreak } from '../learn/daily'
 import { ChessPiece, type PieceType } from './ChessPieces'
 import { playCheck, playChessCapture, playChessMove, playMate, playVictory } from '../sounds'
 
@@ -353,10 +355,14 @@ function Quiz({ best, onScore }: { best: number; onScore: (score: number) => voi
 
 /* ─── Écran Apprendre ────────────────────────────────────────────────── */
 
+type Tab = 'daily' | 'rules' | 'openings' | 'motifs' | 'training' | 'quiz'
+
 export function Learn({ onBack }: { onBack: () => void }) {
-  const [tab, setTab] = useState<'rules' | 'training' | 'quiz'>('rules')
+  const [tab, setTab] = useState<Tab>('daily')
   const [progress, setProgress] = useState<Progress>(() => loadProgress())
   const [openLesson, setOpenLesson] = useState<string | null>(null)
+  // Lu une seule fois : sert juste à afficher la flamme sur l'onglet.
+  const [streakAtOpen] = useState(() => loadStreak().current)
 
   const markSolved = (id: string) => {
     setProgress((p) => {
@@ -388,6 +394,21 @@ export function Learn({ onBack }: { onBack: () => void }) {
       </header>
 
       <div className="learn-tabs">
+        <button className={`btn ${tab === 'daily' ? '' : 'ghost'} sm`} onClick={() => setTab('daily')}>
+          🔥 Défi du jour{streakAtOpen > 0 ? ` (${streakAtOpen})` : ''}
+        </button>
+        <button
+          className={`btn ${tab === 'openings' ? '' : 'ghost'} sm`}
+          onClick={() => setTab('openings')}
+        >
+          📚 Ouvertures
+        </button>
+        <button
+          className={`btn ${tab === 'motifs' ? '' : 'ghost'} sm`}
+          onClick={() => setTab('motifs')}
+        >
+          ⚡ Combinaisons
+        </button>
         <button className={`btn ${tab === 'rules' ? '' : 'ghost'} sm`} onClick={() => setTab('rules')}>
           📖 Règles
         </button>
@@ -401,6 +422,10 @@ export function Learn({ onBack }: { onBack: () => void }) {
           ❓ Quiz ({progress.bestQuiz}/{QUIZ.length})
         </button>
       </div>
+
+      {tab === 'daily' && <DailyTab />}
+      {tab === 'openings' && <OpeningsTab />}
+      {tab === 'motifs' && <MotifsTab />}
 
       {tab === 'rules' && (
         <div className="learn-lessons">
