@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Chess, type Square } from 'chess.js'
-import { LESSONS, PUZZLES, QUIZ, type LearnGame } from '../learn/content'
+import { LESSONS, PUZZLES, PUZZLES_BY_LEVEL, QUIZ, type LearnGame } from '../learn/content'
 import { ChessPiece, type PieceType } from './ChessPieces'
-import { playCheck, playChessCapture, playMate, playVictory } from '../sounds'
+import { playCheck, playChessCapture, playChessMove, playMate, playVictory } from '../sounds'
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 
@@ -83,7 +83,8 @@ function PuzzleBoard({
     }
   }
   return (
-    <div className="chess-board" role="grid" aria-label="Échiquier d’entraînement">
+    // data-fen : position courante, lisible par les sondes de test.
+    <div className="chess-board" role="grid" aria-label="Échiquier d’entraînement" data-fen={fen}>
       {cells}
     </div>
   )
@@ -96,13 +97,17 @@ function Training({
   solved: string[]
   onSolved: (id: string) => void
 }) {
+  const [level, setLevel] = useState<1 | 2>(1)
+  const list = useMemo(() => PUZZLES_BY_LEVEL(level), [level])
   const [index, setIndex] = useState(0)
-  const puzzle = PUZZLES[index]!
+  const puzzle = list[Math.min(index, list.length - 1)]!
   const [fen, setFen] = useState(puzzle.fen)
   const [selected, setSelected] = useState<Square | null>(null)
   const [state, setState] = useState<'playing' | 'won' | 'wrong'>('playing')
   const [showHint, setShowHint] = useState(false)
   const [lastMove, setLastMove] = useState<{ from: string; to: string } | null>(null)
+  /** Mat en 2 : 0 = premier coup attendu, 1 = coup de grâce après la défense. */
+  const [phase, setPhase] = useState(0)
 
   const engine = useMemo(() => new Chess(fen), [fen])
   const targets = useMemo(() => {
@@ -110,39 +115,76 @@ function Training({
     return new Set(engine.moves({ square: selected, verbose: true }).map((m) => m.to))
   }, [engine, selected])
 
-  const reset = (i: number) => {
-    const p = PUZZLES[i]!
+  const reset = (i: number, lvl: 1 | 2 = level) => {
+    const p = PUZZLES_BY_LEVEL(lvl)[i]!
     setIndex(i)
     setFen(p.fen)
     setSelected(null)
     setState('playing')
     setShowHint(false)
     setLastMove(null)
+    setPhase(0)
+  }
+
+  const switchLevel = (lvl: 1 | 2) => {
+    setLevel(lvl)
+    reset(0, lvl)
+  }
+
+  const fail = () => {
+    setState('wrong')
+    setTimeout(() => {
+      setFen(puzzle.fen)
+      setLastMove(null)
+      setPhase(0)
+      setState('playing')
+    }, 950)
   }
 
   const clickSquare = (sq: Square) => {
-    if (state === 'won') return
+    if (state !== 'playing') return
     if (selected && targets.has(sq)) {
       const probe = new Chess(fen)
       const move = probe.move({ from: selected, to: sq, promotion: 'q' })
-      setLastMove({ from: selected, to: sq })
       setSelected(null)
+      setLastMove({ from: selected, to: sq })
+
       if (probe.isCheckmate()) {
         setFen(probe.fen())
         setState('won')
         playMate()
         onSolved(puzzle.id)
-      } else {
-        // Coup joué mais pas de mat : on montre l'erreur et on remet la position.
-        if (move.captured) playChessCapture()
-        else playCheck()
-        setState('wrong')
-        setTimeout(() => {
-          setFen(puzzle.fen)
-          setLastMove(null)
-          setState('playing')
-        }, 900)
+        return
       }
+      // Mat en 2 : le premier coup doit être LA solution, puis l'app joue la
+      // défense adverse et le joueur doit conclure.
+      if (puzzle.level === 2 && phase === 0) {
+        if (selected !== puzzle.from || sq !== puzzle.to) {
+          if (move.captured) playChessCapture()
+          else playCheck()
+          fail()
+          return
+        }
+        playChessMove()
+        setFen(probe.fen())
+        setPhase(1)
+        // Défense adverse jouée par l'app, après un temps de lecture.
+        setTimeout(() => {
+          const reply = new Chess(probe.fen())
+          const moves = reply.moves({ verbose: true })
+          if (moves.length === 0) return
+          const chosen = moves[Math.floor(Math.random() * moves.length)]!
+          reply.move({ from: chosen.from, to: chosen.to, promotion: chosen.promotion ?? 'q' })
+          if (chosen.captured) playChessCapture()
+          else playChessMove()
+          setFen(reply.fen())
+          setLastMove({ from: chosen.from, to: chosen.to })
+        }, 650)
+        return
+      }
+      if (move.captured) playChessCapture()
+      else playCheck()
+      fail()
       return
     }
     const piece = engine.get(sq)
@@ -152,12 +194,25 @@ function Training({
 
   return (
     <div className="learn-training">
+      <div className="learn-tabs">
+        <button className={`btn ${level === 1 ? '' : 'ghost'} sm`} onClick={() => switchLevel(1)}>
+          Mat en 1 ({PUZZLES_BY_LEVEL(1).filter((p) => solved.includes(p.id)).length}/
+          {PUZZLES_BY_LEVEL(1).length})
+        </button>
+        <button className={`btn ${level === 2 ? '' : 'ghost'} sm`} onClick={() => switchLevel(2)}>
+          Mat en 2 ({PUZZLES_BY_LEVEL(2).filter((p) => solved.includes(p.id)).length}/
+          {PUZZLES_BY_LEVEL(2).length})
+        </button>
+      </div>
+
       <div className="learn-head">
         <h3>
-          Puzzle {index + 1}/{PUZZLES.length} — {puzzle.title}
+          Puzzle {index + 1}/{list.length} — {puzzle.title}
         </h3>
         <p className="hint">
-          {puzzle.side === 'w' ? 'Les blancs jouent' : 'Les noirs jouent'} et font mat en 1 coup.
+          {puzzle.side === 'w' ? 'Les blancs jouent' : 'Les noirs jouent'} et matent en{' '}
+          {puzzle.level} coup{puzzle.level > 1 ? 's' : ''}.
+          {puzzle.level === 2 && phase === 1 ? ' — à toi de conclure !' : ''}
           {solved.includes(puzzle.id) ? ' ✅ déjà résolu' : ''}
         </p>
       </div>
@@ -173,7 +228,15 @@ function Training({
 
       {state === 'won' && (
         <p className="learn-verdict ok">
-          🎉 Échec et mat ! <b>{puzzle.solutionSan}</b>
+          {puzzle.level === 1 ? (
+            <>
+              🎉 Échec et mat ! <b>{puzzle.solutionSan}</b>
+            </>
+          ) : (
+            <>
+              🎉 Mat en 2 réussi ! Le coup clé était <b>{puzzle.solutionSan}</b>
+            </>
+          )}
         </p>
       )}
       {state === 'wrong' && <p className="learn-verdict ko">Pas encore — ce n’est pas mat.</p>}
@@ -188,11 +251,7 @@ function Training({
             💡 Indice
           </button>
         )}
-        <button
-          className="btn sm"
-          disabled={index >= PUZZLES.length - 1}
-          onClick={() => reset(index + 1)}
-        >
+        <button className="btn sm" disabled={index >= list.length - 1} onClick={() => reset(index + 1)}>
           Suivant →
         </button>
       </div>

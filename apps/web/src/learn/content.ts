@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Contenu de la section « Apprendre » : leçons, puzzles et quiz.
  * Tout est statique et hors-ligne — aucun salon ni serveur nécessaire.
  *
@@ -6,6 +6,8 @@
  * chaque solution et confirme le mat) : ne jamais en ajouter sans relancer
  * `npm run check:puzzles -w @dominos-clan/web`.
  */
+
+import { GENERATED_PUZZLES } from './puzzles.generated'
 
 export type LearnGame = 'chess' | 'dominos' | 'ludo'
 
@@ -25,6 +27,8 @@ export interface Puzzle {
   fen: string
   /** Camp au trait, déduit du FEN mais rappelé pour l'affichage. */
   side: 'w' | 'b'
+  /** 1 = mat en un coup, 2 = mat forcé en deux coups. */
+  level: 1 | 2
   /** Coup solution en notation algébrique (ex. « Dh5# »). */
   solutionSan: string
   /** Coup solution en cases (utilisé pour valider le clic du joueur). */
@@ -141,13 +145,15 @@ export const LESSONS: Lesson[] = [
   },
 ]
 
-/* ─── Puzzles : mat en 1 (tous vérifiés par chess.js) ────────────────── */
+/* ─── Puzzles (tous prouvés par chess.js) ────────────────────────────── */
 
-export const PUZZLES: Puzzle[] = [
+/** Positions composées à la main, aux motifs classiques et nommés. */
+const HANDMADE_PUZZLES: Puzzle[] = [
   {
     id: 'p1',
     fen: '6k1/5ppp/8/8/8/8/8/R3K2R w KQ - 0 1',
     side: 'w',
+    level: 1,
     solutionSan: 'Ra8#',
     from: 'a1',
     to: 'a8',
@@ -158,6 +164,7 @@ export const PUZZLES: Puzzle[] = [
     id: 'p2',
     fen: 'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 1',
     side: 'w',
+    level: 1,
     solutionSan: 'Qxf7#',
     from: 'f3',
     to: 'f7',
@@ -168,6 +175,7 @@ export const PUZZLES: Puzzle[] = [
     id: 'p3',
     fen: '6k1/5ppp/8/8/8/8/5PPP/3Q2K1 w - - 0 1',
     side: 'w',
+    level: 1,
     solutionSan: 'Qd8#',
     from: 'd1',
     to: 'd8',
@@ -178,6 +186,7 @@ export const PUZZLES: Puzzle[] = [
     id: 'p4',
     fen: '3qk3/8/8/8/8/8/5PPP/6K1 b - - 0 1',
     side: 'b',
+    level: 1,
     solutionSan: 'Qd1#',
     from: 'd8',
     to: 'd1',
@@ -188,6 +197,7 @@ export const PUZZLES: Puzzle[] = [
     id: 'p5',
     fen: '6rk/6pp/8/6N1/8/8/8/6K1 w - - 0 1',
     side: 'w',
+    level: 1,
     solutionSan: 'Nf7#',
     from: 'g5',
     to: 'f7',
@@ -198,6 +208,7 @@ export const PUZZLES: Puzzle[] = [
     id: 'p6',
     fen: '4k3/8/4K3/8/8/8/8/R7 w - - 0 1',
     side: 'w',
+    level: 1,
     solutionSan: 'Ra8#',
     from: 'a1',
     to: 'a8',
@@ -205,6 +216,15 @@ export const PUZZLES: Puzzle[] = [
     hint: 'Ton roi contrôle déjà les cases de fuite : il ne reste qu’à amener la tour.',
   },
 ]
+
+/**
+ * Puzzles composés à la main + positions GÉNÉRÉES et prouvées par le moteur
+ * (mat forcé au niveau annoncé, premier coup unique).
+ */
+export const PUZZLES: Puzzle[] = [...HANDMADE_PUZZLES, ...GENERATED_PUZZLES]
+
+export const PUZZLES_BY_LEVEL = (level: 1 | 2): Puzzle[] =>
+  PUZZLES.filter((p) => p.level === level)
 
 /* ─── Quiz ───────────────────────────────────────────────────────────── */
 

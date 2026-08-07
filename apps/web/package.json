@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "check:puzzles": "tsx scripts/check-puzzles.ts"
+    "check:puzzles": "tsx scripts/check-puzzles.ts",
+    "gen:puzzles": "tsx scripts/gen-puzzles.ts"
   },
   "dependencies": {
     "@dominos-clan/engine": "*",
