@@ -13,8 +13,11 @@ import {
 } from '@dominos-clan/engine'
 import type { GameRules, GameState, Move, Role, RoomStatus, RoomView } from '@dominos-clan/engine'
 import {
+  chessAcceptDraw,
   chessCheckFlag,
+  chessDeclineDraw,
   chessMove,
+  chessOfferDraw,
   chessResign,
   createChess,
   stopChess,
@@ -585,6 +588,16 @@ export function chessMoveRoom(
 export function chessResignRoom(room: Room, memberId: string): void {
   if (room.status !== 'playing' || !room.chessGame) throw new RoomError('Aucune partie en cours')
   chessResign(room.chessGame, memberId)
+  settleChessEnd(room)
+}
+
+/** Proposition de nulle : 'offer' | 'accept' | 'decline'. */
+export function chessDrawRoom(room: Room, memberId: string, action: unknown): void {
+  if (room.status !== 'playing' || !room.chessGame) throw new RoomError('Aucune partie en cours')
+  if (action === 'offer') chessOfferDraw(room.chessGame, memberId)
+  else if (action === 'accept') chessAcceptDraw(room.chessGame, memberId)
+  else if (action === 'decline') chessDeclineDraw(room.chessGame, memberId)
+  else throw new RoomError('Action de nulle inconnue')
   settleChessEnd(room)
 }
 

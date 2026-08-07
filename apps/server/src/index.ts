@@ -25,6 +25,7 @@ import {
   canChat,
   canPlaySound,
   canReact,
+  chessDrawRoom,
   chessFlagRoom,
   chessMoveRoom,
   chessResignRoom,
@@ -423,6 +424,16 @@ io.on('connection', (socket: Socket) => {
     handle(ack, () => {
       const { room, memberId } = withRoom(state)
       chessResignRoom(room, memberId)
+      broadcast(room)
+    }),
+  )
+
+  // Nulle par accord : 'offer' → l'adversaire voit la proposition, 'accept'
+  // termine la partie, 'decline' la retire.
+  socket.on('chess:draw', (payload: { action?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      chessDrawRoom(room, memberId, payload?.action)
       broadcast(room)
     }),
   )

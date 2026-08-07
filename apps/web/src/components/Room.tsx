@@ -20,6 +20,16 @@ const REACTIONS = ['😂', '🔥', '👏', '😮', '😭', '😈', '🤝', '💀
  *  voit donc le même cri au même instant. */
 const PASS_CRIES = ['Manaraky ao e!.😂', 'Mbo tsy mahefa lahy e!🤣', 'PAIKY😂']
 
+/** Cadences d'échecs standard (minutes + incrément en secondes par coup). */
+const CHESS_PRESETS = [
+  { label: '⚡ Bullet 1+0', min: 1, inc: 0 },
+  { label: '⚡ Bullet 2+1', min: 2, inc: 1 },
+  { label: '🔥 Blitz 3+2', min: 3, inc: 2 },
+  { label: '🔥 Blitz 5+0', min: 5, inc: 0 },
+  { label: '🕐 Rapide 10+0', min: 10, inc: 0 },
+  { label: '🕐 Rapide 15+10', min: 15, inc: 10 },
+]
+
 /** Soundboard : sons de chambrage joués chez TOUT le salon. */
 const SOUNDS: Array<{ kind: string; emoji: string; label: string }> = [
   { kind: 'pet', emoji: '💨', label: 'Prout' },
@@ -59,6 +69,30 @@ function RulesEditor({
       </span>
       {rules.gameType === 'chess' && (
         <>
+          {/* Cadences standard (bullet / blitz / rapide) en un clic. */}
+          <select
+            className="voice-audience"
+            disabled={!editable}
+            title="Cadence de la partie"
+            value={
+              CHESS_PRESETS.some(
+                (p) => p.min === rules.chessMinutes && p.inc === rules.chessIncrement,
+              )
+                ? `${rules.chessMinutes}+${rules.chessIncrement}`
+                : 'perso'
+            }
+            onChange={(e) => {
+              const preset = CHESS_PRESETS.find((p) => `${p.min}+${p.inc}` === e.target.value)
+              if (preset) onChange({ ...rules, chessMinutes: preset.min, chessIncrement: preset.inc })
+            }}
+          >
+            {CHESS_PRESETS.map((p) => (
+              <option key={p.label} value={`${p.min}+${p.inc}`}>
+                {p.label}
+              </option>
+            ))}
+            <option value="perso">Perso…</option>
+          </select>
           <label className="rules-num" title="Minutes à la pendule pour chaque joueur">
             pendule
             <input
@@ -311,6 +345,7 @@ export function Room({
   onRedeal,
   onChessMove,
   onResign,
+  onDraw,
   onLudoRoll,
   onLudoPlay,
   onLudoTarget,
@@ -349,6 +384,7 @@ export function Room({
   onRedeal: () => void
   onChessMove: (from: string, to: string, promotion?: string) => void
   onResign: () => void
+  onDraw: (action: 'offer' | 'accept' | 'decline') => void
   onLudoRoll: () => void
   onLudoPlay: (pawn: number) => void
   onLudoTarget: (player: number, pawn: number) => void
@@ -951,6 +987,7 @@ export function Room({
           isHost={isHost}
           onMove={onChessMove}
           onResign={onResign}
+          onDraw={onDraw}
           onStart={onStart}
           voiceIds={voice.state.inVoice}
           speaking={voice.state.speaking}

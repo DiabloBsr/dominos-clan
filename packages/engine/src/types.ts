@@ -87,7 +87,20 @@ export const DEFAULT_RULES: GameRules = {
 
 export type ChessColor = 'w' | 'b'
 
-export type ChessEndReason = 'checkmate' | 'timeout' | 'resign' | 'stalemate' | 'draw' | 'abandon'
+export type ChessEndReason =
+  | 'checkmate'
+  | 'timeout'
+  /** Drapeau tombé mais l'adversaire ne peut pas mater (FIDE 6.9) → nulle. */
+  | 'timeout-material'
+  | 'resign'
+  | 'stalemate'
+  | 'draw'
+  /** Nulle par accord mutuel. */
+  | 'agreement'
+  | 'threefold'
+  | 'fifty'
+  | 'material'
+  | 'abandon'
 
 /** Vue d'une partie d'échecs — information complète (rien à cacher aux échecs). */
 export interface ChessView {
@@ -104,6 +117,10 @@ export interface ChessView {
   clockRunning: boolean
   check: boolean
   lastMove: { from: string; to: string } | null
+  /** Couleur ayant proposé la nulle et attendant une réponse. */
+  drawOffer: ChessColor | null
+  /** Coups joués en notation algébrique (historique lisible). */
+  history: string[]
   result: { winnerId: string | null; reason: ChessEndReason } | null
 }
 

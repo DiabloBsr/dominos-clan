@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Chess, type Square } from 'chess.js'
 import type { ChessColor, ChessView, RoomView } from '@dominos-clan/engine'
 import { ChessPiece, type PieceType } from './ChessPieces'
 import { ConfirmBox, type ConfirmRequest } from './ConfirmBox'
+import { playCheck, playChessCapture, playChessMove, playMate } from '../sounds'
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 const INITIAL_COUNTS: Record<PieceType, number> = { p: 8, n: 2, b: 2, r: 2, q: 1, k: 1 }
@@ -20,9 +21,14 @@ function avatarOf(room: RoomView, id: string): string {
 const REASONS: Record<string, string> = {
   checkmate: 'échec et mat !',
   timeout: 'gagne au temps ⏱',
+  'timeout-material': 'temps écoulé, mais mat impossible — nulle (règle FIDE)',
   resign: 'gagne par abandon 🏳',
   stalemate: 'pat — partie nulle',
   draw: 'partie nulle',
+  agreement: 'nulle par accord mutuel 🤝',
+  threefold: 'nulle — triple répétition de la position',
+  fifty: 'nulle — 50 coups sans prise ni poussée de pion',
+  material: 'nulle — matériel insuffisant pour mater',
   abandon: 'gagne par abandon',
 }
 
@@ -67,6 +73,7 @@ export function ChessBoard({
   isHost,
   onMove,
   onResign,
+  onDraw,
   onStart,
   voiceIds,
   speaking,
@@ -77,11 +84,28 @@ export function ChessBoard({
   isHost: boolean
   onMove: (from: string, to: string, promotion?: string) => void
   onResign: () => void
+  onDraw: (action: 'offer' | 'accept' | 'decline') => void
   onStart: () => void
   voiceIds: string[]
   speaking: string[]
 }) {
   const engine = useMemo(() => new Chess(view.fen), [view.fen])
+
+  // Sons : le dernier coup de l'historique dit s'il y a eu prise (x), échec
+  // (+) ou mat (#) — on ne joue qu'à l'arrivée d'un NOUVEAU coup.
+  const lastPlayed = view.history.length
+  const prevPlayed = useRef(lastPlayed)
+  useEffect(() => {
+    if (lastPlayed === prevPlayed.current) return
+    const isNew = lastPlayed > prevPlayed.current
+    prevPlayed.current = lastPlayed
+    if (!isNew) return
+    const san = view.history[lastPlayed - 1] ?? ''
+    if (san.includes('#')) playMate()
+    else if (san.includes('+')) playCheck()
+    else if (san.includes('x')) playChessCapture()
+    else playChessMove()
+  }, [lastPlayed, view.history])
   const myColor: ChessColor | null =
     selfId === view.whiteId ? 'w' : selfId === view.blackId ? 'b' : null
   const flipped = myColor === 'b'
@@ -286,9 +310,11 @@ export function ChessBoard({
               ? 'Nulle : on rejoue à l’identique.'
               : 'Le gagnant reste — la file monte au prochain lancement.'}
           </p>
-          {isHost && (
+          {/* Revanche en un clic : les DEUX joueurs peuvent relancer, plus
+              seulement le chef du salon. */}
+          {(isHost || myColor !== null) && (
             <button className="btn" onClick={onStart}>
-              Nouvelle partie
+              ⚔️ Revanche
             </button>
           )}
         </div>
@@ -300,6 +326,26 @@ export function ChessBoard({
             {myTurn ? 'À toi de jouer !' : 'L’adversaire réfléchit…'}
             {view.check ? ' — échec !' : ''}
           </p>
+          {/* Proposition de nulle : l'adversaire répond, moi je peux retirer. */}
+          {view.drawOffer && view.drawOffer !== myColor ? (
+            <span className="draw-offer">
+              🤝 Nulle proposée
+              <button className="btn sm" onClick={() => onDraw('accept')}>
+                Accepter
+              </button>
+              <button className="btn ghost sm" onClick={() => onDraw('decline')}>
+                Refuser
+              </button>
+            </span>
+          ) : view.drawOffer === myColor ? (
+            <button className="btn ghost sm" onClick={() => onDraw('decline')}>
+              🤝 Nulle proposée — retirer
+            </button>
+          ) : (
+            <button className="btn ghost sm" onClick={() => onDraw('offer')}>
+              🤝 Proposer nulle
+            </button>
+          )}
           <button
             className="btn ghost sm"
             onClick={() =>

@@ -32,6 +32,7 @@ import {
   type CloudUser,
 } from './cloud'
 import { Home } from './components/Home'
+import { Learn } from './components/Learn'
 import { Room } from './components/Room'
 
 export interface FloatingReaction {
@@ -66,6 +67,8 @@ export default function App() {
   const [knock, setKnock] = useState<{ fromUserId: string; fromPseudo: string; fromAvatar: string } | null>(
     null,
   )
+  /** Écran « Apprendre » (solo, hors salon). */
+  const [learning, setLearning] = useState(false)
   const [slamFx, setSlamFx] = useState<{ key: number; pseudo: string; taunt: string } | null>(null)
   const [passFx, setPassFx] = useState<{ key: number; pseudo: string; cry: number } | null>(null)
   const [ludoRollFx, setLudoRollFx] = useState<{ player: number; value: number; key: number } | null>(
@@ -602,6 +605,7 @@ export default function App() {
     onChessMove: (from: string, to: string, promotion?: string) =>
       simpleEmit('chess:move', { from, to, promotion }),
     onResign: () => simpleEmit('chess:resign'),
+    onDraw: (action: 'offer' | 'accept' | 'decline') => simpleEmit('chess:draw', { action }),
     onLudoRoll: () => simpleEmit('ludo:roll'),
     onLudoPlay: (pawn: number) => simpleEmit('ludo:play', { pawn }),
     onLudoTarget: (player: number, pawn: number) => simpleEmit('ludo:target', { player, pawn }),
@@ -673,7 +677,9 @@ export default function App() {
           </button>
         </div>
       )}
-      {room && selfId ? (
+      {learning && !room ? (
+        <Learn onBack={() => setLearning(false)} />
+      ) : room && selfId ? (
         <Room
           room={room}
           game={game}
@@ -705,6 +711,7 @@ export default function App() {
           onKnock={handlers.onKnock}
           onCreate={handlers.onCreate}
           onJoin={handlers.onJoin}
+          onLearn={() => setLearning(true)}
         />
       )}
     </div>

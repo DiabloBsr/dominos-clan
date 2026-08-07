@@ -38,6 +38,7 @@ export function Home({
   onKnock,
   onCreate,
   onJoin,
+  onLearn,
 }: {
   profile: Profile
   friends: Friend[]
@@ -52,6 +53,7 @@ export function Home({
   onKnock: (id: string) => void
   onCreate: (gameType: GameRules['gameType']) => void
   onJoin: (code: string) => void
+  onLearn: () => void
 }) {
   const [code, setCode] = useState('')
   const [friendCode, setFriendCode] = useState('')
@@ -99,6 +101,16 @@ export function Home({
       <p className="tagline">Le jeu entre potes — mic ouvert, chambrage permis.</p>
 
       <div className="hub-games">
+        {/* Apprendre : solo, hors-ligne, aucun salon nécessaire. */}
+        <button
+          className="game-card learn-card"
+          style={{ ['--i' as string]: -1 }}
+          onClick={onLearn}
+        >
+          <span className="game-emoji">📚</span>
+          <span className="game-name">Apprendre</span>
+          <span className="game-tag">règles · puzzles · quiz</span>
+        </button>
         {GAMES.map((g, i) => (
           <button
             key={g.type}

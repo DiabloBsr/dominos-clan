@@ -286,6 +286,41 @@ export function playGoal(): void {
   notes.forEach((f, i) => tone(ac, 'triangle', f, i * 0.09, 0.16, 0.26))
 }
 
+/* ─── Sons des échecs ───────────────────────────────────────────────── */
+
+/** ♟️ Pose d'une pièce : clic de bois sec sur l'échiquier. */
+export function playChessMove(): void {
+  const ac = audio()
+  if (!ac) return
+  noiseAt(ac, 0, 0.035, 0.22, 2600)
+  tone(ac, 'sine', 240, 0, 0.06, 0.14, 140)
+}
+
+/** ✖️ Prise : le choc est plus mat et plus grave. */
+export function playChessCapture(): void {
+  const ac = audio()
+  if (!ac) return
+  noiseAt(ac, 0, 0.07, 0.34, 1700)
+  tone(ac, 'sine', 180, 0, 0.11, 0.26, 70)
+}
+
+/** ⚠️ Échec au roi : deux notes qui montent, sèches. */
+export function playCheck(): void {
+  const ac = audio()
+  if (!ac) return
+  tone(ac, 'triangle', 700, 0, 0.1, 0.24)
+  tone(ac, 'triangle', 1050, 0.08, 0.14, 0.24)
+}
+
+/** ♛ Échec et mat : accord descendant solennel. */
+export function playMate(): void {
+  const ac = audio()
+  if (!ac) return
+  const notes = [784, 622.25, 523.25, 392]
+  notes.forEach((f, i) => tone(ac, 'triangle', f, i * 0.14, 0.5, 0.3))
+  tone(ac, 'sine', 130, 0.42, 0.7, 0.28, 65)
+}
+
 /* ─── Soundboard (chambrage audible par tout le salon) ──────────────── */
 
 export type BoardSound = 'pet' | 'rire' | 'colere' | 'bravo' | 'tromblon' | 'bisou'
