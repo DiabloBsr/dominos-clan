@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "check:puzzles": "tsx scripts/check-puzzles.ts",
-    "gen:puzzles": "tsx scripts/gen-puzzles.ts"
+    "gen:puzzles": "tsx scripts/gen-puzzles.ts",
+    "perft": "tsx scripts/perft.ts",
+    "check:ai": "tsx scripts/check-ai.ts"
   },
   "dependencies": {
     "@dominos-clan/engine": "*",
