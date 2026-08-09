@@ -69,19 +69,30 @@ async function main(): Promise<void> {
     const current = clients.find((c) => c.selfId === state.players[state.turn]!.id)!
 
     if (state.pendingBonus) {
-      // Cible du bonus : premier pion adverse sur la piste.
+      // Cible du bonus, avec EXACTEMENT la règle du moteur : la prison frappe
+      // aussi dans le couloir coloré (`home`), l'échange seulement sur la
+      // piste commune. Ne chercher que sur la piste faisait échouer ce test
+      // une fois sur six, alors que le jeu se comportait correctement.
       const owner = clients.find((c) => c.selfId === state.players[state.pendingBonus!.playerIndex]!.id)!
+      const targetable = (zone: string) =>
+        state.pendingBonus!.bonus === 'prison' ? zone === 'track' || zone === 'home' : zone === 'track'
       let done = false
       for (let pi = 0; pi < state.players.length && !done; pi++) {
         if (pi === state.pendingBonus.playerIndex) continue
         for (let pw = 0; pw < 4 && !done; pw++) {
-          if (state.players[pi]!.pawns[pw]!.zone === 'track') {
+          if (targetable(state.players[pi]!.pawns[pw]!.zone)) {
             await emitAck(owner.socket, 'ludo:target', { player: pi, pawn: pw })
             done = true
           }
         }
       }
-      if (!done) throw new Error('bonus en attente sans cible disponible')
+      if (!done) {
+        throw new Error(
+          `bonus ${state.pendingBonus.bonus} en attente sans cible : ${JSON.stringify(
+            state.players.map((p) => p.pawns.map((w) => w.zone)),
+          )}`,
+        )
+      }
     } else if (state.dice === null) {
       await emitAck(current.socket, 'ludo:roll', {})
     } else {

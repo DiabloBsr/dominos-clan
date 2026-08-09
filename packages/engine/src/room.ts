@@ -34,6 +34,20 @@ export interface RoomView {
   scores: Record<string, number>
   /** Vainqueur du match (a atteint la cible) ; null sinon. */
   matchWinnerId: string | null
+  /** Palmarès du salon depuis son ouverture, tous jeux confondus. */
+  standings: Record<string, StandingView>
+}
+
+/** Une ligne du palmarès affiché dans le salon. */
+export interface StandingView {
+  /** Matchs / parties remportés. */
+  wins: number
+  /** Manches remportées (dominos). */
+  rounds: number
+  /** Points marqués, cumulés. */
+  points: number
+  /** Parties terminées en tant que joueur. */
+  played: number
 }
 
 /**

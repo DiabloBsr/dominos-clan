@@ -2,6 +2,22 @@ import { useEffect, useRef, useState } from 'react'
 import type { ChessView, GameRules, GameView, LudoState, Move, RoomView } from '@dominos-clan/engine'
 import { LudoBoard, LudoLobbyBoard } from './LudoBoard'
 import { ConfirmBox, type ConfirmRequest } from './ConfirmBox'
+import {
+  IconCheck,
+  IconChat,
+  IconClock,
+  IconCopy,
+  IconLogOut,
+  IconMegaphone,
+  IconMenu,
+  IconMic,
+  IconMicOff,
+  IconPower,
+  IconRefresh,
+  IconSliders,
+  IconUsers,
+  IconVolume,
+} from './Icons'
 import type { ChatMessage, FloatingReaction } from '../App'
 import type { VoiceAudience, VoiceControls } from '../useVoice'
 import {
@@ -392,6 +408,8 @@ export function Room({
 }) {
   const [copied, setCopied] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  /** Menu ☰ du salon : micro, réglages, invitations, cri, remise à zéro. */
+  const [menuOpen, setMenuOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatText, setChatText] = useState('')
   const [chatSeen, setChatSeen] = useState(0)
@@ -403,11 +421,23 @@ export function Room({
   const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null)
   /** Édition de MON cri de capture (accessible même en pleine partie). */
   const [tauntBox, setTauntBox] = useState<string | null>(null)
+
+  /**
+   * MICRO PERMANENT : on se connecte à la voix dès l'arrivée dans le salon,
+   * et on n'en sort plus — le geste du quotidien c'est MUTE/unmute, pas
+   * allumer/éteindre le service. (Auto = silencieux si le serveur n'a pas de
+   * voix ; le vrai départ reste possible dans le menu ☰.)
+   */
+  useEffect(() => {
+    voice.join({ auto: true })
+  }, [voice.join])
   const ask = (message: string, yesLabel: string, onYes: () => void) =>
     setConfirmReq({ message, yesLabel, onYes })
   // Bannière de résultat réduite : on mémorise l'objet résultat écarté —
   // une nouvelle manche produit un nouvel objet, la bannière revient seule.
   const [dismissedResult, setDismissedResult] = useState<unknown>(null)
+  /** Classement du salon : replié par défaut pour ne pas manger l'écran. */
+  const [standingsOpen, setStandingsOpen] = useState(false)
   const [swapMode, setSwapMode] = useState(false)
   const msgsRef = useRef<HTMLDivElement | null>(null)
 
@@ -450,16 +480,133 @@ export function Room({
           Domino’s <b>Clan</b>
         </span>
         <button className="code-chip" onClick={copyCode} title="Copier le code">
-          salon <b>{room.code}</b> {copied ? '✔' : '⧉'}
+          salon <b>{room.code}</b> {copied ? <IconCheck size={13} /> : <IconCopy size={13} />}
         </button>
         <div className="invite-wrap">
+          {/* TOUT le pilotage du salon vit dans CE menu — micro, réglages,
+              invitations, cri, remise à zéro : le header reste minuscule et
+              la place va au jeu. L'icône du bouton reflète l'état du micro. */}
           <button
-            className={`icon-btn ${inviteOpen ? 'live' : ''}`}
-            title="Inviter des amis"
-            onClick={() => setInviteOpen((v) => !v)}
+            className={`icon-btn ${menuOpen || (voice.state.status === 'on' && !voice.state.muted) ? 'live' : ''}`}
+            title="Menu du salon (micro, réglages, amis…)"
+            onClick={() => {
+              setMenuOpen((v) => !v)
+              setInviteOpen(false)
+              setTauntBox(null)
+            }}
           >
-            👥
+            {voice.state.status === 'on' ? (
+              voice.state.muted ? (
+                <IconMicOff />
+              ) : (
+                <IconMic />
+              )
+            ) : (
+              <IconMenu />
+            )}
           </button>
+          {menuOpen && (
+            <div className="invite-panel menu-panel">
+              <div className="chat-head">Salon</div>
+              {voice.state.status === 'on' && (
+                <>
+                  <button className="menu-item" onClick={() => voice.toggleMute()}>
+                    {voice.state.muted ? <IconMic /> : <IconMicOff />}
+                    {voice.state.muted ? 'Réactiver le micro' : 'Couper le micro'}
+                  </button>
+                  <label className="menu-item">
+                    <IconVolume />
+                    Qui m’entend
+                    <select
+                      className="voice-audience"
+                      value={voice.state.audience}
+                      onChange={(e) => voice.setAudience(e.target.value as VoiceAudience)}
+                    >
+                      <option value="all">Tous</option>
+                      <option value="players">Joueurs</option>
+                      <option value="spectators">Spectateurs</option>
+                    </select>
+                  </label>
+                </>
+              )}
+              {voice.state.status === 'off' && (
+                <button className="menu-item" onClick={() => voice.join()}>
+                  <IconMic />
+                  Activer le micro
+                </button>
+              )}
+              {voice.state.status === 'connecting' && (
+                <button className="menu-item" disabled>
+                  <IconClock />
+                  Connexion de la voix…
+                </button>
+              )}
+              {voice.state.status === 'unavailable' && (
+                <button className="menu-item" disabled>
+                  <IconMicOff />
+                  Voix indisponible sur ce serveur
+                </button>
+              )}
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setMenuOpen(false)
+                  setInviteOpen(true)
+                }}
+              >
+                <IconUsers />
+                Inviter des amis
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setMenuOpen(false)
+                  setTauntBox(room.members.find((m) => m.id === selfId)?.taunt ?? '')
+                }}
+              >
+                <IconMegaphone />
+                Mon cri de claque
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setMenuOpen(false)
+                  openSettings()
+                }}
+              >
+                <IconSliders />
+                {isHost ? 'Réglages du salon' : 'Voir les réglages'}
+              </button>
+              {isHost && (
+                <button
+                  className="menu-item danger"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    ask(
+                      'Tout remettre à zéro ? La manche en cours et tous les scores du match seront perdus.',
+                      '🔄 Tout remettre à zéro',
+                      () => onRestart(),
+                    )
+                  }}
+                >
+                  <IconRefresh />
+                  Tout remettre à zéro
+                </button>
+              )}
+              {voice.state.status === 'on' && (
+                <button
+                  className="menu-item danger"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    voice.leave()
+                  }}
+                >
+                  <IconPower />
+                  Se déconnecter de la voix
+                </button>
+              )}
+            </div>
+          )}
           {inviteOpen && (
             <div className="invite-panel">
               <div className="chat-head">👥 Inviter des amis</div>
@@ -473,7 +620,9 @@ export function Room({
                     <span className="friend-name">
                       {friendAvatar(f)} {friendLabel(f)}
                     </span>
-                    <span className={`friend-status ${status}`}>{STATUS_LABELS[status]}</span>
+                    {/* st-… : la classe nue « room » = le conteneur du salon
+                        (collision CSS qui écrasait le nom de l'ami à 0 px). */}
+                    <span className={`friend-status st-${status}`}>{STATUS_LABELS[status]}</span>
                     <button
                       className="btn ghost sm"
                       disabled={status === 'offline'}
@@ -488,22 +637,8 @@ export function Room({
           )}
         </div>
         <div className="invite-wrap">
-          {/* Mon cri de claque — éditable À TOUT MOMENT, même en plein match :
-              envoyé au serveur à l'enregistrement (member:taunt), il part
-              avec le prochain CLAC. */}
-          <button
-            className={`icon-btn ${tauntBox !== null ? 'live' : ''}`}
-            title="Mon cri de claque (RENAO !, ANY ZANY EEE…)"
-            onClick={() =>
-              setTauntBox((prev) =>
-                prev === null
-                  ? (room.members.find((m) => m.id === selfId)?.taunt ?? '')
-                  : null,
-              )
-            }
-          >
-            🗣
-          </button>
+          {/* Mon cri de claque — s'ouvre depuis le menu ☰, éditable à tout
+              moment même en plein match (envoyé au serveur : member:taunt). */}
           {tauntBox !== null && (
             <div className="invite-panel">
               <div className="chat-head">🗣 Mon cri de claque</div>
@@ -534,73 +669,8 @@ export function Room({
             </div>
           )}
         </div>
-        <div className="voice-controls">
-          {voice.state.status === 'off' && (
-            <button className="icon-btn" onClick={voice.join} title="Activer le micro">
-              🎙
-            </button>
-          )}
-          {voice.state.status === 'connecting' && (
-            <button className="icon-btn" disabled title="Connexion à la voix…">
-              ⏳
-            </button>
-          )}
-          {voice.state.status === 'on' && (
-            <>
-              <button
-                className={`icon-btn ${voice.state.muted ? 'danger' : 'live'}`}
-                onClick={voice.toggleMute}
-                title={voice.state.muted ? 'Réactiver le micro' : 'Couper le micro'}
-              >
-                {voice.state.muted ? '🔇' : '🎙'}
-              </button>
-              <select
-                className="voice-audience"
-                value={voice.state.audience}
-                onChange={(e) => voice.setAudience(e.target.value as VoiceAudience)}
-                title="Qui entend ton micro"
-              >
-                <option value="all">🌍 Tous</option>
-                <option value="players">🎯 Joueurs</option>
-                <option value="spectators">👀 Spectateurs</option>
-              </select>
-              <button className="icon-btn danger" onClick={voice.leave} title="Quitter la voix">
-                📴
-              </button>
-            </>
-          )}
-          {voice.state.status === 'unavailable' && (
-            <button className="icon-btn off" disabled title="Le serveur n’a pas de configuration LiveKit">
-              🎙
-            </button>
-          )}
-        </div>
-        <button
-          className="icon-btn"
-          title={
-            isHost
-              ? 'Réglages du salon (appliquer repart de zéro)'
-              : 'Voir les réglages du salon'
-          }
-          onClick={openSettings}
-        >
-          ⚙️
-        </button>
-        {isHost && (
-          <button
-            className="icon-btn"
-            title="Tout remettre à zéro (manche et scores perdus)"
-            onClick={() =>
-              ask(
-                'Tout remettre à zéro ? La manche en cours et tous les scores du match seront perdus.',
-                '🔄 Tout remettre à zéro',
-                () => onRestart(),
-              )
-            }
-          >
-            🔄
-          </button>
-        )}
+        {/* Micro, réglages et remise à zéro vivent dans le menu ☰ : le
+            header ne garde que l'essentiel — code, menu, sortie. */}
         <button
           className="btn ghost sm leave-btn"
           onClick={() =>
@@ -611,7 +681,8 @@ export function Room({
             )
           }
         >
-          🚪<span className="leave-label"> Quitter</span>
+          <IconLogOut size={16} />
+          <span className="leave-label"> Quitter</span>
         </button>
       </header>
 
@@ -884,6 +955,51 @@ export function Room({
         </div>
       )}
 
+      {/* PALMARÈS du salon : la mémoire longue, tous jeux confondus. Il ne
+          s'affiche qu'une fois qu'une partie a été jouée. */}
+      {(() => {
+        const rows = Object.entries(room.standings ?? {})
+          .filter(([, s]) => s.played > 0)
+          .sort((a, b) => b[1].wins - a[1].wins || b[1].rounds - a[1].rounds || b[1].points - a[1].points)
+        if (rows.length === 0) return null
+        const medals = ['🥇', '🥈', '🥉']
+        return (
+          <div className="standings">
+            <button
+              className="group-label standings-head"
+              onClick={() => setStandingsOpen((v) => !v)}
+              title="Classement du salon depuis son ouverture"
+            >
+              🏆 Classement du salon {standingsOpen ? '▲' : '▼'}
+            </button>
+            {standingsOpen && (
+              <div className="standings-table">
+                <div className="standings-row head">
+                  <span>Joueur</span>
+                  <span title="Parties gagnées">🏆</span>
+                  <span title="Manches gagnées">🎯</span>
+                  <span title="Points marqués">Pts</span>
+                  <span title="Parties jouées">Jouées</span>
+                </div>
+                {rows.map(([id, s], i) => (
+                  <div key={id} className={`standings-row ${id === selfId ? 'me' : ''}`}>
+                    <span className="st-name">
+                      {medals[i] ?? `${i + 1}.`} {pseudoOf(room, id)}
+                    </span>
+                    <span>
+                      <b>{s.wins}</b>
+                    </span>
+                    <span>{s.rounds}</span>
+                    <span>{s.points}</span>
+                    <span>{s.played}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {result && result !== dismissedResult && (
         <div className="banner">
           <button
@@ -1092,7 +1208,7 @@ export function Room({
         onClick={() => setChatOpen((v) => !v)}
         title="Chat du salon"
       >
-        💬
+        <IconChat />
         {unread > 0 && <span className="chat-badge">{unread > 9 ? '9+' : unread}</span>}
       </button>
 

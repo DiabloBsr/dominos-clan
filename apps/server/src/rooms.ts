@@ -52,6 +52,20 @@ export function sanitizeTaunt(raw: unknown): string {
   return raw.replace(/[\r\n<>]/g, '').trim().slice(0, 24)
 }
 
+/** Une ligne du palmarès du salon. */
+export interface Standing {
+  /** Matchs / parties remportés (dominos aux points, échecs, ludo). */
+  wins: number
+  /** Manches remportées (dominos : une donne gagnée). */
+  rounds: number
+  /** Points marqués, cumulés sur tous les matchs. */
+  points: number
+  /** Parties terminées en tant que joueur — sert à calculer le ratio. */
+  played: number
+}
+
+const emptyStanding = (): Standing => ({ wins: 0, rounds: 0, points: 0, played: 0 })
+
 export interface Room {
   code: string
   hostId: string
@@ -69,6 +83,12 @@ export interface Room {
   /** Scores cumulés du match en cours (mode match aux points). */
   scores: Map<string, number>
   matchWinnerId: string | null
+  /**
+   * PALMARÈS du salon : cumul depuis l'ouverture, tous jeux confondus.
+   * Il survit aux manches et aux matchs — seul « tout remettre à zéro »
+   * l'efface. C'est la mémoire du salon : qui gagne vraiment, à la longue.
+   */
+  standings: Map<string, Standing>
   /** Nombre de manches jouées dans la rencontre (ouverture tournante). */
   roundIndex: number
   /** Index de siège de l'ouvreur de la dernière manche (rotation gauche → droite). */
@@ -166,6 +186,7 @@ export function createRoom(
     lastWinnerId: null,
     rules: { ...DEFAULT_RULES },
     scores: new Map(),
+    standings: new Map(),
     matchWinnerId: null,
     roundIndex: 0,
     lastStarterSeatIndex: null,
@@ -187,8 +208,27 @@ export function joinRoom(
 ): { room: Room; member: Member } {
   if (typeof rawCode !== 'string') throw new RoomError('Code invalide')
   const room = getRoom(rawCode.trim().toUpperCase())
-  if (room.members.size >= ROOM_CAPACITY) throw new RoomError(`Salon complet (${ROOM_CAPACITY} max)`)
   const pseudo = sanitizePseudo(rawPseudo)
+
+  // MÊME PERSONNE QUI REVIENT : après une coupure réseau, l'ancien membre est
+  // encore là (période de grâce). Sans ce test on créait un SECOND participant
+  // pour le même joueur — deux fois le même pseudo dans la liste, et sa place
+  // à table perdue. On reprend sa place au lieu d'en fabriquer une nouvelle.
+  if (identity.userId) {
+    const existing = [...room.members.values()].find((m) => m.userId === identity.userId)
+    if (existing) {
+      existing.socketId = socketId
+      existing.connected = true
+      existing.pseudo = pseudo
+      existing.avatar = identity.avatar
+      existing.taunt = sanitizeTaunt(identity.taunt)
+      // Nouvelle clé : l'ancienne a pu rester sur un appareil qu'on a quitté.
+      existing.resumeKey = randomBytes(12).toString('base64url')
+      return { room, member: existing }
+    }
+  }
+
+  if (room.members.size >= ROOM_CAPACITY) throw new RoomError(`Salon complet (${ROOM_CAPACITY} max)`)
   const member: Member = {
     id: randomBytes(8).toString('base64url'),
     pseudo,
@@ -401,6 +441,9 @@ export function transferHost(room: Room, memberId: string, rawTargetId: unknown)
  */
 export function restartRoom(room: Room, hostId: string, rawPromoteId?: unknown): void {
   if (hostId !== room.hostId) throw new RoomError('Seul l’hôte peut tout remettre à zéro')
+  // Le PALMARÈS survit volontairement : l'hôte se sert de cette remise à zéro
+  // pour changer les réglages, et effacer l'historique du salon à chaque fois
+  // le rendrait inutile. Il ne disparaît qu'avec le salon.
   if (room.chessGame) stopChess(room.chessGame)
   room.chessGame = null
   room.ludoGame = null
@@ -505,6 +548,8 @@ function settleLudoEnd(room: Room): void {
   if (!g || g.status !== 'finished' || g.winnerId === null) return
   room.status = 'finished'
   room.lastWinnerId = g.winnerId
+  for (const p of g.players) tallyStanding(room, p.id, { played: 1 })
+  tallyStanding(room, g.winnerId, { wins: 1 })
   const rotated = rotateWinnerStays(room.seats, room.queue, g.winnerId, {}, room.rules.swapCount)
   room.seats = rotated.seats
   room.queue = rotated.queue
@@ -562,6 +607,10 @@ function settleChessEnd(room: Room): void {
   stopChess(g)
   room.status = 'finished'
   room.lastWinnerId = g.result.winnerId
+  // Une nulle compte comme partie jouée pour les deux, sans vainqueur.
+  tallyStanding(room, g.whiteId, { played: 1 })
+  tallyStanding(room, g.blackId, { played: 1 })
+  if (g.result.winnerId !== null) tallyStanding(room, g.result.winnerId, { wins: 1 })
   if (g.result.winnerId !== null) {
     const rotated = rotateWinnerStays(
       room.seats,
@@ -701,8 +750,13 @@ function settleRoundScores(room: Room): void {
   const result = room.game!.result!
   room.lastWinnerId = result.winnerId
 
+  // Palmarès : une manche jouée pour tout le monde à table.
+  for (const id of room.seats) tallyStanding(room, id, { played: 1 })
+
   // Manche nulle (« X ») : personne ne marque, personne ne bouge — on rejoue.
   if (result.winnerId === null) return
+
+  tallyStanding(room, result.winnerId, { rounds: 1, points: result.gain })
 
   if (room.rules.targetScore !== null) {
     // Match aux points : le gagnant encaisse la somme des mains adverses,
@@ -724,6 +778,7 @@ function settleRoundScores(room: Room): void {
       // Match remporté : la table tourne pour le match suivant —
       // plus petits scores sortants, égalité départagée à gauche du gagnant.
       room.matchWinnerId = result.winnerId
+      tallyStanding(room, result.winnerId, { wins: 1 })
       const rotated = rotateWinnerStays(
         room.seats,
         room.queue,
@@ -741,8 +796,11 @@ function settleRoundScores(room: Room): void {
     return
   }
 
-  // Manche sèche : rotation immédiate, le gagnant reste (pas de scores :
-  // à égalité complète, c'est le voisin de gauche du gagnant qui sort).
+  // Manche sèche : pas de match aux points, donc la manche EST la victoire.
+  tallyStanding(room, result.winnerId, { wins: 1 })
+
+  // Rotation immédiate, le gagnant reste (pas de scores : à égalité
+  // complète, c'est le voisin de gauche du gagnant qui sort).
   const rotated = rotateWinnerStays(room.seats, room.queue, result.winnerId, {}, room.rules.swapCount)
   room.seats = rotated.seats
   room.queue = rotated.queue
@@ -822,6 +880,17 @@ export function removeMember(room: Room, memberId: string): { empty: boolean; ab
   return { empty: false, aborted }
 }
 
+/** Enregistre une ligne au palmarès (crée l'entrée au besoin). */
+export function tallyStanding(room: Room, memberId: string, delta: Partial<Standing>): void {
+  const current = room.standings.get(memberId) ?? emptyStanding()
+  room.standings.set(memberId, {
+    wins: current.wins + (delta.wins ?? 0),
+    rounds: current.rounds + (delta.rounds ?? 0),
+    points: current.points + (delta.points ?? 0),
+    played: current.played + (delta.played ?? 0),
+  })
+}
+
 export function roomView(room: Room): RoomView {
   return {
     code: room.code,
@@ -841,6 +910,7 @@ export function roomView(room: Room): RoomView {
     rules: { ...room.rules },
     scores: Object.fromEntries(room.scores),
     matchWinnerId: room.matchWinnerId,
+    standings: Object.fromEntries(room.standings),
   }
 }
 

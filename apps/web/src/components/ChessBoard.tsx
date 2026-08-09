@@ -3,6 +3,7 @@ import { Chess, type Square } from 'chess.js'
 import type { ChessColor, ChessView, RoomView } from '@dominos-clan/engine'
 import { ChessPiece, type PieceType } from './ChessPieces'
 import { ConfirmBox, type ConfirmRequest } from './ConfirmBox'
+import { IconEye } from './Icons'
 import { playCheck, playChessCapture, playChessMove, playMate } from '../sounds'
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
@@ -175,6 +176,40 @@ export function ChessBoard({
     return null
   }, [engine, view.check, view.turn])
 
+  /**
+   * Glissement du dernier coup : la pièce arrivée sur `lastMove.to` démarre
+   * avec un décalage (--dx/--dy, en cases) vers sa case d'ORIGINE et glisse
+   * jusqu'à sa place — on voit d'où elle part, fini la téléportation.
+   */
+  const slide = useMemo(() => {
+    if (!view.lastMove) return null
+    const pos = (name: string) => {
+      const fileIndex = FILES.indexOf(name[0]!)
+      const rankIndex = 8 - Number(name[1])
+      return { r: flipped ? 7 - rankIndex : rankIndex, c: flipped ? 7 - fileIndex : fileIndex }
+    }
+    const from = pos(view.lastMove.from)
+    const to = pos(view.lastMove.to)
+    return { dx: from.c - to.c, dy: from.r - to.r }
+  }, [view.lastMove, flipped])
+
+  /** « Dernier coup » : pulsation des deux cases + rappel écrit (SAN + cases)
+      pour ceux qui distinguent mal le surlignage jaune. */
+  const [flashLast, setFlashLast] = useState(false)
+  const [lastInfo, setLastInfo] = useState(false)
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showLastMove = () => {
+    if (!view.lastMove) return
+    setLastInfo(true)
+    setFlashLast(false)
+    requestAnimationFrame(() => setFlashLast(true))
+    if (flashTimer.current) clearTimeout(flashTimer.current)
+    flashTimer.current = setTimeout(() => {
+      setFlashLast(false)
+      setLastInfo(false)
+    }, 2800)
+  }
+
   const topId = flipped ? view.whiteId : view.blackId
   const bottomId = flipped ? view.blackId : view.whiteId
   const topColor: ChessColor = flipped ? 'w' : 'b'
@@ -244,14 +279,44 @@ export function ChessBoard({
           className={`sq ${(r + c) % 2 === 0 ? 'light' : 'dark'} ${selected === sq ? 'sel' : ''} ${
             targets.has(sq) ? (capture ? 'tgt cap' : 'tgt') : ''
           } ${view.lastMove && (view.lastMove.from === sq || view.lastMove.to === sq) ? 'last' : ''} ${
-            checkedSquare === sq ? 'chk' : ''
-          }`}
+            flashLast && view.lastMove && (view.lastMove.from === sq || view.lastMove.to === sq)
+              ? 'flash'
+              : ''
+          } ${checkedSquare === sq ? 'chk' : ''}`}
           onClick={() => clickSquare(sq)}
         >
           {c === 0 && <span className="coord rank">{8 - rankIndex}</span>}
           {r === 7 && <span className="coord file">{FILES[fileIndex]}</span>}
+          {/* Trace FANTÔME sur la case de départ : on voit d'où la pièce est
+              partie, même si on a cligné pendant le glissement. */}
+          {sq === view.lastMove?.from &&
+            !piece &&
+            (() => {
+              const moved = engine.get(view.lastMove.to as Square)
+              return moved ? (
+                <span key={`gh-${lastPlayed}`} className="pc ghost">
+                  <ChessPiece type={moved.type as PieceType} color={moved.color} />
+                </span>
+              ) : null
+            })()}
           {piece && (
-            <span className="pc">
+            <span
+              // PAS de key changeante ici : une key qui bascule remonterait
+              // la pièce du coup PRÉCÉDENT dans le DOM et rejouerait son
+              // animation d'apparition — c'était le « flash » signalé. Le
+              // glissement est un style inline au nom ALTERNÉ (a/b) : il
+              // redémarre à chaque coup sans jamais remonter personne.
+              className={`pc ${sq === view.lastMove?.to && slide ? 'slide' : ''}`}
+              style={
+                sq === view.lastMove?.to && slide
+                  ? {
+                      ['--dx' as string]: slide.dx,
+                      ['--dy' as string]: slide.dy,
+                      animation: `pc-slide${lastPlayed % 2 ? '' : '-b'} 0.18s cubic-bezier(0.25, 0.9, 0.3, 1)`,
+                    }
+                  : undefined
+              }
+            >
               <ChessPiece type={piece.type as PieceType} color={piece.color} />
             </span>
           )}
@@ -271,6 +336,28 @@ export function ChessBoard({
       </div>
 
       {mate && <div className="mate-fx">♛ ÉCHEC ET MAT&nbsp;!</div>}
+
+      {/* Rappel du dernier coup : la PIÈCE dessinée + départ → arrivée —
+          lisible même quand on ne distingue pas le surlignage des cases. */}
+      {lastInfo &&
+        view.lastMove &&
+        (() => {
+          const moved = engine.get(view.lastMove.to as Square)
+          const mover = view.history.length % 2 === 1 ? view.whiteId : view.blackId
+          return (
+            <p className="last-info">
+              Dernier coup de {pseudoOf(room, mover)} :
+              {moved && (
+                <span className="last-info-pc">
+                  <ChessPiece type={moved.type as PieceType} color={moved.color} />
+                </span>
+              )}
+              <b>
+                {view.lastMove.from.toUpperCase()} → {view.lastMove.to.toUpperCase()}
+              </b>
+            </p>
+          )
+        })()}
 
       {promo && myColor && (
         <>
@@ -326,6 +413,14 @@ export function ChessBoard({
             {myTurn ? 'À toi de jouer !' : 'L’adversaire réfléchit…'}
             {view.check ? ' — échec !' : ''}
           </p>
+          <button
+            className="btn ghost sm"
+            disabled={!view.lastMove}
+            title="Revoir le dernier coup joué (cases + pièce)"
+            onClick={showLastMove}
+          >
+            <IconEye size={14} /> Dernier coup
+          </button>
           {/* Proposition de nulle : l'adversaire répond, moi je peux retirer. */}
           {view.drawOffer && view.drawOffer !== myColor ? (
             <span className="draw-offer">
@@ -362,7 +457,19 @@ export function ChessBoard({
       )}
 
       {view.status === 'playing' && !myColor && (
-        <p className="turn-hint">👀 Spectateur — trait aux {view.turn === 'w' ? 'blancs' : 'noirs'}</p>
+        <div className="chess-actions">
+          <p className="turn-hint">
+            👀 Spectateur — trait aux {view.turn === 'w' ? 'blancs' : 'noirs'}
+          </p>
+          <button
+            className="btn ghost sm"
+            disabled={!view.lastMove}
+            title="Revoir le dernier coup joué (cases + pièce)"
+            onClick={showLastMove}
+          >
+            <IconEye size={14} /> Dernier coup
+          </button>
+        </div>
       )}
 
       <ConfirmBox req={confirmReq} onClose={() => setConfirmReq(null)} />

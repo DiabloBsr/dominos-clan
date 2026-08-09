@@ -71,6 +71,8 @@ export default function App() {
   )
   /** Règles d'un jeu, ouvertes depuis son propre panneau (null = fermé). */
   const [learning, setLearning] = useState<LearnGame | null>(null)
+  /** Coupure réseau en cours : on garde le salon à l'écran et on reprend. */
+  const [reconnecting, setReconnecting] = useState(false)
   /** Écran de modes des Échecs (solo IA / coaché / avec un ami). */
   const [chessHub, setChessHub] = useState(false)
   const [slamFx, setSlamFx] = useState<{ key: number; pseudo: string; taunt: string } | null>(null)
@@ -396,8 +398,10 @@ export default function App() {
       playPass()
       const key = ++passKey.current
       setPassFx({ key, pseudo: p.pseudo, cry: p.cry ?? 0 })
-      // Le cri reste lisible ~2 s (1,1 s était trop bref pour être lu).
-      setTimeout(() => setPassFx((prev) => (prev?.key === key ? null : prev)), 2100)
+      // Doit rester ALIGNÉ sur l'animation `cry-pop` (2,6 s) : avant, le
+      // minuteur disait 2,1 s pendant que le CSS effaçait le cri dès 1 s —
+      // impossible de lire « MANARAKY AO E ».
+      setTimeout(() => setPassFx((prev) => (prev?.key === key ? null : prev)), 2700)
     }
     const onSterile = (s: { rounds: number }) =>
       showNotice(
@@ -407,10 +411,16 @@ export default function App() {
       setLudoRollFx({ ...r, key: ++ludoRollKey.current })
     const onAborted = () => showNotice('Un joueur a quitté : manche annulée')
     const onDisconnect = () => {
-      setRoom(null)
-      setGame(null)
-      setSelfId(null)
-      showNotice('Connexion perdue avec le serveur')
+      // On NE VIDE PLUS le salon ici. Une coupure de quelques secondes
+      // renvoyait le joueur à l'accueil, et sa partie continuait sans lui.
+      // On garde tout à l'écran, on signale, et la reprise fait le reste.
+      if (loadSession()) setReconnecting(true)
+      else {
+        setRoom(null)
+        setGame(null)
+        setSelfId(null)
+        showNotice('Connexion perdue avec le serveur')
+      }
     }
 
     socket.on('room:state', onRoomState)
@@ -472,16 +482,36 @@ export default function App() {
     [showNotice],
   )
 
-  // Reprise de session : au chargement (ou à la reconnexion), on retourne
-  // directement dans le salon au lieu de repasser par l'accueil.
+  /**
+   * Reprise de session, au chargement ET à CHAQUE reconnexion.
+   *
+   * L'ancienne version sortait si `selfId` était déjà rempli. Or dans un
+   * gestionnaire socket, `selfId` est figé à l'inscription de l'écouteur :
+   * après une coupure brève, socket.io se reconnectait avant que React n'ait
+   * re-rendu, la reprise voyait l'ancien `selfId` et abandonnait. Résultat :
+   * plus aucun état ne remontait, et revenir à la main créait un doublon.
+   *
+   * La seule source de vérité, c'est la SESSION STOCKÉE — pas l'état React.
+   */
   useEffect(() => {
     const tryResume = () => {
-      if (selfId) return
       const session = loadSession()
       if (!session) return
       socket.emit('room:resume', session, (res: Ack) => {
-        if (res.ok && res.selfId) setSelfId(res.selfId)
-        else clearSession()
+        setReconnecting(false)
+        if (res.ok && res.selfId) {
+          setSelfId(res.selfId)
+          return
+        }
+        const reason = res.ok ? null : res.error
+        // Salon disparu ou grâce dépassée : on nettoie et on revient à l'accueil.
+        clearSession()
+        setRoom(null)
+        setGame(null)
+        setChess(null)
+        setLudo(null)
+        setSelfId(null)
+        showNotice(reason ?? 'Session expirée — le salon n’existe plus')
       })
     }
     tryResume()
@@ -489,7 +519,7 @@ export default function App() {
     return () => {
       socket.off('connect', tryResume)
     }
-  }, [selfId])
+  }, [showNotice])
 
   const simpleEmit = useCallback(
     (event: string, payload: Record<string, unknown> = {}) => {
@@ -647,6 +677,12 @@ export default function App() {
         </div>
       )}
       {notice && <div className="toast">{notice}</div>}
+      {/* Coupure réseau : on reste dans le salon, on prévient, on reprend. */}
+      {reconnecting && (
+        <div className="reconnect-banner" role="status">
+          📡 Connexion perdue — on te remet dans la partie…
+        </div>
+      )}
       {invite && (
         <div className="invite-toast">
           <span>

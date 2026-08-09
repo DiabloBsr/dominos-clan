@@ -218,6 +218,9 @@ io.on('connection', (socket: Socket) => {
         const { room, member } = joinRoom(payload?.code, payload?.pseudo, socket.id, identity)
         state.roomCode = room.code
         state.memberId = member.id
+        // Si on vient de reprendre la place d'un membre déconnecté, il ne faut
+        // surtout pas que sa suppression différée s'exécute derrière nous.
+        cancelPendingRemoval(room.code, member.id)
         socket.join(room.code)
         statMemberJoined(room, member.pseudo, member.userId)
         broadcast(room)

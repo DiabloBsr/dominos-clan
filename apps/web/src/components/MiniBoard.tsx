@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import {
   Board,
   KING,
+  WHITE,
   fileOf,
   moveTo,
   onBoard,
@@ -43,6 +44,19 @@ export function MiniBoard({
     return board.kings[board.side]!
   }, [board])
 
+  // Glissement du dernier coup : la pièce arrivée démarre décalée vers sa
+  // case d'origine (--dx/--dy en cases) et glisse jusqu'à sa place.
+  const slide = useMemo(() => {
+    if (!lastMove) return null
+    const pos = (s: number) => ({
+      r: flipped ? rankOf(s) : 7 - rankOf(s),
+      c: flipped ? 7 - fileOf(s) : fileOf(s),
+    })
+    const from = pos(lastMove.from)
+    const to = pos(lastMove.to)
+    return { dx: from.c - to.c, dy: from.r - to.r }
+  }, [lastMove, flipped])
+
   const cells = []
   for (let row = 0; row < 8; row++) {
     for (let col = 0; col < 8; col++) {
@@ -68,7 +82,21 @@ export function MiniBoard({
           {col === 0 && <span className="coord rank">{rankOf(sq) + 1}</span>}
           {row === 7 && <span className="coord file">{FILES[fileOf(sq)]}</span>}
           {piece !== 0 && (
-            <span className="pc">
+            <span
+              // Pas de key instable (elle remonterait la pièce du coup
+              // précédent → flash) : glissement en style inline, nom alterné
+              // selon le trait pour redémarrer à chaque coup.
+              className={`pc ${slide && lastMove?.to === sq ? 'slide' : ''}`}
+              style={
+                slide && lastMove?.to === sq
+                  ? {
+                      ['--dx' as string]: slide.dx,
+                      ['--dy' as string]: slide.dy,
+                      animation: `pc-slide${board.side === WHITE ? '' : '-b'} 0.18s cubic-bezier(0.25, 0.9, 0.3, 1)`,
+                    }
+                  : undefined
+              }
+            >
               <ChessPiece type={TYPE_CHARS[type]!} color={piece > 0 ? 'w' : 'b'} />
             </span>
           )}

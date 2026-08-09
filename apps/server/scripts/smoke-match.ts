@@ -138,6 +138,27 @@ async function main(): Promise<void> {
     }
     // Remise à zéro par l'hôte : retour lobby, scores effacés.
     await emitAck(alice.socket, 'room:restart', {})
+    // PALMARÈS : le vainqueur doit avoir 1 victoire et 1 manche, les deux
+    // joueurs de la table 1 partie jouée, et le spectateur rien du tout.
+    const standings = alice.room!.standings ?? {}
+    const winnerRow = standings[winner]
+    const loserRow = standings[loser]
+    if (!winnerRow || winnerRow.wins !== 1 || winnerRow.rounds !== 1) {
+      throw new Error(`palmarès du gagnant faux : ${JSON.stringify(winnerRow)}`)
+    }
+    if (winnerRow.points !== result.gain) {
+      throw new Error(`points au palmarès : attendu ${result.gain}, reçu ${winnerRow.points}`)
+    }
+    if (!loserRow || loserRow.wins !== 0 || loserRow.played !== 1) {
+      throw new Error(`palmarès du perdant faux : ${JSON.stringify(loserRow)}`)
+    }
+    if (standings[carol.selfId]) {
+      throw new Error('le spectateur ne doit pas apparaître au palmarès')
+    }
+    console.log(
+      `palmarès ✔ gagnant ${winnerRow.wins}V/${winnerRow.rounds}M/${winnerRow.points}pts · perdant ${loserRow.wins}V/${loserRow.played} jouée(s) · spectateur absent`,
+    )
+
     await sleep(120)
     if (alice.room!.status !== 'lobby' || Object.keys(alice.room!.scores).length !== 0) {
       throw new Error(

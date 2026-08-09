@@ -279,7 +279,10 @@ export function Home({
                     <span className="friend-name">
                       {friendAvatar(f)} {friendLabel(f)}
                     </span>
-                    <span className={`friend-status ${status}`}>{STATUS_LABELS[status]}</span>
+                    {/* Statut PRÉFIXÉ (st-room, pas room) : la classe nue
+                        « room » entrait en collision avec le conteneur du
+                        salon et gonflait le badge, écrasant le nom à 0 px. */}
+                    <span className={`friend-status st-${status}`}>{STATUS_LABELS[status]}</span>
                     {(status === 'room' || status === 'playing') && (
                       <button
                         className="btn ghost sm"
