@@ -13,8 +13,8 @@ import {
   IconMenu,
   IconMic,
   IconMicOff,
-  IconPower,
   IconRefresh,
+  MicMeter,
   IconSliders,
   IconUsers,
   IconVolume,
@@ -498,11 +498,13 @@ export function Room({
             }}
           >
             {voice.state.status === 'on' ? (
-              voice.state.muted ? (
-                <IconMicOff />
-              ) : (
-                <IconMic />
-              )
+              // Mon propre vumètre : barré si coupé, et il se remplit quand
+              // JE parle — on voit d'un coup d'œil que le micro capte.
+              <MicMeter
+                muted={voice.state.muted}
+                level={voice.state.levels[selfId] ?? 0}
+                size={20}
+              />
             ) : (
               <IconMenu />
             )}
@@ -595,18 +597,8 @@ export function Room({
                   Tout remettre à zéro
                 </button>
               )}
-              {voice.state.status === 'on' && (
-                <button
-                  className="menu-item danger"
-                  onClick={() => {
-                    setMenuOpen(false)
-                    voice.leave()
-                  }}
-                >
-                  <IconPower />
-                  Se déconnecter de la voix
-                </button>
-              )}
+              {/* Plus de « se déconnecter de la voix » : le service vit avec
+                  le salon, le seul geste est couper/réactiver SON micro. */}
             </div>
           )}
           {inviteOpen && (
@@ -701,7 +693,15 @@ export function Room({
               <span className="chip-n">{i + 1}</span>
               <span className="chip-avatar">{avatarOf(room, id)}</span>
               <span className="chip-name">{pseudoOf(room, id)}</span>
-              {voice.state.inVoice.includes(id) && <span className="chip-ic">🎙</span>}
+              {voice.state.inVoice.includes(id) && (
+                <span className="chip-ic">
+                  <MicMeter
+                    muted={voice.state.mutedIds.includes(id)}
+                    level={voice.state.levels[id] ?? 0}
+                    size={13}
+                  />
+                </span>
+              )}
               {room.members.find((m) => m.id === id)?.isHost && <span className="chip-ic">⭐</span>}
               {room.lastWinnerId === id && <span className="chip-ic">👑</span>}
               {isHost && id !== selfId && (
@@ -740,7 +740,15 @@ export function Room({
               <span className="chip-n">{i + 1}</span>
               <span className="chip-avatar">{avatarOf(room, id)}</span>
               <span className="chip-name">{pseudoOf(room, id)}</span>
-              {voice.state.inVoice.includes(id) && <span className="chip-ic">🎙</span>}
+              {voice.state.inVoice.includes(id) && (
+                <span className="chip-ic">
+                  <MicMeter
+                    muted={voice.state.mutedIds.includes(id)}
+                    level={voice.state.levels[id] ?? 0}
+                    size={13}
+                  />
+                </span>
+              )}
               {id === selfId && (
                 <button
                   className="chip-add"
@@ -1096,6 +1104,8 @@ export function Room({
           onStart={onStart}
           voiceIds={voice.state.inVoice}
           speaking={voice.state.speaking}
+          mutedIds={voice.state.mutedIds}
+          levels={voice.state.levels}
         />
       ) : room.rules.gameType === 'chess' && chess && room.status !== 'lobby' ? (
         <ChessBoard
@@ -1109,6 +1119,8 @@ export function Room({
           onStart={onStart}
           voiceIds={voice.state.inVoice}
           speaking={voice.state.speaking}
+          mutedIds={voice.state.mutedIds}
+          levels={voice.state.levels}
         />
       ) : game && room.status !== 'lobby' ? (
         <Game
@@ -1120,6 +1132,8 @@ export function Room({
           onRedeal={onRedeal}
           voiceIds={voice.state.inVoice}
           speaking={voice.state.speaking}
+          mutedIds={voice.state.mutedIds}
+          levels={voice.state.levels}
           shaking={slamFx !== null}
         />
       ) : (

@@ -148,3 +148,69 @@ export const IconCheck = ({ size }: { size?: number }) => (
     <polyline points="20 6 9 17 4 12" />
   </Icon>
 )
+
+/**
+ * VUMÈTRE micro — l'icône d'état de CHAQUE joueur :
+ *  • micro coupé → icône barrée, atténuée ;
+ *  • micro ouvert, silence → contour vide ;
+ *  • en train de parler → la capsule SE REMPLIT depuis le bas et oscille
+ *    avec le niveau de voix.
+ */
+export function MicMeter({
+  level,
+  muted,
+  size,
+}: {
+  /** Niveau de voix 0..1 (audioLevel LiveKit). */
+  level: number
+  muted: boolean
+  size?: number
+}) {
+  if (muted) {
+    return (
+      <span className="mic-meter off">
+        <IconMicOff size={size} />
+      </span>
+    )
+  }
+  // Les niveaux LiveKit de parole normale plafonnent vers 0,3-0,4 : la racine
+  // redresse la courbe pour que le remplissage soit VISIBLE dès qu'on parle.
+  const filled = Math.min(1, Math.sqrt(Math.max(0, level)) * 1.7)
+  const interiorTop = 3.1
+  const interiorBottom = 12.9
+  const height = (interiorBottom - interiorTop) * filled
+  const speakingNow = filled > 0.08
+  return (
+    <span className={`mic-meter ${speakingNow ? 'live' : ''}`}>
+      <svg
+        width={size ?? 20}
+        height={size ?? 20}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <rect x="9" y="2" width="6" height="12" rx="3" />
+        <path d="M5 10v1a7 7 0 0 0 14 0v-1" />
+        <line x1="12" y1="18" x2="12" y2="22" />
+        <line x1="8" y1="22" x2="16" y2="22" />
+        {height > 0.4 && (
+          <rect
+            className="mic-fill"
+            x="9.9"
+            y={interiorBottom - height}
+            width="4.2"
+            height={height}
+            rx="2"
+            fill="currentColor"
+            stroke="none"
+          />
+        )}
+      </svg>
+    </span>
+  )
+}

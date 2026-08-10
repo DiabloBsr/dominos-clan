@@ -16,6 +16,10 @@ export interface VoiceState {
   inVoice: string[]
   /** memberIds en train de parler (détection LiveKit). */
   speaking: string[]
+  /** memberIds dont le micro est COUPÉ (pour le vumètre barré sur leur nom). */
+  mutedIds: string[]
+  /** Niveau de voix instantané par memberId (0..1) — anime le remplissage. */
+  levels: Record<string, number>
 }
 
 export interface VoiceControls {
@@ -27,7 +31,15 @@ export interface VoiceControls {
   leave: () => void
 }
 
-const INITIAL: VoiceState = { status: 'off', muted: false, audience: 'all', inVoice: [], speaking: [] }
+const INITIAL: VoiceState = {
+  status: 'off',
+  muted: false,
+  audience: 'all',
+  inVoice: [],
+  speaking: [],
+  mutedIds: [],
+  levels: {},
+}
 
 /**
  * Voix du salon via LiveKit : un salon de jeu = une room `dc-<code>`.
@@ -116,11 +128,17 @@ export function useVoice(
   useEffect(() => teardown, [roomCode, teardown])
 
   const refreshRoster = useCallback((room: VoiceRoom) => {
-    const ids = [
-      room.localParticipant.identity,
-      ...[...room.remoteParticipants.values()].map((p) => p.identity),
-    ]
-    setState((s) => ({ ...s, inVoice: ids }))
+    const remotes = [...room.remoteParticipants.values()]
+    const ids = [room.localParticipant.identity, ...remotes.map((p) => p.identity)]
+    // Micro coupé = aucune publication audio active. (Le sien se lit
+    // directement ; les distants via leurs publications.)
+    const muted: string[] = []
+    if (!room.localParticipant.isMicrophoneEnabled) muted.push(room.localParticipant.identity)
+    for (const p of remotes) {
+      const pubs = [...p.audioTrackPublications.values()]
+      if (pubs.length === 0 || pubs.every((pub) => pub.isMuted)) muted.push(p.identity)
+    }
+    setState((s) => ({ ...s, inVoice: ids, mutedIds: muted }))
   }, [])
 
   /** Code du salon RÉELLEMENT connecté — détecte les connexions fantômes. */
@@ -224,8 +242,17 @@ export function useVoice(
               refreshRoster(room)
             })
             .on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
-              setState((s) => ({ ...s, speaking: speakers.map((p) => p.identity) }))
+              // Niveau de voix par participant : c'est lui qui fait monter et
+              // osciller le remplissage du vumètre sur chaque nom.
+              const levels: Record<string, number> = {}
+              for (const p of speakers) levels[p.identity] = p.audioLevel
+              setState((s) => ({ ...s, speaking: speakers.map((p) => p.identity), levels }))
             })
+            // L'état muet des micros distants change → vumètres à jour.
+            .on(RoomEvent.TrackMuted, () => refreshRoster(room))
+            .on(RoomEvent.TrackUnmuted, () => refreshRoster(room))
+            .on(RoomEvent.TrackPublished, () => refreshRoster(room))
+            .on(RoomEvent.TrackUnpublished, () => refreshRoster(room))
             // LiveKit se reconnecte TOUT SEUL après une coupure courte : on
             // reflète honnêtement cet état dans l'interface au lieu de
             // prétendre que tout va bien (ou de croire le micro mort).
@@ -352,6 +379,7 @@ export function useVoice(
     void (async () => {
       try {
         await room.localParticipant.setMicrophoneEnabled(nextEnabled)
+        refreshRoster(room) // mon propre vumètre passe barré/ouvert
       } catch {
         try {
           await new Promise((r) => setTimeout(r, 450))
@@ -363,7 +391,7 @@ export function useVoice(
         }
       }
     })()
-  }, [onError])
+  }, [onError, refreshRoster])
 
   const setAudience = useCallback((audience: VoiceAudience) => {
     const room = voiceRef.current

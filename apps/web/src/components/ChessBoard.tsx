@@ -3,7 +3,7 @@ import { Chess, type Square } from 'chess.js'
 import type { ChessColor, ChessView, RoomView } from '@dominos-clan/engine'
 import { ChessPiece, type PieceType } from './ChessPieces'
 import { ConfirmBox, type ConfirmRequest } from './ConfirmBox'
-import { IconEye } from './Icons'
+import { IconEye, MicMeter } from './Icons'
 import { playCheck, playChessCapture, playChessMove, playMate } from '../sounds'
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
@@ -78,6 +78,8 @@ export function ChessBoard({
   onStart,
   voiceIds,
   speaking,
+  mutedIds,
+  levels,
 }: {
   view: ChessView
   room: RoomView
@@ -89,6 +91,8 @@ export function ChessBoard({
   onStart: () => void
   voiceIds: string[]
   speaking: string[]
+  mutedIds: string[]
+  levels: Record<string, number>
 }) {
   const engine = useMemo(() => new Chess(view.fen), [view.fen])
 
@@ -242,7 +246,9 @@ export function ChessBoard({
       <span className={`chess-color-dot ${color === 'w' ? 'white' : 'black'}`} />
       <span className="chess-name">
         {avatarOf(room, id)} {pseudoOf(room, id)}
-        {voiceIds.includes(id) ? ' 🎙' : ''}
+        {voiceIds.includes(id) && (
+          <MicMeter muted={mutedIds.includes(id)} level={levels[id] ?? 0} size={13} />
+        )}
         {id === selfId ? ' (toi)' : ''}
       </span>
       <span className="captured-row" title="Pièces capturées">

@@ -3,6 +3,7 @@ import type { End, GameView, Move, PublicPlayer, RoomView, Tile } from '@dominos
 import { layoutBoard } from '../boardLayout'
 import { playTap } from '../sounds'
 import { DominoBack, DominoTile } from './DominoTile'
+import { MicMeter } from './Icons'
 
 function pseudoOf(room: RoomView, id: string): string {
   return room.members.find((m) => m.id === id)?.pseudo ?? '???'
@@ -32,6 +33,8 @@ export function Game({
   onRedeal,
   voiceIds,
   speaking,
+  mutedIds,
+  levels,
   shaking,
 }: {
   game: GameView
@@ -42,6 +45,8 @@ export function Game({
   onRedeal: () => void
   voiceIds: string[]
   speaking: string[]
+  mutedIds: string[]
+  levels: Record<string, number>
   shaking: boolean
 }) {
   const [selected, setSelected] = useState<Tile | null>(null)
@@ -202,7 +207,9 @@ export function Game({
       >
         <span className="seat-name">
           {avatarOf(room, p.id)} {pseudoOf(room, p.id)}
-          {voiceIds.includes(p.id) ? ' 🎙' : ''}
+          {voiceIds.includes(p.id) && (
+            <MicMeter muted={mutedIds.includes(p.id)} level={levels[p.id] ?? 0} size={12} />
+          )}
           {p.id === selfId ? ' (toi)' : ''}
         </span>
         <span className="seat-tiles">

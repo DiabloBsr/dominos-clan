@@ -4417,6 +4417,41 @@ section.game {
   white-space: nowrap;
 }
 
+/* ─── Vumètre micro (icône d'état sur chaque joueur) ──────────────────── */
+
+.mic-meter {
+  display: inline-grid;
+  place-items: center;
+  vertical-align: -0.12em;
+  margin-inline: 0.15rem;
+}
+
+/* Micro coupé : barré et en retrait — l'info est là sans crier. */
+.mic-meter.off {
+  opacity: 0.55;
+  color: #ff9d92;
+}
+
+/* Le remplissage suit le niveau de voix… */
+.mic-fill {
+  transition: y 0.12s linear, height 0.12s linear;
+}
+
+/* …et RESPIRE pendant la parole : l'oscillation haut-bas demandée. */
+.mic-meter.live .mic-fill {
+  transform-origin: center 55%;
+  animation: mic-bob 0.42s ease-in-out infinite alternate;
+}
+
+@keyframes mic-bob {
+  from {
+    transform: scaleY(0.78);
+  }
+  to {
+    transform: scaleY(1.06);
+  }
+}
+
 /* Reprise après coupure réseau : bandeau discret, le salon reste visible. */
 .reconnect-banner {
   position: fixed;

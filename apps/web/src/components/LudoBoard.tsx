@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ludoLegalPawns, ludoSafeCells, ludoStarCells, ludoStartCell, type LudoState } from '@dominos-clan/engine'
 import type { RoomView } from '@dominos-clan/engine'
+import { MicMeter } from './Icons'
 import { playBonusPickup, playCapture, playDiceRoll, playGoal, playHop, playTeleport } from '../sounds'
 
 type LudoPawnPos = LudoState['players'][number]['pawns'][number]
@@ -264,6 +265,8 @@ export function LudoBoard({
   onStart,
   voiceIds,
   speaking,
+  mutedIds,
+  levels,
 }: {
   state: LudoState
   room: RoomView
@@ -277,6 +280,8 @@ export function LudoBoard({
   onStart: () => void
   voiceIds: string[]
   speaking: string[]
+  mutedIds: string[]
+  levels: Record<string, number>
 }) {
   const myIndex = state.players.findIndex((p) => p.id === selfId)
   const myTurn = myIndex >= 0 && state.turn === myIndex && state.status === 'playing'
@@ -793,7 +798,9 @@ export function LudoBoard({
                 <span className="ludo-dot" />
                 <span className="plate-name">
                   {avatarOf(room, p.id)} {pseudoOf(room, p.id)}
-                  {voiceIds.includes(p.id) ? ' 🎙' : ''}
+                  {voiceIds.includes(p.id) && (
+            <MicMeter muted={mutedIds.includes(p.id)} level={levels[p.id] ?? 0} size={12} />
+          )}
                   {mine ? ' (toi)' : ''}
                   {p.shields.some(Boolean) ? ' 🛡' : ''}
                 </span>
