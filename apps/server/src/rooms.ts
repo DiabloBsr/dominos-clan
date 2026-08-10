@@ -927,7 +927,7 @@ export function canReact(room: Room, memberId: string, emoji: string): boolean {
 }
 
 /** Soundboard : sons de chambrage joués chez tout le salon. */
-export const BOARD_SOUNDS = ['pet', 'rire', 'colere', 'bravo', 'tromblon', 'bisou'] as const
+export const BOARD_SOUNDS = ['pet', 'rire', 'fou-rire', 'colere', 'bravo', 'tromblon', 'bisou'] as const
 export type BoardSound = (typeof BOARD_SOUNDS)[number]
 const SOUND_THROTTLE_MS = 1500
 

@@ -80,8 +80,31 @@ export function useVoice(
     applyFilterAll()
   }, [playerKey, applyFilterAll])
 
+  /**
+   * Numéro de la TENTATIVE de connexion courante. Toute continuation
+   * asynchrone (réponse token, import, connect…) d'une tentative dépassée
+   * vérifie ce numéro et s'arrête net : c'est ce qui rend join/teardown
+   * réentrants sans course (StrictMode, re-rendus pendant `connecting`,
+   * réponse token arrivée après un changement de salon…).
+   */
+  const joinSeq = useRef(0)
+  /** Salon pour lequel une connexion est EN VOL (anti double-join). */
+  const pendingCode = useRef<string | null>(null)
+  /** Reprises automatiques restantes après une coupure inattendue. */
+  const rejoinLeft = useRef(3)
+  const rejoinTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const teardown = useCallback(() => {
+    joinSeq.current += 1
+    pendingCode.current = null
+    if (rejoinTimer.current) {
+      clearTimeout(rejoinTimer.current)
+      rejoinTimer.current = null
+    }
     const room = voiceRef.current
+    // voiceRef est vidé AVANT le disconnect : le gestionnaire Disconnected de
+    // cette room (scopé sur elle-même) verra qu'elle n'est plus la connexion
+    // courante et ne déclenchera NI nettoyage global NI reprise automatique.
     voiceRef.current = null
     if (room) void room.disconnect()
     document.querySelectorAll('[data-voice="dominos-clan"]').forEach((el) => el.remove())
@@ -108,19 +131,26 @@ export function useVoice(
   const join = useCallback((opts?: { auto?: boolean }) => {
     const auto = opts?.auto ?? false
     if (!roomCode) return
+    // Déjà connecté à CE salon, ou tentative DÉJÀ EN VOL pour lui (double
+    // montage StrictMode, re-rendu pendant `connecting` quand un participant
+    // entre…) : on ne relance rien — c'était l'auto-cannibalisation qui
+    // faisait « rater » le micro à l'arrivée d'un nouveau membre.
+    if (voiceRef.current && joinedCode.current === roomCode) return
+    if (pendingCode.current === roomCode) return
     if (voiceRef.current) {
-      // Déjà connecté à CE salon : rien à faire. Mais s'il reste une
-      // connexion d'un ANCIEN salon (Disconnected pas encore arrivé), c'était
-      // le fameux « micro bugué en arrivant dans une partie » — le garde
-      // muet refusait de se reconnecter et il fallait couper/rallumer le
-      // service à la main. On évacue la connexion périmée et on continue.
-      if (joinedCode.current === roomCode) return
+      // Connexion fantôme d'un ANCIEN salon (Disconnected pas encore arrivé) :
+      // on l'évacue — voiceRef vidé d'abord, son Disconnected ne touchera rien.
       const stale = voiceRef.current
       voiceRef.current = null
       joinedCode.current = null
       void stale.disconnect()
     }
     if (auto && noVoiceServer.current) return
+    const seq = ++joinSeq.current
+    pendingCode.current = roomCode
+    const donePending = () => {
+      if (joinSeq.current === seq) pendingCode.current = null
+    }
     setState((s) => ({ ...s, status: 'connecting' }))
 
     const attempt = (retry: boolean) => {
@@ -129,7 +159,9 @@ export function useVoice(
       { retry },
       (res: { ok: true; url: string; token: string } | { ok: false; error: string }) => {
         void (async () => {
+          if (joinSeq.current !== seq) return // tentative dépassée (salon quitté…)
           if (!res.ok) {
+            donePending()
             const unavailable = res.error.includes('non configuré')
             if (unavailable) noVoiceServer.current = true
             setState((s) => ({ ...s, status: unavailable ? 'unavailable' : 'off' }))
@@ -139,6 +171,7 @@ export function useVoice(
             return
           }
           const { Room, RoomEvent, Track, AudioPresets } = await import('livekit-client')
+          if (joinSeq.current !== seq) return
           /**
            * Réglages ÉCONOMES EN DATA — beaucoup de joueurs sont en forfait
            * mobile compté. Mesuré avant/après sur de la parole continue :
@@ -193,47 +226,111 @@ export function useVoice(
             .on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
               setState((s) => ({ ...s, speaking: speakers.map((p) => p.identity) }))
             })
+            // LiveKit se reconnecte TOUT SEUL après une coupure courte : on
+            // reflète honnêtement cet état dans l'interface au lieu de
+            // prétendre que tout va bien (ou de croire le micro mort).
+            .on(RoomEvent.Reconnecting, () => {
+              if (voiceRef.current !== room) return
+              setState((s) => ({ ...s, status: 'connecting' }))
+            })
+            .on(RoomEvent.Reconnected, () => {
+              if (voiceRef.current !== room) return
+              setState((s) => ({ ...s, status: 'on' }))
+              refreshRoster(room)
+            })
+            .on(RoomEvent.MediaDevicesError, () => {
+              if (voiceRef.current !== room) return
+              onError('Problème de micro — vérifie tes périphériques audio')
+            })
+            // Lecture bloquée par le navigateur (arrivée sans clic) : on la
+            // débloque au premier geste, à CHAQUE fois que ça se produit.
+            .on(RoomEvent.AudioPlaybackStatusChanged, () => {
+              if (voiceRef.current !== room) return
+              if (!room.canPlaybackAudio) {
+                const unlock = () => void room.startAudio()
+                window.addEventListener('pointerdown', unlock, { once: true })
+              }
+            })
             .on(RoomEvent.Disconnected, () => {
+              // SCOPÉ : si cette room n'est plus la connexion courante
+              // (évacuée, remplacée, teardown), on ne touche à RIEN — avant,
+              // ce gestionnaire écrasait les refs de la NOUVELLE connexion :
+              // interface « off » avec un micro fantôme encore actif.
+              if (voiceRef.current !== room) return
               document.querySelectorAll('[data-voice="dominos-clan"]').forEach((el) => el.remove())
               audioEls.current.clear()
               voiceRef.current = null
               joinedCode.current = null
-              setState(INITIAL)
+              setState((s) => ({ ...INITIAL, status: s.status === 'unavailable' ? 'unavailable' : 'off' }))
+              // Coupure INATTENDUE (une sortie voulue passe par teardown, qui
+              // nous aurait détachés) : le micro revient tout seul.
+              if (rejoinLeft.current > 0) {
+                rejoinLeft.current -= 1
+                rejoinTimer.current = setTimeout(() => join({ auto: true }), 1500)
+              }
             })
 
           try {
             await room.connect(res.url, res.token)
-            joinedCode.current = roomCode
-            await room.localParticipant.setAttributes({ target: 'all' })
-            // Le micro rate parfois sa PREMIÈRE capture (périphérique encore
-            // occupé après un changement de salon/onglet) : une deuxième
-            // tentative suffit presque toujours — l'autre visage du bug.
-            try {
-              await room.localParticipant.setMicrophoneEnabled(true)
-            } catch {
-              await new Promise((r) => setTimeout(r, 450))
-              await room.localParticipant.setMicrophoneEnabled(true)
-            }
-            await room.startAudio()
-            setState((s) => ({ ...s, status: 'on', muted: false, audience: 'all' }))
-            refreshRoster(room)
           } catch (err) {
-            voiceRef.current = null
+            // SEUL l'échec de la CONNEXION déclenche la bascule de projet du
+            // pool. Avant, un simple raté de micro ou d'autoplay arrivait ici
+            // et faisait basculer tout le salon — split garanti.
+            if (voiceRef.current === room) voiceRef.current = null
             joinedCode.current = null
             void room.disconnect()
+            if (joinSeq.current !== seq) return
             if (!retry) {
-              // Échec de connexion (quota du projet ?) : le serveur bascule le
-              // salon vers le projet LiveKit suivant du pool, et on retente.
               attempt(true)
               return
             }
+            donePending()
             setState((s) => ({ ...s, status: 'off' }))
-            onError(
-              err instanceof Error && err.name === 'NotAllowedError'
-                ? 'Micro refusé par le navigateur — autorise-le pour parler'
-                : `Connexion voix impossible : ${err instanceof Error ? err.message : 'erreur'}`,
-            )
+            onError(`Connexion voix impossible : ${err instanceof Error ? err.message : 'erreur'}`)
+            return
           }
+          if (joinSeq.current !== seq) {
+            // Le salon a été quitté pendant le connect : on repart proprement.
+            if (voiceRef.current === room) voiceRef.current = null
+            void room.disconnect()
+            return
+          }
+          joinedCode.current = roomCode
+          donePending()
+          rejoinLeft.current = 3 // connexion saine → recharge les reprises auto
+
+          // Tout ce qui suit est NON-FATAL : la connexion tient même si le
+          // micro ou les haut-parleurs demandent un second essai.
+          try {
+            await room.localParticipant.setAttributes({ target: 'all' })
+          } catch {
+            // L'audience retombera sur « tous » côté écoute : sans gravité.
+          }
+          // Le micro rate parfois sa PREMIÈRE capture (périphérique encore
+          // occupé après un changement de salon/onglet) : deuxième tentative,
+          // et en cas d'échec on reste connecté en ÉCOUTE (mute affiché).
+          let micOk = true
+          try {
+            await room.localParticipant.setMicrophoneEnabled(true)
+          } catch {
+            try {
+              await new Promise((r) => setTimeout(r, 450))
+              await room.localParticipant.setMicrophoneEnabled(true)
+            } catch {
+              micOk = false
+            }
+          }
+          // Arrivée SANS geste utilisateur (reprise de session) : le
+          // navigateur peut bloquer la lecture — on réessaie au premier clic.
+          try {
+            await room.startAudio()
+          } catch {
+            const unlock = () => void room.startAudio()
+            window.addEventListener('pointerdown', unlock, { once: true })
+          }
+          setState((s) => ({ ...s, status: 'on', muted: !micOk, audience: 'all' }))
+          if (!micOk) onError('Micro indisponible — « Réactiver le micro » dans le menu ☰')
+          refreshRoster(room)
         })()
       },
     )
@@ -274,6 +371,49 @@ export function useVoice(
     void room.localParticipant.setAttributes({ target: audience })
     setState((s) => ({ ...s, audience }))
   }, [])
+
+  /**
+   * CHIEN DE GARDE : toutes les 8 s, l'état AFFICHÉ est comparé à l'état
+   * RÉEL de LiveKit. Toute désynchronisation résiduelle — le cas qu'on n'a
+   * pas prévu — se répare d'elle-même. C'est le filet sous tous les
+   * correctifs : quoi qu'il arrive, le micro finit par revenir.
+   */
+  useEffect(() => {
+    if (!roomCode) return
+    const timer = setInterval(() => {
+      const room = voiceRef.current
+      if (room && String(room.state) === 'disconnected') {
+        voiceRef.current = null
+        joinedCode.current = null
+        join({ auto: true })
+      }
+    }, 8000)
+    return () => clearInterval(timer)
+  }, [roomCode, join])
+
+  /**
+   * Le salon a BASCULÉ de projet LiveKit (un membre n'arrivait pas à se
+   * connecter → le serveur avance dans le pool et prévient tout le monde).
+   * Sans cette migration collective, les membres déjà connectés restaient
+   * sur l'ANCIEN projet : deux groupes « connectés » incapables de
+   * s'entendre — le pire des bugs micro à l'arrivée d'un participant.
+   */
+  useEffect(() => {
+    const onMoved = () => {
+      if (!voiceRef.current && pendingCode.current === null) return
+      joinSeq.current += 1
+      pendingCode.current = null
+      const room = voiceRef.current
+      voiceRef.current = null
+      joinedCode.current = null
+      if (room) void room.disconnect()
+      join({ auto: true })
+    }
+    socket.on('voice:moved', onMoved)
+    return () => {
+      socket.off('voice:moved', onMoved)
+    }
+  }, [join])
 
   return { state, join, toggleMute, setAudience, leave: teardown }
 }

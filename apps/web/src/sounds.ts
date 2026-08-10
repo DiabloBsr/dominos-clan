@@ -213,7 +213,9 @@ export function playDiceRoll(): void {
   const ac = audio()
   if (!ac) return
   const t0 = ac.currentTime
-  const duration = 0.5
+  // 1,15 s : ×2,3 par rapport aux 0,5 s d'avant — le roulement accompagne
+  // toute l'animation du dé au lieu de s'éteindre avant elle.
+  const duration = 1.15
   const buffer = ac.createBuffer(1, Math.ceil(ac.sampleRate * duration), ac.sampleRate)
   const data = buffer.getChannelData(0)
   for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1
@@ -229,10 +231,11 @@ export function playDiceRoll(): void {
   // Hachage rapide du niveau : c'est LUI qui fait le « rrrrr ».
   const lfo = ac.createOscillator()
   lfo.type = 'square'
-  // 30 → 20 Hz : encore un roulement continu (au-dessus de ~10 Hz l'oreille
-  // ne sépare plus les grains), mais moins nerveux que le premier essai.
-  lfo.frequency.setValueAtTime(30, t0)
-  lfo.frequency.exponentialRampToValueAtTime(20, t0 + duration)
+  // 24 → 13 Hz : toujours un roulement CONTINU (au-dessus de ~10 Hz l'oreille
+  // ne sépare pas les grains), mais nettement plus posé — le dé « tourne »
+  // plus lentement, il ne crépite plus.
+  lfo.frequency.setValueAtTime(24, t0)
+  lfo.frequency.exponentialRampToValueAtTime(13, t0 + duration)
   const lfoGain = ac.createGain()
   lfoGain.gain.value = 0.12
   lfo.connect(lfoGain).connect(gain.gain)
@@ -240,9 +243,9 @@ export function playDiceRoll(): void {
   source.start(t0)
   lfo.start(t0)
   lfo.stop(t0 + duration)
-  // La pose : clac + petit choc sourd.
-  noiseAt(ac, 0.55, 0.06, 0.3, 2600)
-  tone(ac, 'sine', 130, 0.55, 0.12, 0.25, 70)
+  // La pose : clac + petit choc sourd, calés sur la fin du roulement.
+  noiseAt(ac, duration + 0.05, 0.06, 0.3, 2600)
+  tone(ac, 'sine', 130, duration + 0.05, 0.12, 0.25, 70)
 }
 
 /** Petit tic discret à chaque case sautée par un pion. */
@@ -448,8 +451,47 @@ const BOARD_PLAYERS: Record<BoardSound, (ac: AudioContext) => void> = {
   bisou: playBisou,
 }
 
+/* ─── Bruitages RÉELS du soundboard ─────────────────────────────────────
+   Échantillons mp3 (public/sounds/board/<kind>.mp3), déjà coupés à 5 s,
+   normalisés et passés en mono (~55 ko pièce). Le synthé reste le plan B :
+   colère et bisou n'ont pas d'échantillon, et un échantillon pas encore
+   téléchargé ne doit jamais faire un bouton muet. */
+
+const SAMPLED: readonly string[] = ['pet', 'rire', 'fou-rire', 'bravo', 'tromblon']
+const samples = new Map<string, AudioBuffer | 'loading' | 'failed'>()
+
+function loadSample(ac: AudioContext, kind: string): void {
+  if (samples.has(kind)) return
+  samples.set(kind, 'loading')
+  void fetch(`/sounds/board/${kind}.mp3`)
+    .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`))))
+    .then((raw) => ac.decodeAudioData(raw))
+    .then((buf) => samples.set(kind, buf))
+    .catch(() => samples.set(kind, 'failed'))
+}
+
+/** Précharge les échantillons — appelé à l'OUVERTURE du soundboard, pour que
+ *  le premier appui joue déjà le vrai bruitage et pas le synthé de secours. */
+export function preloadBoardSamples(): void {
+  const ac = audio()
+  if (!ac) return
+  for (const kind of SAMPLED) loadSample(ac, kind)
+}
+
 export function playBoardSound(kind: string): void {
   const ac = audio()
   if (!ac) return
-  BOARD_PLAYERS[kind as BoardSound]?.(ac)
+  const sample = samples.get(kind)
+  if (sample instanceof AudioBuffer) {
+    const src = ac.createBufferSource()
+    src.buffer = sample
+    const gain = ac.createGain()
+    gain.gain.value = 0.9
+    src.connect(gain).connect(ac.destination)
+    src.start()
+    return
+  }
+  if (SAMPLED.includes(kind)) loadSample(ac, kind) // prochain appui : le vrai
+  // Secours synthétique (colère, bisou — ou échantillon pas encore prêt).
+  BOARD_PLAYERS[(kind === 'fou-rire' ? 'rire' : kind) as BoardSound]?.(ac)
 }

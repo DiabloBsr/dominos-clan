@@ -512,6 +512,10 @@ io.on('connection', (socket: Socket) => {
           room.voiceProjectIndex += 1
           room.voiceAdvancedAt = Date.now()
           console.log(`[dominos-clan] salon ${room.code} : bascule vers le projet vocal suivant`)
+          // Migration COLLECTIVE : les membres déjà connectés à l'ancien
+          // projet doivent suivre, sinon le salon se coupe en deux groupes
+          // sourds l'un à l'autre. Chaque client re-rejoint sur ce signal.
+          io.to(room.code).emit('voice:moved')
         }
         const { url, token, project } = await createVoiceToken(
           room.code,

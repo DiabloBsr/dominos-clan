@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ChessView, GameRules, GameView, LudoState, Move, RoomView } from '@dominos-clan/engine'
 import { LudoBoard, LudoLobbyBoard } from './LudoBoard'
 import { ConfirmBox, type ConfirmRequest } from './ConfirmBox'
+import { preloadBoardSamples } from '../sounds'
 import {
   IconCheck,
   IconChat,
@@ -50,6 +51,7 @@ const CHESS_PRESETS = [
 const SOUNDS: Array<{ kind: string; emoji: string; label: string }> = [
   { kind: 'pet', emoji: '💨', label: 'Prout' },
   { kind: 'rire', emoji: '😂', label: 'Rire' },
+  { kind: 'fou-rire', emoji: '🤣', label: 'Fou rire' },
   { kind: 'colere', emoji: '😡', label: 'Grrr' },
   { kind: 'bravo', emoji: '👏', label: 'Bravo' },
   { kind: 'tromblon', emoji: '📯', label: 'Womp womp' },
@@ -1189,7 +1191,12 @@ export function Room({
         <button
           className={`react-btn toggle ${soundsOpen ? 'on' : ''}`}
           title={soundsOpen ? 'Revenir aux emojis' : 'Sons de chambrage (tout le salon entend)'}
-          onClick={() => setSoundsOpen((v) => !v)}
+          onClick={() => {
+            // Ouvrir le soundboard précharge les vrais bruitages : le premier
+            // appui joue l'échantillon, pas le synthé de secours.
+            if (!soundsOpen) preloadBoardSamples()
+            setSoundsOpen((v) => !v)
+          }}
         >
           {soundsOpen ? '🙂' : '🔊'}
         </button>
