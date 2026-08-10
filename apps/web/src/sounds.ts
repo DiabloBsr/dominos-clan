@@ -453,11 +453,11 @@ const BOARD_PLAYERS: Record<BoardSound, (ac: AudioContext) => void> = {
 
 /* ─── Bruitages RÉELS du soundboard ─────────────────────────────────────
    Échantillons mp3 (public/sounds/board/<kind>.mp3), déjà coupés à 5 s,
-   normalisés et passés en mono (~55 ko pièce). Le synthé reste le plan B :
-   colère et bisou n'ont pas d'échantillon, et un échantillon pas encore
-   téléchargé ne doit jamais faire un bouton muet. */
+   normalisés et passés en mono (~55 ko pièce). Les SEPT sons ont leur vrai
+   bruitage ; le synthé reste le plan B tant qu'un échantillon n'est pas
+   téléchargé — un bouton du soundboard ne doit jamais rester muet. */
 
-const SAMPLED: readonly string[] = ['pet', 'rire', 'fou-rire', 'bravo', 'tromblon']
+const SAMPLED: readonly string[] = ['pet', 'rire', 'fou-rire', 'colere', 'bravo', 'tromblon', 'bisou']
 const samples = new Map<string, AudioBuffer | 'loading' | 'failed'>()
 
 function loadSample(ac: AudioContext, kind: string): void {
