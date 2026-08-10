@@ -260,12 +260,15 @@ export function ludoRoll(state: LudoState, playerId: string, roll: number): void
 }
 
 /**
- * Captures sur une case de piste. Règle de la table : SEUL le bouclier peut
- * annuler une prise — aucune case n'est un refuge, étoiles et cases de départ
- * comprises (elles ne sont plus que des repères visuels).
+ * Captures sur une case de piste. Règle de la table :
+ *  • les CASES SÛRES (départs + étoiles) sont des refuges — atterrir sur un
+ *    adversaire n'y capture PAS, on y cohabite ;
+ *  • ailleurs, seul le bouclier annule la prise ;
+ *  • le BONUS prison 🚔, lui, ignore les refuges (géré dans ludoTarget).
  * Retourne le nombre de pions renvoyés en prison.
  */
 function resolveCaptures(state: LudoState, moverIndex: number, cell: number): number {
+  if (ludoSafeCells().includes(cell)) return 0
   let captured = 0
   for (let i = 0; i < state.players.length; i++) {
     if (i === moverIndex) continue
@@ -442,8 +445,8 @@ export function ludoTarget(
   const target = enemy?.pawns[targetPawnIndex]
   if (!enemy || !target) throw new LudoError('Cible invalide')
   if (pending.bonus === 'prison') {
-    // Ni les cases sûres ni le couloir coloré ne protègent : seul un pion
-    // ARRIVÉ à l'objectif (ou déjà en prison) échappe à la prison.
+    // Ni les cases sûres ni le couloir coloré ne protègent du BONUS prison :
+    // seul un pion ARRIVÉ à l'objectif (ou déjà en prison) y échappe.
     if (target.zone !== 'track' && target.zone !== 'home') {
       throw new LudoError('Cible invalide : ce pion est déjà arrivé ou en prison')
     }

@@ -113,6 +113,28 @@ describe('captures et cases sûres', () => {
     expect(state.players[1]!.pawns[0]).toEqual({ zone: 'base' })
   })
 
+  it('⭐ case sûre : atterrir sur un adverse n’y capture PAS (on cohabite)', () => {
+    // Sur une étoile…
+    const star = ludoStarCells()[1]! // case 21
+    const state = createLudo(['a', 'b'])
+    craft(state, 0, 0, { zone: 'track', cell: star - 3 })
+    craft(state, 1, 0, { zone: 'track', cell: star })
+    ludoRoll(state, 'a', 3)
+    ludoPlay(state, 'a', 0, noRand)
+    expect(state.players[0]!.pawns[0]).toEqual({ zone: 'track', cell: star })
+    expect(state.players[1]!.pawns[0]).toEqual({ zone: 'track', cell: star }) // toujours là !
+    expect(state.turn).toBe(1) // pas de capture → pas de tour bonus
+
+    // …et sur une case DÉPART, même refuge.
+    const start = 13
+    const onStart = createLudo(['a', 'b'])
+    craft(onStart, 0, 0, { zone: 'track', cell: start - 4 })
+    craft(onStart, 1, 0, { zone: 'track', cell: start })
+    ludoRoll(onStart, 'a', 4)
+    ludoPlay(onStart, 'a', 0, noRand)
+    expect(onStart.players[1]!.pawns[0]).toEqual({ zone: 'track', cell: start })
+  })
+
   it('capturer fait REJOUER (le tour ne passe pas)', () => {
     const state = createLudo(['a', 'b'])
     craft(state, 0, 0, { zone: 'track', cell: 20 })
@@ -134,23 +156,20 @@ describe('captures et cases sûres', () => {
     expect(state.dice).toBeNull()
   })
 
-  it('la capture a lieu MÊME sur une case étoile : seul le bouclier protège', () => {
+  it('le bouclier n’est PAS consommé quand on atterrit sur son porteur en case sûre', () => {
+    // Règle 2026-08-10 : la case sûre protège TOUT LE MONDE de la prise
+    // normale — le bouclier du pion visé ne doit donc pas être dépensé là.
     const star = ludoStarCells()[1]! // 21
-    const state = createLudo(['a', 'b'])
-    craft(state, 0, 0, { zone: 'track', cell: star - 2 })
-    craft(state, 1, 0, { zone: 'track', cell: star })
-    ludoRoll(state, 'a', 2)
-    ludoPlay(state, 'a', 0, noRand)
-    expect(state.players[1]!.pawns[0]).toEqual({ zone: 'base' })
-
-    // …sauf si le pion visé porte un bouclier.
     const shielded = createLudo(['a', 'b'])
     shielded.players[1]!.shields[0] = true
-    craft(shielded, 0, 0, { zone: 'track', cell: star - 2 })
+    craft(shielded, 0, 0, { zone: 'track', cell: star - 6 })
     craft(shielded, 1, 0, { zone: 'track', cell: star })
-    ludoRoll(shielded, 'a', 2)
+    // Un 6 : le joueur a garde la main, le tour ne revient pas à b — son
+    // bouclier ne peut donc pas expirer « en fin de tour » pendant ce test.
+    ludoRoll(shielded, 'a', 6)
     ludoPlay(shielded, 'a', 0, noRand)
     expect(shielded.players[1]!.pawns[0]).toEqual({ zone: 'track', cell: star })
+    expect(shielded.players[1]!.shields[0]).toBe(true) // bouclier intact
   })
 
   it('le bouclier annule une capture — et SEUL le pion protégé est couvert', () => {
