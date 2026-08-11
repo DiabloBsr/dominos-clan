@@ -6,3 +6,5 @@ dist/
 .DS_Store
 
 apps/server/data/
+scratch-persist-state.json
+captures/

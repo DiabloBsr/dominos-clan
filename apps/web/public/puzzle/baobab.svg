@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b1055"/><stop offset="0.45" stop-color="#c8385a"/>
+      <stop offset="0.75" stop-color="#ff8c42"/><stop offset="1" stop-color="#ffd166"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#sky)"/>
+  <circle cx="400" cy="430" r="90" fill="#fff3b0" opacity="0.95"/>
+  <circle cx="400" cy="430" r="130" fill="#fff3b0" opacity="0.25"/>
+  <rect y="470" width="800" height="130" fill="#3d1f14"/>
+  <ellipse cx="400" cy="475" rx="420" ry="18" fill="#2a140d"/>
+  <!-- baobab central -->
+  <path d="M360 475 L370 330 Q372 300 358 285 L330 255 M370 330 Q400 310 400 270 L400 240 M430 330 Q428 300 442 285 L470 255 M430 330 L440 475 Z
+           M360 475 L370 330 Q400 305 430 330 L440 475 Z" fill="#1d0f0a"/>
+  <path d="M330 255 l-28 -18 m28 18 l-6 -30 M400 240 l0 -32 m0 32 l-20 -24 m20 24 l20 -24 M470 255 l28 -18 m-28 18 l6 -30"
+        stroke="#1d0f0a" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <!-- petits baobabs -->
+  <path d="M120 475 L126 390 Q140 372 154 390 L160 475 Z" fill="#241209"/>
+  <path d="M126 390 l-16 -14 m16 14 l4 -22 m24 22 l16 -14 m-16 14 l-4 -22" stroke="#241209" stroke-width="6" stroke-linecap="round"/>
+  <path d="M660 475 L666 400 Q678 384 690 400 L696 475 Z" fill="#241209"/>
+  <path d="M666 400 l-14 -12 m14 12 l3 -20 m21 20 l14 -12 m-14 12 l-3 -20" stroke="#241209" stroke-width="6" stroke-linecap="round"/>
+  <!-- oiseaux -->
+  <path d="M180 150 q10 -10 20 0 q10 -10 20 0 M540 110 q9 -9 18 0 q9 -9 18 0" stroke="#2b1055" stroke-width="5" fill="none" stroke-linecap="round"/>
+</svg>

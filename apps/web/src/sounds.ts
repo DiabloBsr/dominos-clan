@@ -113,6 +113,17 @@ function thump(ac: AudioContext, fromHz: number, toHz: number, duration: number,
   osc.stop(ac.currentTime + duration)
 }
 
+
+/** Vibration mobile — les grands moments se SENTENT dans la main. Silencieux
+ *  là où l'API n'existe pas (iPhone) ou est bloquée. */
+function buzz(pattern: number | number[]): void {
+  try {
+    navigator.vibrate?.(pattern)
+  } catch {
+    // pas de vibreur : tant pis
+  }
+}
+
 export function playTap(): void {
   const ac = audio()
   if (!ac) return
@@ -122,6 +133,7 @@ export function playTap(): void {
 export function playSlam(): void {
   const ac = audio()
   if (!ac) return
+  buzz(90)
   const real = playSample(ac, 'slam', 0.95)
   if (!real) noiseBurst(ac, 0.12, 0.85, 3600)
   // La table qui encaisse : sub grave discret sous le vrai CLAC, plein volume en secours.
@@ -173,6 +185,7 @@ export function playMessage(): void {
 export function playVictory(): void {
   const ac = audio()
   if (!ac) return
+  buzz([60, 80, 60, 80, 200])
   const notes = [523.25, 659.25, 783.99, 1046.5] // do mi sol do
   notes.forEach((f, i) => tone(ac, 'triangle', f, i * 0.13, 0.22, 0.32))
   tone(ac, 'triangle', 1046.5, notes.length * 0.13, 0.5, 0.35)
@@ -259,6 +272,7 @@ export function playHop(): void {
 export function playCapture(): void {
   const ac = audio()
   if (!ac) return
+  buzz([30, 40, 70])
   tone(ac, 'sine', 900, 0, 0.38, 0.22, 190)
   noiseAt(ac, 0.34, 0.07, 0.28, 2200)
   tone(ac, 'sine', 120, 0.34, 0.16, 0.3, 60)
@@ -319,6 +333,7 @@ export function playCheck(): void {
 export function playMate(): void {
   const ac = audio()
   if (!ac) return
+  buzz([40, 60, 40, 60, 140])
   const notes = [784, 622.25, 523.25, 392]
   notes.forEach((f, i) => tone(ac, 'triangle', f, i * 0.14, 0.5, 0.3))
   tone(ac, 'sine', 130, 0.42, 0.7, 0.28, 65)

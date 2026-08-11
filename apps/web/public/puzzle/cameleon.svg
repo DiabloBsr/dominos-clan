@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="fondc" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#123a2b"/><stop offset="1" stop-color="#0b241b"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#fondc)"/>
+  <!-- feuilles -->
+  <path d="M80 40 q120 30 90 160 q-110 -30 -90 -160 z M720 60 q-120 40 -80 170 q110 -40 80 -170 z M60 520 q100 -20 120 80 l-120 0 z" fill="#175a41"/>
+  <!-- branche -->
+  <path d="M40 430 Q400 380 780 440" stroke="#4a2c1a" stroke-width="26" fill="none" stroke-linecap="round"/>
+  <!-- queue spirale -->
+  <path d="M620 400 q90 -10 84 60 q-6 56 -60 50 q-44 -6 -38 -46 q5 -32 36 -28 q22 3 19 26 q-3 17 -19 15" stroke="#7fb069" stroke-width="26" fill="none" stroke-linecap="round"/>
+  <!-- corps -->
+  <ellipse cx="440" cy="350" rx="180" ry="110" fill="#8fc766"/>
+  <path d="M300 300 q140 -60 280 0 q-20 -40 -60 -58 q30 -6 52 8 q-36 -44 -96 -40 q-90 6 -140 60 q-24 18 -36 30 z" fill="#6fae52"/>
+  <!-- rayures -->
+  <path d="M380 260 q-14 80 6 178 M450 246 q-8 90 10 200 M520 258 q0 80 8 172" stroke="#5c9443" stroke-width="12" fill="none" stroke-linecap="round"/>
+  <!-- tête -->
+  <path d="M260 330 q-60 -14 -88 24 q-16 24 2 48 q26 34 82 20 q40 -10 44 -50 q2 -32 -40 -42 z" fill="#8fc766"/>
+  <path d="M262 330 q-30 -46 -8 -78 q10 26 30 40 z" fill="#6fae52"/>
+  <circle cx="228" cy="372" r="26" fill="#ffd166"/>
+  <circle cx="228" cy="372" r="12" fill="#171412"/>
+  <path d="M180 408 q30 14 60 6" stroke="#5c9443" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <!-- langue -->
+  <path d="M172 396 Q90 380 70 320" stroke="#e2574c" stroke-width="11" fill="none" stroke-linecap="round"/>
+  <circle cx="70" cy="316" r="14" fill="#e2574c"/>
+  <circle cx="70" cy="310" r="7" fill="#171412"/>
+  <!-- pattes -->
+  <path d="M360 440 l-16 40 m16 -40 l24 44 M520 442 l-14 42 m14 -42 l26 40" stroke="#6fae52" stroke-width="16" stroke-linecap="round"/>
+</svg>

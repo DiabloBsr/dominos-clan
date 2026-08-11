@@ -49,6 +49,7 @@ import {
   roomsSnapshot,
   STERILE_ROUNDS,
   sanitizeChatText,
+  registerRestoredRoom,
   sanitizeTaunt,
   setRules,
   startGame,
@@ -58,6 +59,7 @@ import {
   undoMove,
   type Room,
 } from './rooms'
+import { decodeSnapshot, encodeSnapshot, restoreRoom } from './snapshot'
 
 const PORT = Number(process.env.PORT ?? 4001)
 
@@ -144,9 +146,45 @@ type Ack = (response: { ok: true; [key: string]: unknown } | { ok: false; error:
  * C'est le seul endroit qui émet du state de partie : un joueur ne reçoit
  * jamais les mains adverses, un spectateur reçoit tout.
  */
+/**
+ * Arme la période de grâce d'un membre déconnecté : passé GRACE_MS sans
+ * reprise, il est retiré (et la manche avortée s'il y jouait). Utilisé à la
+ * déconnexion ET à la RESTAURATION d'un salon — sur un serveur neuf, les
+ * membres absents n'ont pas de minuteur : sans ça, une manche restaurée
+ * attendrait éternellement un joueur qui ne reviendra jamais.
+ */
+function scheduleRemoval(code: string, memberId: string): void {
+  const key = `${code}:${memberId}`
+  if (pendingRemovals.has(key)) return
+  pendingRemovals.set(
+    key,
+    setTimeout(() => {
+      pendingRemovals.delete(key)
+      try {
+        const r = getRoom(code)
+        const member = r.members.get(memberId)
+        if (!member || member.connected) return
+        const { empty, aborted } = removeMember(r, memberId)
+        if (!empty) {
+          if (aborted) io.to(code).emit('game:aborted', { memberId })
+          broadcast(r)
+        } else {
+          statRoomClosed(code)
+        }
+      } catch {
+        // Salon déjà supprimé entre-temps.
+      }
+    }, GRACE_MS),
+  )
+}
+
 function broadcast(room: Room): void {
   statTrackRoom(room)
   const view = roomView(room)
+  // MÉMOIRE : chaque membre emporte un instantané chiffré du salon complet.
+  // Si le serveur meurt (redéploiement, crash), le premier qui revient le
+  // présente et le salon est restauré exactement où il en était.
+  const snapshot = encodeSnapshot(room)
   for (const member of room.members.values()) {
     if (!member.connected) continue
     // Statut de présence pour les amis : en partie si assis dans la manche en cours.
@@ -158,6 +196,7 @@ function broadcast(room: Room): void {
     socket.emit('game:state', room.game ? viewFor(room.game, member.id, gameRole(room, member.id)) : null)
     socket.emit('chess:state', room.chessGame ? chessViewOf(room.chessGame) : null)
     socket.emit('ludo:state', room.ludoGame ?? null)
+    socket.emit('room:snapshot', { code: room.code, blob: snapshot })
   }
 }
 
@@ -230,18 +269,44 @@ io.on('connection', (socket: Socket) => {
 
   socket.on(
     'room:resume',
-    (payload: { code?: unknown; memberId?: unknown; resumeKey?: unknown }, ack?: Ack) =>
+    (
+      payload: { code?: unknown; memberId?: unknown; resumeKey?: unknown; snapshot?: unknown },
+      ack?: Ack,
+    ) =>
       handle(ack, () => {
         if (state.roomCode) throw new RoomError('Déjà dans un salon')
         if (typeof payload?.code !== 'string') throw new RoomError('Session invalide')
-        const room = getRoom(payload.code.trim().toUpperCase())
+        const code = payload.code.trim().toUpperCase()
+        let room: Room
+        let restored = false
+        try {
+          room = getRoom(code)
+        } catch (err) {
+          // Salon inconnu : le serveur a redémarré. Si le client apporte un
+          // INSTANTANÉ, on ressuscite le salon exactement où il en était —
+          // scores, sièges, manche en cours, palmarès.
+          if (payload.snapshot === undefined) throw err
+          const snap = decodeSnapshot(payload.snapshot)
+          if (snap.code !== code) throw new RoomError('Instantané d’un autre salon')
+          room = registerRestoredRoom(restoreRoom(snap))
+          restored = true
+          armFlag(room) // pendule d'échecs re-armée si une partie tournait
+          // Les absents ont leur grâce : s'ils ne reviennent pas, la manche
+          // s'avorte et le salon continue — il ne reste jamais figé.
+          for (const m of room.members.values()) {
+            if (!m.connected) scheduleRemoval(room.code, m.id)
+          }
+          console.log(
+            `[dominos-clan] salon ${room.code} RESTAURÉ depuis un instantané joueur (${room.members.size} membres, statut ${room.status})`,
+          )
+        }
         const member = resumeMember(room, payload.memberId, payload.resumeKey, socket.id)
         cancelPendingRemoval(room.code, member.id)
         state.roomCode = room.code
         state.memberId = member.id
         socket.join(room.code)
         broadcast(room)
-        return { code: room.code, selfId: member.id, resumeKey: member.resumeKey }
+        return { code: room.code, selfId: member.id, resumeKey: member.resumeKey, restored }
       }),
   )
 
@@ -530,6 +595,69 @@ io.on('connection', (socket: Socket) => {
     })()
   })
 
+  /**
+   * DEMANDE D'AMI dans le salon : on joue avec quelqu'un, on veut le garder.
+   * A propose → B reçoit une invitation nominative → s'il accepte, CHACUN
+   * reçoit l'identité de l'autre et les deux carnets s'enrichissent d'un
+   * coup — sans dicter de code ami.
+   */
+  socket.on('friend:propose', (payload: { memberId?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      const me = room.members.get(memberId)
+      const target =
+        typeof payload?.memberId === 'string' ? room.members.get(payload.memberId) : undefined
+      if (!me || !target || target.id === memberId) throw new RoomError('Membre introuvable')
+      if (!me.userId) throw new RoomError('Ton profil n’a pas de code ami')
+      const targetSocket = io.sockets.sockets.get(target.socketId)
+      if (!targetSocket) throw new RoomError('Ce joueur est déconnecté pour le moment')
+      targetSocket.emit('friend:proposed', {
+        fromMemberId: me.id,
+        userId: me.userId,
+        pseudo: me.pseudo,
+        avatar: me.avatar,
+      })
+      return {}
+    }),
+  )
+
+  socket.on('friend:respond', (payload: { toMemberId?: unknown; accept?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      const { room, memberId } = withRoom(state)
+      const me = room.members.get(memberId)
+      const target =
+        typeof payload?.toMemberId === 'string' ? room.members.get(payload.toMemberId) : undefined
+      if (!me || !target) throw new RoomError('Membre introuvable')
+      const targetSocket = io.sockets.sockets.get(target.socketId)
+      if (targetSocket) {
+        if (payload?.accept === true && me.userId) {
+          targetSocket.emit('friend:accepted', {
+            userId: me.userId,
+            pseudo: me.pseudo,
+            avatar: me.avatar,
+          })
+        } else {
+          targetSocket.emit('friend:declined', { userId: me.userId, pseudo: me.pseudo })
+        }
+      }
+      return {}
+    }),
+  )
+
+  // 🤝 Demande d'ami PAR CODE (depuis l'accueil), même hors salon.
+  socket.on('friend:proposeByCode', (payload: { toUserId?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      presence.proposeFriend(io, socket.id, payload?.toUserId)
+      return {}
+    }),
+  )
+  socket.on('friend:respondByCode', (payload: { toUserId?: unknown; accept?: unknown }, ack?: Ack) =>
+    handle(ack, () => {
+      presence.respondFriend(io, socket.id, payload?.toUserId, payload?.accept === true)
+      return {}
+    }),
+  )
+
   socket.on('reaction', (payload: { emoji?: unknown }, ack?: Ack) =>
     handle(ack, () => {
       const { room, memberId } = withRoom(state)
@@ -619,27 +747,7 @@ io.on('connection', (socket: Socket) => {
         const room = getRoom(code)
         markDisconnected(room, memberId)
         broadcast(room)
-        const key = `${code}:${memberId}`
-        pendingRemovals.set(
-          key,
-          setTimeout(() => {
-            pendingRemovals.delete(key)
-            try {
-              const r = getRoom(code)
-              const member = r.members.get(memberId)
-              if (!member || member.connected) return
-              const { empty, aborted } = removeMember(r, memberId)
-              if (!empty) {
-                if (aborted) io.to(code).emit('game:aborted', { memberId })
-                broadcast(r)
-              } else {
-                statRoomClosed(code)
-              }
-            } catch {
-              // Salon déjà supprimé entre-temps.
-            }
-          }, GRACE_MS),
-        )
+        scheduleRemoval(code, memberId)
       } catch {
         // Salon déjà supprimé.
       }

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="cielt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a90d9"/><stop offset="1" stop-color="#bde0fe"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#cielt)"/>
+  <circle cx="120" cy="90" r="46" fill="#fff3b0"/>
+  <path d="M240 120 q18 -18 36 0 q18 -18 36 0 M560 80 q16 -16 32 0 q16 -16 32 0" stroke="#ffffff" stroke-width="10" fill="none" stroke-linecap="round" opacity="0.8"/>
+  <!-- rangée lointaine -->
+  <path d="M0 420 L40 300 L70 420 L110 260 L150 420 L190 310 L230 420 L270 250 L310 420 L350 300 L390 420 L430 270 L470 420 L510 300 L550 420 L590 250 L630 420 L670 310 L710 420 L750 280 L800 420 L800 600 L0 600 Z" fill="#8d99ae"/>
+  <!-- rangée proche -->
+  <path d="M0 600 L0 470 L50 330 L90 480 L130 300 L175 480 L215 350 L260 480 L305 290 L350 480 L395 340 L440 480 L480 310 L525 480 L570 350 L615 480 L660 300 L705 480 L750 360 L800 480 L800 600 Z" fill="#5c677d"/>
+  <path d="M130 300 L136 340 M305 290 L312 336 M480 310 L487 352 M660 300 L667 344" stroke="#465065" stroke-width="8" stroke-linecap="round"/>
+  <!-- passerelle -->
+  <path d="M180 430 Q400 380 620 430" stroke="#4a2c1a" stroke-width="12" fill="none"/>
+  <path d="M180 430 Q400 400 620 430" stroke="#6b4226" stroke-width="7" fill="none"/>
+  <path d="M220 424 v-26 M300 408 v-26 M400 400 v-26 M500 408 v-26 M580 424 v-26" stroke="#4a2c1a" stroke-width="7"/>
+  <!-- végétation -->
+  <path d="M60 600 q30 -70 12 -110 q40 30 30 110 z M740 600 q-30 -76 -10 -116 q-42 34 -32 116 z" fill="#2e8b57"/>
+  <ellipse cx="400" cy="560" rx="90" ry="18" fill="#2e8b57"/>
+  <path d="M400 560 q-6 -60 -30 -84 m30 84 q0 -64 -8 -92 m8 92 q10 -58 32 -80" stroke="#1d6a43" stroke-width="8" fill="none" stroke-linecap="round"/>
+</svg>

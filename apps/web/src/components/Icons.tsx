@@ -149,6 +149,25 @@ export const IconCheck = ({ size }: { size?: number }) => (
   </Icon>
 )
 
+export const IconShare = ({ size }: { size?: number }) => (
+  <Icon size={size}>
+    <circle cx="18" cy="5" r="3" />
+    <circle cx="6" cy="12" r="3" />
+    <circle cx="18" cy="19" r="3" />
+    <line x1="8.6" y1="10.6" x2="15.4" y2="6.4" />
+    <line x1="8.6" y1="13.4" x2="15.4" y2="17.6" />
+  </Icon>
+)
+
+export const IconChart = ({ size }: { size?: number }) => (
+  <Icon size={size}>
+    <line x1="4" y1="20" x2="20" y2="20" />
+    <line x1="7" y1="20" x2="7" y2="12" />
+    <line x1="12" y1="20" x2="12" y2="6" />
+    <line x1="17" y1="20" x2="17" y2="15" />
+  </Icon>
+)
+
 /**
  * VUMÈTRE micro — l'icône d'état de CHAQUE joueur :
  *  • micro coupé → icône barrée, atténuée ;

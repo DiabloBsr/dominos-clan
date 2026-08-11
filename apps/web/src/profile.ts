@@ -14,6 +14,8 @@ export interface Friend {
   id: string
   pseudo: string
   avatar: string
+  /** Demande envoyée, pas encore acceptée — renvoyée dès qu'il se connecte. */
+  pending?: boolean
 }
 
 export type FriendStatus = 'online' | 'room' | 'playing' | 'offline'
@@ -141,4 +143,52 @@ export function saveSession(session: RoomSession): void {
 
 export function clearSession(): void {
   localStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem(SNAPSHOT_KEY)
+}
+
+/* ─── Instantané de salon (mémoire de reprise) ─────────────────────────
+   Blob CHIFFRÉ envoyé par le serveur à chaque changement d'état : si le
+   serveur redémarre (redéploiement…), on le lui représente et le salon est
+   restauré exactement où il en était — scores, sièges, manche en cours. */
+
+const SNAPSHOT_KEY = 'dc:snapshot'
+const CREW_KEY = 'dc:crew'
+
+/** La « bande » : les amis présents dans mon dernier salon — pour les
+ *  re-inviter tous d'un clic depuis l'accueil. */
+export function saveCrew(ids: string[]): void {
+  try {
+    localStorage.setItem(CREW_KEY, JSON.stringify(ids.slice(0, 24)))
+  } catch {
+    // stockage plein : pas grave
+  }
+}
+
+export function loadCrew(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CREW_KEY) ?? '[]')
+    return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+export function saveSnapshot(code: string, blob: string): void {
+  try {
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ code, blob }))
+  } catch {
+    // stockage plein : la reprise retombera sur la session simple
+  }
+}
+
+export function loadSnapshot(code: string): string | null {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_KEY)
+    if (!raw) return null
+    const s = JSON.parse(raw) as { code?: unknown; blob?: unknown }
+    if (s.code === code && typeof s.blob === 'string') return s.blob
+  } catch {
+    // instantané corrompu
+  }
+  return null
 }

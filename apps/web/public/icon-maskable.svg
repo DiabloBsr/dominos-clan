@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Version « maskable » : fond plein bord à bord, motif dans la zone sûre. -->
+  <rect width="512" height="512" fill="#0f2b1d"/>
+  <g transform="rotate(-12 256 256) scale(0.82) translate(56 56)">
+    <rect x="166" y="86" width="180" height="320" rx="28" fill="#f7f2e7"/>
+    <line x1="184" y1="246" x2="328" y2="246" stroke="#0f2b1d" stroke-width="9" stroke-linecap="round"/>
+    <circle cx="219" cy="146" r="17" fill="#0f2b1d"/>
+    <circle cx="293" cy="196" r="17" fill="#0f2b1d"/>
+    <circle cx="219" cy="300" r="17" fill="#0f2b1d"/>
+    <circle cx="293" cy="300" r="17" fill="#0f2b1d"/>
+    <circle cx="219" cy="358" r="17" fill="#0f2b1d"/>
+    <circle cx="293" cy="358" r="17" fill="#0f2b1d"/>
+  </g>
+</svg>

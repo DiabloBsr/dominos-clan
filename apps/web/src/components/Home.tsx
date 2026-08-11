@@ -43,6 +43,9 @@ export function Home({
   onJoin,
   onLearn,
   onChessHub,
+  onPuzzle,
+  crewCount,
+  onRelaunchCrew,
 }: {
   profile: Profile
   friends: Friend[]
@@ -59,6 +62,10 @@ export function Home({
   onJoin: (code: string) => void
   onLearn: (game: GameRules['gameType']) => void
   onChessHub: () => void
+  onPuzzle: () => void
+  /** Nombre d'amis du dernier salon (0 = pas de bouton « relancer »). */
+  crewCount: number
+  onRelaunchCrew: (gameType: GameRules['gameType']) => void
 }) {
   const [code, setCode] = useState('')
   const [friendCode, setFriendCode] = useState('')
@@ -105,7 +112,24 @@ export function Home({
 
       <p className="tagline">Le jeu entre potes — mic ouvert, chambrage permis.</p>
 
+      {/* 🔥 La bande d'hier : un clic = salon recréé + tout le monde invité. */}
+      {crewCount > 0 && (
+        <button className="btn crew-btn" onClick={requirePseudo(() => onRelaunchCrew('dominos'))}>
+          🔥 Relancer la bande ({crewCount} ami{crewCount > 1 ? 's' : ''})
+        </button>
+      )}
+
       <div className="hub-games">
+        {/* 🧩 Puzzle : solo, hors-ligne — duel entre amis à venir. */}
+        <button
+          className="game-card learn-card"
+          style={{ ['--i' as string]: -1 }}
+          onClick={onPuzzle}
+        >
+          <span className="game-emoji">🧩</span>
+          <span className="game-name">Puzzle</span>
+          <span className="game-tag">12 à 96 pièces</span>
+        </button>
         {GAMES.map((g, i) => (
           <button
             key={g.type}
@@ -282,8 +306,14 @@ export function Home({
                     {/* Statut PRÉFIXÉ (st-room, pas room) : la classe nue
                         « room » entrait en collision avec le conteneur du
                         salon et gonflait le badge, écrasant le nom à 0 px. */}
-                    <span className={`friend-status st-${status}`}>{STATUS_LABELS[status]}</span>
-                    {(status === 'room' || status === 'playing') && (
+                    {f.pending ? (
+                      // Demande envoyée, pas encore acceptée : elle repartira
+                      // toute seule dès qu'il se connectera.
+                      <span className="friend-status st-offline">⏳ demande envoyée</span>
+                    ) : (
+                      <span className={`friend-status st-${status}`}>{STATUS_LABELS[status]}</span>
+                    )}
+                    {!f.pending && (status === 'room' || status === 'playing') && (
                       <button
                         className="btn ghost sm"
                         title="Lui demander de t’inviter dans sa partie"

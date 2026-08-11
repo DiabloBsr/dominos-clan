@@ -180,6 +180,63 @@ export function knock(io: Server, fromSocketId: string, rawToUserId: unknown): v
   })
 }
 
+/**
+ * 🤝 Demande d'ami PAR CODE — même procédure d'acceptation que dans un salon.
+ * La cible doit être en ligne ; sinon on répond « hors-ligne » et le CLIENT
+ * du demandeur garde la demande en attente et la renverra tout seul dès que
+ * la cible apparaîtra en ligne (il suit déjà son statut).
+ */
+export function proposeFriend(io: Server, fromSocketId: string, rawToUserId: unknown): void {
+  const fromUserId = socketUser.get(fromSocketId)
+  const from = fromUserId ? users.get(fromUserId) : undefined
+  if (!from) throw new RoomError('Crée ton profil avant de demander')
+  if (typeof rawToUserId !== 'string' || !USER_ID_RE.test(rawToUserId)) {
+    throw new RoomError('Code ami invalide')
+  }
+  if (rawToUserId === fromUserId) throw new RoomError('C’est ton propre code 😄')
+  const target = users.get(rawToUserId)
+  if (!target || target.status === 'offline') throw new RoomError('hors-ligne')
+
+  // Renvois automatiques : silencieux sous le seuil (pas d'erreur, pas de spam).
+  const throttleKey = `friend:${fromUserId}>${rawToUserId}`
+  const now = Date.now()
+  if (now - (lastInviteAt.get(throttleKey) ?? 0) < INVITE_THROTTLE_MS) return
+  lastInviteAt.set(throttleKey, now)
+
+  io.to(target.socketId).emit('friend:proposed', {
+    fromUserId,
+    userId: fromUserId,
+    pseudo: from.pseudo,
+    avatar: from.avatar,
+  })
+}
+
+/** Réponse à une demande par code, routée vers le demandeur s'il est là. */
+export function respondFriend(
+  io: Server,
+  fromSocketId: string,
+  rawToUserId: unknown,
+  accept: boolean,
+): void {
+  const meUserId = socketUser.get(fromSocketId)
+  const me = meUserId ? users.get(meUserId) : undefined
+  if (!me) throw new RoomError('Profil inconnu')
+  if (typeof rawToUserId !== 'string' || !USER_ID_RE.test(rawToUserId)) {
+    throw new RoomError('Code ami invalide')
+  }
+  const target = users.get(rawToUserId)
+  if (!target || target.status === 'offline') return // il re-proposera : sans gravité
+  if (accept) {
+    io.to(target.socketId).emit('friend:accepted', {
+      userId: meUserId,
+      pseudo: me.pseudo,
+      avatar: me.avatar,
+    })
+  } else {
+    io.to(target.socketId).emit('friend:declined', { userId: meUserId, pseudo: me.pseudo })
+  }
+}
+
 export function disconnect(io: Server, socketId: string): void {
   for (const watched of socketWatches.get(socketId) ?? []) {
     watchers.get(watched)?.delete(socketId)

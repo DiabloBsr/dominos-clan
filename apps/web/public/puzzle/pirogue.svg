@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="mer" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7fd4e8"/><stop offset="1" stop-color="#1a7fa8"/>
+    </linearGradient>
+    <linearGradient id="cielp" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#aee6f5"/><stop offset="1" stop-color="#e8f9ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="380" fill="url(#cielp)"/>
+  <circle cx="660" cy="100" r="55" fill="#ffd166"/>
+  <rect y="380" width="800" height="220" fill="url(#mer)"/>
+  <path d="M0 380 q100 14 200 0 t200 0 t200 0 t200 0 v14 q-100 12 -200 0 t-200 0 t-200 0 t-200 0 z" fill="#ffffff" opacity="0.5"/>
+  <!-- île -->
+  <ellipse cx="120" cy="382" rx="110" ry="26" fill="#e9d8a6"/>
+  <path d="M110 372 q-6 -60 -34 -84 m34 84 q2 -62 -12 -96 m12 96 q10 -58 40 -78" stroke="#7a4f2a" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <path d="M76 288 q-26 -8 -44 8 q24 4 44 -8 z M98 276 q-8 -26 -30 -34 q4 26 30 34 z M110 276 q6 -28 30 -36 q-2 28 -30 36 z M138 294 q26 -10 46 4 q-22 6 -46 -4 z" fill="#2e8b57"/>
+  <!-- pirogue à balancier -->
+  <path d="M300 470 Q460 500 640 470 L610 508 Q460 528 330 508 Z" fill="#5a3620"/>
+  <path d="M300 470 L330 508 M640 470 L610 508" stroke="#3d2413" stroke-width="6"/>
+  <rect x="452" y="300" width="10" height="176" fill="#3d2413"/>
+  <path d="M462 306 L588 420 L462 420 Z" fill="#f7f2e7"/>
+  <path d="M452 306 L338 412 L452 412 Z" fill="#ffb648"/>
+  <!-- balancier -->
+  <path d="M330 500 L250 528 M600 500 L680 528" stroke="#3d2413" stroke-width="8" stroke-linecap="round"/>
+  <path d="M235 528 Q330 544 695 528 L680 546 Q330 560 250 546 Z" fill="#6b4226"/>
+  <!-- reflets -->
+  <path d="M320 560 h90 M480 572 h120 M240 584 h70" stroke="#ffffff" stroke-width="6" opacity="0.5" stroke-linecap="round"/>
+  <path d="M180 140 q10 -10 20 0 q10 -10 20 0" stroke="#6aa9c2" stroke-width="5" fill="none" stroke-linecap="round"/>
+</svg>

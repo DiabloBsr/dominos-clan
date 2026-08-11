@@ -1,0 +1,25 @@
+{
+  "name": "Domino's Clan — le jeu entre potes",
+  "short_name": "Domino's Clan",
+  "description": "Dominos, échecs et Ludo entre amis — micro ouvert, chambrage permis.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1712",
+  "theme_color": "#0b1712",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

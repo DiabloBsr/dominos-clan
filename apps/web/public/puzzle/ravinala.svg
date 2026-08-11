@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="soir" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff9e6d"/><stop offset="0.6" stop-color="#ffd166"/><stop offset="1" stop-color="#fff3b0"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#soir)"/>
+  <circle cx="620" cy="170" r="70" fill="#ffffff" opacity="0.85"/>
+  <rect y="500" width="800" height="100" fill="#7a5c2e"/>
+  <ellipse cx="400" cy="505" rx="420" ry="16" fill="#5f4722"/>
+  <!-- ravinala : éventail -->
+  <g stroke="#1d6a43" fill="#2e8b57">
+    <path d="M400 500 L400 340" stroke-width="18"/>
+    <g stroke-width="10">
+      <path d="M400 350 L400 120" /><path d="M400 350 L300 140"/><path d="M400 350 L500 140"/>
+      <path d="M400 350 L230 200"/><path d="M400 350 L570 200"/>
+      <path d="M400 350 L190 290"/><path d="M400 350 L610 290"/>
+    </g>
+    <path d="M400 120 l-26 44 h52 z M300 140 l-4 50 l46 -22 z M500 140 l4 50 l-46 -22 z
+             M230 200 l10 48 l36 -32 z M570 200 l-10 48 l-36 -32 z
+             M190 290 l22 42 l24 -40 z M610 290 l-22 42 l-24 -40 z" stroke="none"/>
+    <path d="M395 120 q-40 -14 -60 8 q30 10 60 -8 z M405 120 q40 -14 60 8 q-30 10 -60 -8 z" stroke="none" fill="#37a169"/>
+  </g>
+  <!-- case -->
+  <rect x="90" y="420" width="130" height="80" fill="#8a5a2b"/>
+  <path d="M80 420 L155 370 L230 420 Z" fill="#b07b3e"/>
+  <rect x="140" y="452" width="32" height="48" fill="#4a2c1a"/>
+  <!-- zébu -->
+  <g fill="#5a3620">
+    <ellipse cx="640" cy="470" rx="60" ry="32"/>
+    <circle cx="695" cy="446" r="20"/>
+    <path d="M700 430 q4 -22 22 -26 q-4 20 -22 26 z M686 428 q-10 -20 -28 -20 q8 20 28 20 z"/>
+    <ellipse cx="640" cy="446" rx="22" ry="14"/>
+    <path d="M610 496 v22 M636 500 v20 M664 498 v22 M688 492 v20" stroke="#5a3620" stroke-width="9" stroke-linecap="round"/>
+  </g>
+</svg>

@@ -20,6 +20,13 @@ export interface VoiceState {
   mutedIds: string[]
   /** Niveau de voix instantané par memberId (0..1) — anime le remplissage. */
   levels: Record<string, number>
+  /**
+   * Pourquoi le micro ne s'ouvre pas :
+   *  • 'overlay' → la fenêtre d'autorisation n'a JAMAIS pu s'afficher (une
+   *    bulle flotte au-dessus de l'écran : VPN, Messenger…). Rattrapable.
+   *  • 'denied'  → le joueur a refusé pour de bon. Se règle dans le cadenas.
+   */
+  micIssue: 'overlay' | 'denied' | null
 }
 
 export interface VoiceControls {
@@ -29,7 +36,32 @@ export interface VoiceControls {
   toggleMute: () => void
   setAudience: (audience: VoiceAudience) => void
   leave: () => void
+  /** Ferme l'explication « micro bloqué » (on joue sans micro). */
+  dismissMicIssue: () => void
 }
+
+/**
+ * La permission micro est-elle DÉJÀ accordée ? On INTERROGE sans jamais
+ * demander : `permissions.query` ne déclenche aucune fenêtre.
+ *
+ * Pourquoi c'est vital : sur Android, une demande d'autorisation lancée sans
+ * geste de l'utilisateur est bloquée dès qu'une autre appli dessine par-
+ * dessus l'écran (bulle de VPN, chat heads, enregistreur…), et Chrome
+ * affiche « Ce site ne peut pas demander votre autorisation » à CHAQUE
+ * entrée en salon. On ne capte donc le micro automatiquement que si le
+ * joueur l'a déjà autorisé une fois.
+ */
+async function micPermission(): Promise<'granted' | 'denied' | 'prompt' | 'unknown'> {
+  try {
+    const status = await navigator.permissions?.query({ name: 'microphone' as PermissionName })
+    return (status?.state as 'granted' | 'denied' | 'prompt') ?? 'unknown'
+  } catch {
+    // Navigateur sans Permissions API (Safari…) : on n'insiste pas.
+    return 'unknown'
+  }
+}
+
+const micAlreadyGranted = async (): Promise<boolean> => (await micPermission()) === 'granted'
 
 const INITIAL: VoiceState = {
   status: 'off',
@@ -39,6 +71,7 @@ const INITIAL: VoiceState = {
   speaking: [],
   mutedIds: [],
   levels: {},
+  micIssue: null,
 }
 
 /**
@@ -333,18 +366,24 @@ export function useVoice(
           } catch {
             // L'audience retombera sur « tous » côté écoute : sans gravité.
           }
-          // Le micro rate parfois sa PREMIÈRE capture (périphérique encore
-          // occupé après un changement de salon/onglet) : deuxième tentative,
-          // et en cas d'échec on reste connecté en ÉCOUTE (mute affiché).
-          let micOk = true
-          try {
-            await room.localParticipant.setMicrophoneEnabled(true)
-          } catch {
+          // MICRO : capté automatiquement UNIQUEMENT si l'autorisation est
+          // déjà accordée. Sinon on entre en ÉCOUTE SEULE — on entend tout
+          // le monde tout de suite, et le micro s'ouvrira au premier appui
+          // (un vrai geste, seul moment où Android accepte la demande).
+          const granted = auto ? await micAlreadyGranted() : true
+          let micOk = granted
+          if (granted) {
             try {
-              await new Promise((r) => setTimeout(r, 450))
               await room.localParticipant.setMicrophoneEnabled(true)
             } catch {
-              micOk = false
+              // Périphérique encore occupé (changement de salon/onglet) :
+              // une seconde tentative suffit presque toujours.
+              try {
+                await new Promise((r) => setTimeout(r, 450))
+                await room.localParticipant.setMicrophoneEnabled(true)
+              } catch {
+                micOk = false
+              }
             }
           }
           // Arrivée SANS geste utilisateur (reprise de session) : le
@@ -356,7 +395,7 @@ export function useVoice(
             window.addEventListener('pointerdown', unlock, { once: true })
           }
           setState((s) => ({ ...s, status: 'on', muted: !micOk, audience: 'all' }))
-          if (!micOk) onError('Micro indisponible — « Réactiver le micro » dans le menu ☰')
+          if (!micOk && granted) onError('Micro indisponible — réessaie depuis le menu ☰')
           refreshRoster(room)
         })()
       },
@@ -375,7 +414,7 @@ export function useVoice(
     const room = voiceRef.current
     if (!room) return
     const nextEnabled = !room.localParticipant.isMicrophoneEnabled
-    setState((s) => ({ ...s, muted: !nextEnabled }))
+    setState((s) => ({ ...s, muted: !nextEnabled, micIssue: null }))
     void (async () => {
       try {
         await room.localParticipant.setMicrophoneEnabled(nextEnabled)
@@ -384,14 +423,57 @@ export function useVoice(
         try {
           await new Promise((r) => setTimeout(r, 450))
           await room.localParticipant.setMicrophoneEnabled(nextEnabled)
+          refreshRoster(room)
         } catch {
-          // L'état affiché doit dire la VÉRITÉ du micro, pas l'intention.
-          setState((s) => ({ ...s, muted: !room.localParticipant.isMicrophoneEnabled }))
-          onError('Micro indisponible — réessaie dans un instant')
+          /**
+           * DISTINGUER LES DEUX ÉCHECS — c'est toute la différence pour le
+           * joueur : si la permission est restée sur « prompt », la fenêtre
+           * n'a jamais pu s'afficher (bulle flottante par-dessus l'écran) et
+           * c'est RATTRAPABLE ; si elle est « denied », il a vraiment refusé.
+           */
+          const perm = await micPermission()
+          setState((s) => ({
+            ...s,
+            muted: !room.localParticipant.isMicrophoneEnabled,
+            micIssue: perm === 'denied' ? 'denied' : 'overlay',
+          }))
         }
       }
     })()
-  }, [onError, refreshRoster])
+  }, [refreshRoster])
+
+  /**
+   * RATTRAPAGE AUTOMATIQUE : quand le joueur revient sur l'app (il vient
+   * peut-être de fermer sa bulle VPN) ou que la permission bascule enfin sur
+   * « granted » (accordée depuis le cadenas 🔒), on ouvre le micro tout seul.
+   */
+  useEffect(() => {
+    if (state.micIssue === null) return
+    let stop = false
+    const tryOpen = async () => {
+      const room = voiceRef.current
+      if (stop || !room || room.localParticipant.isMicrophoneEnabled) return
+      if ((await micPermission()) !== 'granted') return
+      try {
+        await room.localParticipant.setMicrophoneEnabled(true)
+        setState((s) => ({ ...s, muted: false, micIssue: null }))
+      } catch {
+        // toujours bloqué : on retentera au prochain retour
+      }
+    }
+    const onWake = () => {
+      if (document.visibilityState === 'visible') void tryOpen()
+    }
+    document.addEventListener('visibilitychange', onWake)
+    window.addEventListener('focus', onWake)
+    const timer = setInterval(() => void tryOpen(), 4000)
+    return () => {
+      stop = true
+      document.removeEventListener('visibilitychange', onWake)
+      window.removeEventListener('focus', onWake)
+      clearInterval(timer)
+    }
+  }, [state.micIssue])
 
   const setAudience = useCallback((audience: VoiceAudience) => {
     const room = voiceRef.current
@@ -443,5 +525,7 @@ export function useVoice(
     }
   }, [join])
 
-  return { state, join, toggleMute, setAudience, leave: teardown }
+  const dismissMicIssue = useCallback(() => setState((s) => ({ ...s, micIssue: null })), [])
+
+  return { state, join, toggleMute, setAudience, leave: teardown, dismissMicIssue }
 }

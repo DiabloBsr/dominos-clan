@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="jungle" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c3b2e"/><stop offset="1" stop-color="#1d6a43"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#jungle)"/>
+  <circle cx="130" cy="110" r="70" fill="#14503a"/><circle cx="690" cy="90" r="90" fill="#14503a"/>
+  <circle cx="240" cy="60" r="50" fill="#175a41"/><circle cx="580" cy="150" r="60" fill="#175a41"/>
+  <!-- branche -->
+  <path d="M0 470 Q400 430 800 480 L800 520 Q400 470 0 510 Z" fill="#4a2c1a"/>
+  <!-- queue anneaux -->
+  <g transform="rotate(-18 620 300)">
+    <rect x="600" y="90" width="46" height="360" rx="23" fill="#e8e3da"/>
+    <rect x="600" y="110" width="46" height="34" fill="#171412"/><rect x="600" y="178" width="46" height="34" fill="#171412"/>
+    <rect x="600" y="246" width="46" height="34" fill="#171412"/><rect x="600" y="314" width="46" height="34" fill="#171412"/>
+    <rect x="600" y="382" width="46" height="34" fill="#171412"/>
+  </g>
+  <!-- corps -->
+  <ellipse cx="380" cy="400" rx="130" ry="95" fill="#b9b2a6"/>
+  <!-- tête -->
+  <circle cx="350" cy="250" r="105" fill="#e8e3da"/>
+  <circle cx="278" cy="172" r="34" fill="#171412"/><circle cx="422" cy="172" r="34" fill="#171412"/>
+  <circle cx="278" cy="176" r="18" fill="#e8e3da"/><circle cx="422" cy="176" r="18" fill="#e8e3da"/>
+  <!-- masque yeux -->
+  <circle cx="310" cy="238" r="34" fill="#171412"/><circle cx="390" cy="238" r="34" fill="#171412"/>
+  <circle cx="310" cy="238" r="15" fill="#ffb648"/><circle cx="390" cy="238" r="15" fill="#ffb648"/>
+  <circle cx="314" cy="233" r="6" fill="#171412"/><circle cx="394" cy="233" r="6" fill="#171412"/>
+  <!-- museau -->
+  <ellipse cx="350" cy="300" rx="34" ry="26" fill="#cfc8bc"/>
+  <path d="M350 292 l-10 12 q10 8 20 0 z" fill="#171412"/>
+  <path d="M350 304 v14 M340 322 q10 8 20 0" stroke="#171412" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <!-- pattes -->
+  <ellipse cx="300" cy="470" rx="30" ry="18" fill="#a49c8f"/><ellipse cx="440" cy="472" rx="30" ry="18" fill="#a49c8f"/>
+</svg>

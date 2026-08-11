@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ChessView, GameRules, GameView, LudoState, Move, RoomView } from '@dominos-clan/engine'
 import { LudoBoard, LudoLobbyBoard } from './LudoBoard'
 import { ConfirmBox, type ConfirmRequest } from './ConfirmBox'
+import { Confetti } from './Confetti'
 import { preloadBoardSamples } from '../sounds'
 import {
   IconCheck,
@@ -14,6 +15,7 @@ import {
   IconMic,
   IconMicOff,
   IconRefresh,
+  IconShare,
   MicMeter,
   IconSliders,
   IconUsers,
@@ -340,6 +342,8 @@ export function Room({
   voice,
   friends,
   friendStatuses,
+  myUserId,
+  onProposeFriend,
   slamFx,
   passFx,
   ludoRollFx,
@@ -378,6 +382,10 @@ export function Room({
   chat: ChatMessage[]
   voice: VoiceControls
   friends: Friend[]
+  /** Mon code ami (identifiant de profil) — pour ne pas se proposer soi-même. */
+  myUserId: string
+  /** 🤝 Proposer à un co-joueur du salon de devenir amis. */
+  onProposeFriend: (memberId: string) => void
   friendStatuses: Record<string, FriendStatus>
   slamFx: { key: number; pseudo: string; taunt: string } | null
   passFx: { key: number; pseudo: string; cry: number } | null
@@ -412,6 +420,8 @@ export function Room({
   const [inviteOpen, setInviteOpen] = useState(false)
   /** Menu ☰ du salon : micro, réglages, invitations, cri, remise à zéro. */
   const [menuOpen, setMenuOpen] = useState(false)
+  /** « Lien copié ✔ » éphémère (navigateurs sans partage natif). */
+  const [linkCopied, setLinkCopied] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatText, setChatText] = useState('')
   const [chatSeen, setChatSeen] = useState(0)
@@ -489,8 +499,14 @@ export function Room({
               invitations, cri, remise à zéro : le header reste minuscule et
               la place va au jeu. L'icône du bouton reflète l'état du micro. */}
           <button
-            className={`icon-btn ${menuOpen || (voice.state.status === 'on' && !voice.state.muted) ? 'live' : ''}`}
-            title="Menu du salon (micro, réglages, amis…)"
+            className={`icon-btn ${menuOpen || (voice.state.status === 'on' && !voice.state.muted) ? 'live' : ''} ${
+              voice.state.status === 'on' && voice.state.muted ? 'attention' : ''
+            }`}
+            title={
+              voice.state.status === 'on' && voice.state.muted
+                ? 'Micro coupé — touche pour parler'
+                : 'Menu du salon (micro, réglages, amis…)'
+            }
             onClick={() => {
               setMenuOpen((v) => !v)
               setInviteOpen(false)
@@ -516,7 +532,7 @@ export function Room({
                 <>
                   <button className="menu-item" onClick={() => voice.toggleMute()}>
                     {voice.state.muted ? <IconMic /> : <IconMicOff />}
-                    {voice.state.muted ? 'Réactiver le micro' : 'Couper le micro'}
+                    {voice.state.muted ? 'Activer mon micro' : 'Couper le micro'}
                   </button>
                   <label className="menu-item">
                     <IconVolume />
@@ -551,6 +567,32 @@ export function Room({
                   Voix indisponible sur ce serveur
                 </button>
               )}
+              <button
+                className="menu-item"
+                onClick={async () => {
+                  // Lien direct : le pote clique et atterrit dans le salon.
+                  const url = `${window.location.origin}/j/${room.code}`
+                  try {
+                    if (navigator.share) {
+                      setMenuOpen(false)
+                      await navigator.share({
+                        title: 'Domino’s Clan',
+                        text: `Rejoins-moi dans le salon ${room.code} !`,
+                        url,
+                      })
+                    } else {
+                      await navigator.clipboard.writeText(url)
+                      setLinkCopied(true)
+                      setTimeout(() => setLinkCopied(false), 2000)
+                    }
+                  } catch {
+                    // partage annulé par l'utilisateur : rien à faire
+                  }
+                }}
+              >
+                <IconShare />
+                {linkCopied ? 'Lien copié ✔' : 'Inviter par lien'}
+              </button>
               <button
                 className="menu-item"
                 onClick={() => {
@@ -704,10 +746,10 @@ export function Room({
               )}
               {room.members.find((m) => m.id === id)?.isHost && <span className="chip-ic">⭐</span>}
               {room.lastWinnerId === id && <span className="chip-ic">👑</span>}
-              {isHost && id !== selfId && (
+              {id !== selfId && (
                 <button
                   className="chip-add"
-                  title="Gérer ce joueur (chef, échange, retrait)"
+                  title={isHost ? 'Gérer ce joueur (ami, chef, échange, retrait)' : 'Voir ce joueur (devenir amis…)'}
                   onClick={() => openMemberMenu(id)}
                 >
                   ⋯
@@ -784,10 +826,10 @@ export function Room({
                   ＋🔄
                 </button>
               )}
-              {isHost && id !== selfId && (
+              {id !== selfId && (
                 <button
                   className="chip-add"
-                  title="Gérer ce joueur (chef, retrait)"
+                  title={isHost ? 'Gérer ce joueur (ami, chef, retrait)' : 'Voir ce joueur (devenir amis…)'}
                   onClick={() => openMemberMenu(id)}
                 >
                   ⋯
@@ -880,6 +922,28 @@ export function Room({
                   </>
                 ) : (
                   <>
+                    {/* 🤝 Devenir amis — ouvert à TOUT le monde, pas qu'au
+                        chef : on joue ensemble, on se garde. */}
+                    {target.userId &&
+                      target.userId !== myUserId &&
+                      (friends.some((f) => f.id === target.userId) ? (
+                        <p className="hint">✔ Déjà dans tes amis</p>
+                      ) : (
+                        <button
+                          className="btn ghost"
+                          onClick={() => {
+                            onProposeFriend(target.id)
+                            close()
+                          }}
+                        >
+                          🤝 Devenir amis
+                        </button>
+                      ))}
+                    {!isHost && (
+                      <p className="hint">Seul le chef ⭐ peut gérer les places du salon.</p>
+                    )}
+                    {isHost && (
+                      <>
                     {targetSeated && room.queue.length > 0 && !playing && (
                       <button className="btn ghost" onClick={() => setSwapMode(true)}>
                         🔁 Échanger avec un joueur de la file
@@ -944,6 +1008,8 @@ export function Room({
                     >
                       🚪 Enlever du salon
                     </button>
+                      </>
+                    )}
                   </>
                 )}
               </div>
@@ -1307,6 +1373,64 @@ export function Room({
           </div>
         </>
       )}
+
+      {/* 🎙 Le micro n'a pas pu s'ouvrir : on explique PRÉCISÉMENT pourquoi
+          et on donne le chemin qui marche même avec une bulle à l'écran. */}
+      {voice.state.micIssue && (
+        <div className="mic-help card">
+          <div className="panel-head">
+            <h2 className="card-title">
+              {voice.state.micIssue === 'overlay' ? '🎙 Autorisation bloquée' : '🎙 Micro refusé'}
+            </h2>
+            <button className="icon-btn tiny" onClick={voice.dismissMicIssue}>
+              ✕
+            </button>
+          </div>
+          {voice.state.micIssue === 'overlay' ? (
+            <>
+              <p className="hint">
+                Android a refusé d’AFFICHER la demande : une bulle flotte au-dessus de l’écran
+                (VPN, Messenger…). Ce n’est pas toi qui as refusé.
+              </p>
+              <p className="mic-help-step">
+                <b>Sans toucher au VPN</b> — touche le 🔒 à gauche de l’adresse → Autorisations →
+                Micro → Autoriser. Ça marche même avec la bulle.
+              </p>
+              <p className="mic-help-step">
+                <b>Ou</b> ferme la bulle un instant et appuie sur Réessayer. Dès que l’autorisation
+                passe, le micro s’ouvre tout seul.
+              </p>
+            </>
+          ) : (
+            <p className="hint">
+              Tu as refusé le micro pour ce site. Touche le 🔒 à gauche de l’adresse →
+              Autorisations → Micro → Autoriser, puis Réessayer.
+            </p>
+          )}
+          <div className="line-controls">
+            <button className="btn sm" onClick={() => voice.toggleMute()}>
+              Réessayer
+            </button>
+            <button className="btn ghost sm" onClick={voice.dismissMicIssue}>
+              Continuer sans micro
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 🎉 Une victoire = des confettis. Le composant se monte quand un
+          vainqueur apparaît et se démonte à la manche suivante : l'animation
+          rejoue à chaque victoire, jamais en boucle. */}
+      {(() => {
+        const winner =
+          room.matchWinnerId ??
+          (chess?.status === 'finished' ? chess.result?.winnerId : null) ??
+          (ludo?.status === 'finished' ? ludo.winnerId : null) ??
+          (room.rules.targetScore === null && game?.status === 'finished'
+            ? game.result?.winnerId
+            : null)
+        return winner ? <Confetti key={winner} /> : null
+      })()}
 
       <ConfirmBox req={confirmReq} onClose={() => setConfirmReq(null)} />
     </div>

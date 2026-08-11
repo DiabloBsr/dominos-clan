@@ -15,6 +15,9 @@ export interface RoomMemberView {
   role: Role
   isHost: boolean
   connected: boolean
+  /** Code ami (identifiant de profil) — permet « devenir amis » dans le
+      salon et l'affichage « déjà ami ». Null si profil sans identité. */
+  userId: string | null
 }
 
 export type RoomStatus = 'lobby' | 'playing' | 'finished' | 'redeal'

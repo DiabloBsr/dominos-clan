@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Chess, type Square } from 'chess.js'
 import type { ChessColor, ChessView, RoomView } from '@dominos-clan/engine'
 import { ChessPiece, type PieceType } from './ChessPieces'
 import { ConfirmBox, type ConfirmRequest } from './ConfirmBox'
-import { IconEye, MicMeter } from './Icons'
+import { IconChart, IconEye, MicMeter } from './Icons'
+
+// L'analyse embarque le moteur maison : chargée UNIQUEMENT au clic sur
+// « Analyser » — la partie entre amis reste légère.
+const MatchAnalysis = lazy(() => import('./MatchAnalysis'))
 import { playCheck, playChessCapture, playChessMove, playMate } from '../sounds'
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
@@ -117,6 +121,8 @@ export function ChessBoard({
   const myTurn = myColor !== null && view.turn === myColor && view.status === 'playing'
   const [selected, setSelected] = useState<Square | null>(null)
   const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null)
+  /** 📊 Analyse académie de la partie (après la fin). */
+  const [analysisOpen, setAnalysisOpen] = useState(false)
   /** Promotion en attente du choix de pièce (dame/tour/fou/cavalier). */
   const [promo, setPromo] = useState<{ from: Square; to: Square } | null>(null)
 
@@ -410,6 +416,11 @@ export function ChessBoard({
               ⚔️ Revanche
             </button>
           )}
+          {view.history.length > 0 && (
+            <button className="btn ghost sm" onClick={() => setAnalysisOpen(true)}>
+              <IconChart size={14} /> Analyser la partie
+            </button>
+          )}
         </div>
       )}
 
@@ -476,6 +487,26 @@ export function ChessBoard({
             <IconEye size={14} /> Dernier coup
           </button>
         </div>
+      )}
+
+      {analysisOpen && (
+        <Suspense
+          fallback={
+            <>
+              <div className="panel-veil" />
+              <div className="game-modal card">
+                <p className="hint">Chargement de l’analyse…</p>
+              </div>
+            </>
+          }
+        >
+          <MatchAnalysis
+            history={view.history}
+            names={{ w: pseudoOf(room, view.whiteId), b: pseudoOf(room, view.blackId) }}
+            defaultSide={myColor ?? 'w'}
+            onClose={() => setAnalysisOpen(false)}
+          />
+        </Suspense>
       )}
 
       <ConfirmBox req={confirmReq} onClose={() => setConfirmReq(null)} />

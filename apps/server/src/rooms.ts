@@ -109,6 +109,18 @@ export class RoomError extends Error {}
 
 const rooms = new Map<string, Room>()
 
+/**
+ * Réinsère un salon RESTAURÉ depuis un instantané joueur (après un
+ * redémarrage du serveur). Premier arrivé, premier servi : si le salon a
+ * déjà été restauré par quelqu'un d'autre, on garde l'existant.
+ */
+export function registerRestoredRoom(room: Room): Room {
+  const existing = rooms.get(room.code)
+  if (existing) return existing
+  rooms.set(room.code, room)
+  return room
+}
+
 /** Alphabet sans caractères ambigus (pas de O/0, I/1…). */
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 
@@ -903,6 +915,7 @@ export function roomView(room: Room): RoomView {
       role: room.seats.includes(m.id) ? 'player' : 'spectator',
       isHost: m.id === room.hostId,
       connected: m.connected,
+      userId: m.userId,
     })),
     seats: [...room.seats],
     queue: [...room.queue],

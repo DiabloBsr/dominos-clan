@@ -4,6 +4,10 @@ import { socket, type Ack } from './socket'
 import { useVoice } from './useVoice'
 import {
   clearSession,
+  loadSnapshot,
+  saveSnapshot,
+  loadCrew,
+  saveCrew,
   loadFriends,
   loadProfile,
   loadSession,
@@ -34,6 +38,7 @@ import {
 import { Home } from './components/Home'
 import { ChessHub } from './components/ChessHub'
 import { Learn } from './components/Learn'
+import { PuzzleGame } from './components/PuzzleGame'
 import type { LearnGame } from './learn/content'
 import { Room } from './components/Room'
 
@@ -73,8 +78,46 @@ export default function App() {
   const [learning, setLearning] = useState<LearnGame | null>(null)
   /** Coupure réseau en cours : on garde le salon à l'écran et on reprend. */
   const [reconnecting, setReconnecting] = useState(false)
+  /** Identité toujours fraîche pour les callbacks socket (re-rejoin auto). */
+  const identityRef = useRef({ pseudo: '', userId: '', avatar: '', taunt: '' })
+  /** Une seule reprise de session en vol à la fois. */
+  const resumingRef = useRef(false)
+  /** Demande d'ami reçue (salon OU par code) — boîte accepter/refuser. */
+  const [friendProposal, setFriendProposal] = useState<{
+    fromMemberId?: string
+    fromUserId?: string
+    userId: string
+    pseudo: string
+    avatar: string
+  } | null>(null)
+  /** Demandes en attente déjà relancées pour cette apparition en ligne. */
+  const proposedOnceRef = useRef(new Set<string>())
+
+  /**
+   * RÉVEIL de l'app (retour du premier plan, réseau retrouvé) : en arrière-
+   * plan, le navigateur gèle les minuteries — socket.io peut mettre de
+   * longues secondes à remarquer que sa connexion est morte, et le joueur
+   * croyait devoir sortir/re-rentrer à la main. On force la reconnexion
+   * IMMÉDIATEMENT ; la reprise de session fait le reste.
+   */
+  useEffect(() => {
+    const onWake = () => {
+      if (document.visibilityState !== 'visible') return
+      if (socket.disconnected) socket.connect()
+    }
+    document.addEventListener('visibilitychange', onWake)
+    window.addEventListener('focus', onWake)
+    window.addEventListener('online', onWake)
+    return () => {
+      document.removeEventListener('visibilitychange', onWake)
+      window.removeEventListener('focus', onWake)
+      window.removeEventListener('online', onWake)
+    }
+  }, [])
   /** Écran de modes des Échecs (solo IA / coaché / avec un ami). */
   const [chessHub, setChessHub] = useState(false)
+  /** 🧩 Puzzle solo (hors salon). */
+  const [puzzleOpen, setPuzzleOpen] = useState(false)
   const [slamFx, setSlamFx] = useState<{ key: number; pseudo: string; taunt: string } | null>(null)
   const [passFx, setPassFx] = useState<{ key: number; pseudo: string; cry: number } | null>(null)
   const [ludoRollFx, setLudoRollFx] = useState<{ player: number; value: number; key: number } | null>(
@@ -355,6 +398,40 @@ export default function App() {
       playInvite()
       setInvite(inv)
     }
+    // 🤝 Demande d'ami reçue dans le salon → boîte accepter/refuser.
+    const onFriendProposed = (p: {
+      fromMemberId?: string
+      fromUserId?: string
+      userId: string
+      pseudo: string
+      avatar: string
+    }) => {
+      playInvite()
+      setFriendProposal(p)
+    }
+    const onFriendAccepted = (f: { userId: string; pseudo: string; avatar: string }) => {
+      // Ajoute — ou TRANSFORME l'entrée « ⏳ en attente » en ami confirmé.
+      setFriends((prev) => {
+        const entry = { id: f.userId, pseudo: f.pseudo, avatar: f.avatar }
+        const next = prev.some((x) => x.id === f.userId)
+          ? prev.map((x) => (x.id === f.userId ? entry : x))
+          : [...prev, entry]
+        saveFriends(next)
+        return next
+      })
+      showNotice(`🤝 ${f.pseudo} a accepté — vous êtes amis !`)
+    }
+    const onFriendDeclined = (f: { userId?: string; pseudo: string }) => {
+      // La demande en attente disparaît : refusé, on n'insiste pas.
+      if (f.userId) {
+        setFriends((prev) => {
+          const next = prev.filter((x) => !(x.id === f.userId && x.pending))
+          if (next.length !== prev.length) saveFriends(next)
+          return next
+        })
+      }
+      showNotice(`${f.pseudo} a décliné la demande d’ami`)
+    }
     const onKnocked = (k: { fromUserId: string; fromPseudo: string; fromAvatar: string }) => {
       playInvite()
       setKnock(k)
@@ -423,6 +500,11 @@ export default function App() {
       }
     }
 
+    // Mémoire de reprise : le dernier instantané chiffré du salon.
+    const onSnapshot = (p: { code?: unknown; blob?: unknown }) => {
+      if (typeof p?.code === 'string' && typeof p?.blob === 'string') saveSnapshot(p.code, p.blob)
+    }
+    socket.on('room:snapshot', onSnapshot)
     socket.on('room:state', onRoomState)
     socket.on('game:state', onGameState)
     socket.on('chess:state', onChessState)
@@ -431,6 +513,9 @@ export default function App() {
     socket.on('chat:message', onChatMessage)
     socket.on('presence:update', onPresence)
     socket.on('friend:invited', onInvited)
+    socket.on('friend:proposed', onFriendProposed)
+    socket.on('friend:accepted', onFriendAccepted)
+    socket.on('friend:declined', onFriendDeclined)
     socket.on('friend:knocked', onKnocked)
     socket.on('room:restarted', onRestarted)
     socket.on('room:host-changed', onHostChanged)
@@ -444,6 +529,7 @@ export default function App() {
     socket.on('game:aborted', onAborted)
     socket.on('disconnect', onDisconnect)
     return () => {
+      socket.off('room:snapshot', onSnapshot)
       socket.off('room:state', onRoomState)
       socket.off('game:state', onGameState)
       socket.off('chess:state', onChessState)
@@ -452,6 +538,9 @@ export default function App() {
       socket.off('chat:message', onChatMessage)
       socket.off('presence:update', onPresence)
       socket.off('friend:invited', onInvited)
+      socket.off('friend:proposed', onFriendProposed)
+      socket.off('friend:accepted', onFriendAccepted)
+      socket.off('friend:declined', onFriendDeclined)
       socket.off('friend:knocked', onKnocked)
       socket.off('room:restarted', onRestarted)
       socket.off('room:host-changed', onHostChanged)
@@ -483,6 +572,56 @@ export default function App() {
   )
 
   /**
+   * Renvoi AUTOMATIQUE des demandes d'ami en attente : dès que la cible
+   * apparaît EN LIGNE dans les statuts, la demande repart (le serveur
+   * re-délivre la boîte accepter/refuser). Une fois par apparition — le
+   * throttle serveur absorbe le reste.
+   */
+  useEffect(() => {
+    for (const f of friends) {
+      if (!f.pending) continue
+      const status = friendStatuses[f.id] ?? 'offline'
+      if (status === 'offline') {
+        proposedOnceRef.current.delete(f.id)
+        continue
+      }
+      if (proposedOnceRef.current.has(f.id)) continue
+      proposedOnceRef.current.add(f.id)
+      socket.emit('friend:proposeByCode', { toUserId: f.id }, () => {})
+    }
+  }, [friendStatuses, friends])
+
+  /**
+   * LIEN D'INVITATION : dominos-clan.onrender.com/j/CODE — le pote clique
+   * dans WhatsApp et atterrit DIRECTEMENT dans le salon, sans taper de code.
+   * Un lien d'invitation prime sur une vieille session d'un autre salon.
+   */
+  useEffect(() => {
+    const match = window.location.pathname.match(/^\/j\/([a-z0-9]{4})$/i)
+    if (!match) return
+    window.history.replaceState(null, '', '/')
+    const code = match[1]!.toUpperCase()
+    const session = loadSession()
+    if (session?.code === code) return // la reprise de session s'en charge
+    if (session) clearSession()
+    socket.emit(
+      'room:join',
+      { code, ...identityRef.current },
+      (res: Ack & { resumeKey?: string }) => {
+        if (res.ok && res.selfId) {
+          setSelfId(res.selfId)
+          if (res.code && res.resumeKey) {
+            saveSession({ code: res.code, memberId: res.selfId, resumeKey: res.resumeKey })
+          }
+        } else if (!res.ok && res.error !== 'Déjà dans un salon') {
+          // (le doublon StrictMode n'est pas une erreur pour l'utilisateur)
+          showNotice(res.error)
+        }
+      },
+    )
+  }, [showNotice])
+
+  /**
    * Reprise de session, au chargement ET à CHAQUE reconnexion.
    *
    * L'ancienne version sortait si `selfId` était déjà rempli. Or dans un
@@ -497,22 +636,60 @@ export default function App() {
     const tryResume = () => {
       const session = loadSession()
       if (!session) return
-      socket.emit('room:resume', session, (res: Ack) => {
-        setReconnecting(false)
-        if (res.ok && res.selfId) {
-          setSelfId(res.selfId)
-          return
-        }
-        const reason = res.ok ? null : res.error
-        // Salon disparu ou grâce dépassée : on nettoie et on revient à l'accueil.
-        clearSession()
-        setRoom(null)
-        setGame(null)
-        setChess(null)
-        setLudo(null)
-        setSelfId(null)
-        showNotice(reason ?? 'Session expirée — le salon n’existe plus')
-      })
+      // SÉRIALISÉ : une seule reprise en vol (StrictMode monte les effets en
+      // double — la 2e reprise recevait « Déjà dans un salon », que l'ancien
+      // code prenait pour un vrai échec… jusqu'à éjecter le joueur).
+      if (resumingRef.current) return
+      resumingRef.current = true
+      // L'instantané chiffré du salon part avec la demande : si le serveur a
+      // redémarré entre-temps, il restaure la partie EXACTEMENT où elle en
+      // était (scores, sièges, manche) au lieu de répondre « salon inconnu ».
+      const snapshot = loadSnapshot(session.code)
+      socket.emit(
+        'room:resume',
+        snapshot ? { ...session, snapshot } : session,
+        (res: Ack & { restored?: boolean }) => {
+          resumingRef.current = false
+          if (res.ok && res.restored) {
+            showNotice('💾 Partie restaurée — on reprend exactement où vous en étiez !')
+          }
+          setReconnecting(false)
+          if (res.ok && res.selfId) {
+            setSelfId(res.selfId)
+            return
+          }
+          const reason = res.ok ? null : res.error
+          // Doublon inoffensif (double émission, reprise déjà réussie) : on
+          // ne touche à RIEN — surtout pas à la session.
+          if (reason === 'Déjà dans un salon') return
+          // Ma PLACE a expiré (app en arrière-plan trop longtemps) mais le
+          // salon vit peut-être encore : on RE-REJOINT automatiquement avec
+          // le code — fini le « sortir puis retaper le code à la main ».
+          // (La déduplication par identité rend sa place au revenant.)
+          socket.emit(
+            'room:join',
+            { code: session.code, ...identityRef.current },
+            (jr: Ack & { resumeKey?: string }) => {
+              if (jr.ok && jr.selfId) {
+                setSelfId(jr.selfId)
+                if (jr.code && jr.resumeKey) {
+                  saveSession({ code: jr.code, memberId: jr.selfId, resumeKey: jr.resumeKey })
+                }
+                showNotice('↩️ Te revoilà dans le salon — ta place avait expiré entre-temps')
+                return
+              }
+              // Le salon n'existe vraiment plus : nettoyage, retour accueil.
+              clearSession()
+              setRoom(null)
+              setGame(null)
+              setChess(null)
+              setLudo(null)
+              setSelfId(null)
+              showNotice(reason ?? 'Session expirée — le salon n’existe plus')
+            },
+          )
+        },
+      )
     }
     tryResume()
     socket.on('connect', tryResume)
@@ -536,6 +713,17 @@ export default function App() {
     avatar: profile.avatar,
     taunt: (profile.taunt ?? '').trim(),
   }
+  // Toujours FRAÎCHE dans les callbacks socket montés une seule fois.
+  identityRef.current = identity
+
+  // Mémorise la « bande » : les amis présents dans mon salon actuel.
+  useEffect(() => {
+    if (!room || !selfId) return
+    const crew = room.members
+      .filter((m) => m.id !== selfId && m.userId && friends.some((f) => f.id === m.userId))
+      .map((m) => m.userId as string)
+    if (crew.length > 0) saveCrew(crew)
+  }, [room, selfId, friends])
 
   const leaveRoomLocal = () => {
     voice.leave()
@@ -581,14 +769,53 @@ export default function App() {
       saveProfile(p)
       setProfile(p)
     },
+    /**
+     * Demande d'ami PAR CODE — même procédure d'acceptation que dans un
+     * salon : l'autre reçoit une boîte accepter/refuser, et l'amitié n'existe
+     * que si les DEUX sont d'accord. En attendant (ou s'il est hors ligne),
+     * l'entrée reste « ⏳ demande envoyée » et repart toute seule dès qu'il
+     * apparaît en ligne.
+     */
     onAddFriend: (rawCode: string) => {
       const code = rawCode.toLowerCase()
       if (!/^[a-z0-9_-]{6,24}$/.test(code)) return showNotice('Code ami invalide')
       if (code === profile.id) return showNotice('C’est ton propre code 😄')
-      if (friends.some((f) => f.id === code)) return showNotice('Déjà dans tes amis')
-      const next = [...friends, { id: code, pseudo: '', avatar: '❔' }]
+      if (friends.some((f) => f.id === code)) return showNotice('Déjà dans tes amis (ou demande en cours)')
+      const next = [...friends, { id: code, pseudo: '', avatar: '⏳', pending: true }]
       saveFriends(next)
       setFriends(next)
+      socket.emit('friend:proposeByCode', { toUserId: code }, (res: Ack) => {
+        if (res.ok) showNotice('🤝 Demande d’ami envoyée !')
+        else if (res.error === 'hors-ligne') {
+          showNotice('⏳ Il est hors ligne — la demande partira dès qu’il se connectera')
+        } else showNotice(res.error)
+      })
+    },
+    /**
+     * 🔥 Relancer la bande : recrée un salon et re-invite d'un coup tous les
+     * amis qui étaient dans le DERNIER salon.
+     */
+    onRelaunchCrew: (gameType: GameRules['gameType']) => {
+      const crew = loadCrew().filter((id) => friends.some((f) => f.id === id && !f.pending))
+      socket.emit('room:create', { ...identity }, (res: Ack & { resumeKey?: string }) => {
+        if (!res.ok || !res.selfId) {
+          if (!res.ok) showNotice(res.error)
+          return
+        }
+        setSelfId(res.selfId)
+        if (res.code && res.resumeKey) {
+          saveSession({ code: res.code, memberId: res.selfId, resumeKey: res.resumeKey })
+        }
+        if (gameType !== 'dominos') socket.emit('room:rules', { gameType }, () => {})
+        for (const id of crew) socket.emit('friend:invite', { toUserId: id }, () => {})
+        showNotice(`🔥 Salon relancé — ${crew.length} invitation${crew.length > 1 ? 's' : ''} envoyée${crew.length > 1 ? 's' : ''} !`)
+      })
+    },
+    /** 🤝 Depuis le salon : proposer à un co-joueur de devenir amis. */
+    onProposeFriend: (memberId: string) => {
+      socket.emit('friend:propose', { memberId }, (res: Ack) => {
+        showNotice(res.ok ? '🤝 Demande d’ami envoyée !' : res.error)
+      })
     },
     onRemoveFriend: (id: string) => {
       const next = friends.filter((f) => f.id !== id)
@@ -683,6 +910,53 @@ export default function App() {
           📡 Connexion perdue — on te remet dans la partie…
         </div>
       )}
+      {/* 🤝 Demande d'ami reçue dans le salon : accepter remplit les DEUX
+          carnets d'un coup (le serveur prévient l'autre côté). */}
+      {friendProposal && (
+        <div className="invite-toast">
+          <span>
+            {friendProposal.avatar} <b>{friendProposal.pseudo}</b> veut devenir ton ami
+          </span>
+          <button
+            className="btn sm"
+            onClick={() => {
+              const p = friendProposal
+              setFriendProposal(null)
+              setFriends((prev) => {
+                const entry = { id: p.userId, pseudo: p.pseudo, avatar: p.avatar }
+                const next = prev.some((x) => x.id === p.userId)
+                  ? prev.map((x) => (x.id === p.userId ? entry : x))
+                  : [...prev, entry]
+                saveFriends(next)
+                return next
+              })
+              // La réponse suit le canal d'arrivée : salon ou code ami.
+              if (p.fromMemberId) {
+                socket.emit('friend:respond', { toMemberId: p.fromMemberId, accept: true }, () => {})
+              } else if (p.fromUserId) {
+                socket.emit('friend:respondByCode', { toUserId: p.fromUserId, accept: true }, () => {})
+              }
+              showNotice(`🤝 ${p.pseudo} et toi êtes maintenant amis !`)
+            }}
+          >
+            🤝 Accepter
+          </button>
+          <button
+            className="btn ghost sm"
+            onClick={() => {
+              const p = friendProposal
+              setFriendProposal(null)
+              if (p.fromMemberId) {
+                socket.emit('friend:respond', { toMemberId: p.fromMemberId, accept: false }, () => {})
+              } else if (p.fromUserId) {
+                socket.emit('friend:respondByCode', { toUserId: p.fromUserId, accept: false }, () => {})
+              }
+            }}
+          >
+            Refuser
+          </button>
+        </div>
+      )}
       {invite && (
         <div className="invite-toast">
           <span>
@@ -717,7 +991,9 @@ export default function App() {
           </button>
         </div>
       )}
-      {learning && !room ? (
+      {puzzleOpen && !room ? (
+        <PuzzleGame onBack={() => setPuzzleOpen(false)} />
+      ) : learning && !room ? (
         <Learn game={learning} onBack={() => setLearning(null)} />
       ) : chessHub && !room ? (
         <ChessHub
@@ -743,6 +1019,7 @@ export default function App() {
           voice={voice}
           friends={friends}
           friendStatuses={friendStatuses}
+          myUserId={profile.id}
           slamFx={slamFx}
           passFx={passFx}
           ludoRollFx={ludoRollFx}
@@ -765,6 +1042,9 @@ export default function App() {
           onJoin={handlers.onJoin}
           onLearn={(g) => setLearning(g)}
           onChessHub={() => setChessHub(true)}
+          onPuzzle={() => setPuzzleOpen(true)}
+          crewCount={loadCrew().filter((id) => friends.some((f) => f.id === id && !f.pending)).length}
+          onRelaunchCrew={handlers.onRelaunchCrew}
         />
       )}
     </div>
