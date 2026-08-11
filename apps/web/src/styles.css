@@ -4445,6 +4445,11 @@ section.game {
   display: block;
 }
 
+.solo-link {
+  margin: 0.1rem auto 0;
+  display: block;
+}
+
 .puzzle-scenes {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));

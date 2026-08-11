@@ -12,6 +12,13 @@ import {
   type Profile,
 } from '../profile'
 
+/**
+ * Fonctions EN CHANTIER : visibles uniquement quand on joue depuis la
+ * machine de développement. Sur dominos-clan.onrender.com (et donc dans
+ * l'APK, qui charge ce même site), elles n'apparaissent pas.
+ */
+const LOCAL_ONLY = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname)
+
 const GAMES: Array<{
   type: GameRules['gameType']
   emoji: string
@@ -119,17 +126,9 @@ export function Home({
         </button>
       )}
 
+      {/* L'accueil ne montre que les TROIS jeux du Clan : dominos, échecs,
+          ludo. Le puzzle (solo) vit sous la tagline, en second plan. */}
       <div className="hub-games">
-        {/* 🧩 Puzzle : solo, hors-ligne — duel entre amis à venir. */}
-        <button
-          className="game-card learn-card"
-          style={{ ['--i' as string]: -1 }}
-          onClick={onPuzzle}
-        >
-          <span className="game-emoji">🧩</span>
-          <span className="game-name">Puzzle</span>
-          <span className="game-tag">12 à 96 pièces</span>
-        </button>
         {GAMES.map((g, i) => (
           <button
             key={g.type}
@@ -214,6 +213,15 @@ export function Home({
       )}
 
       <p className="hint">2 à 4 à table · jusqu’à 20 en file · le gagnant reste 👑</p>
+
+      {/* 🧩 Puzzle : EN CHANTIER — visible seulement quand on développe en
+          local. La version publique (et donc l'APK) s'en tient aux trois
+          jeux du Clan : dominos, échecs, ludo. */}
+      {LOCAL_ONLY && (
+        <button className="btn ghost sm solo-link" onClick={onPuzzle}>
+          🧩 Puzzle solo — 367 images, 12 à 96 pièces
+        </button>
+      )}
 
       {profileOpen && (
         <>
